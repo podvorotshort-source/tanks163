@@ -3,6 +3,7 @@
 // параметром — так делаются мигающие «бонусные» и элитные варианты.
 
 import type { RampId } from '../palette';
+import { BOSS_ART } from './bosses';
 import {
   type Layer, type SpriteDef, rect, circ, ell, poly, cap, ring, sym, transformLayers,
   texTreads, texStripesY, texStripesX, texSpeckle,
@@ -385,5 +386,5 @@ export const UNIT_ART: Record<string, UnitArt> = {
 };
 
 export function unitArt(id: string): UnitArt {
-  return UNIT_ART[id] ?? UNIT_ART.toyTank;
+  return UNIT_ART[id] ?? BOSS_ART[id] ?? UNIT_ART.toyTank;
 }

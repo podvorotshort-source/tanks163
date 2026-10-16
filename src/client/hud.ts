@@ -45,7 +45,8 @@ export class Hud {
     if (this.bossShown > 0) this.bossShown -= dt;
   }
 
-  draw(ctx: CanvasRenderingContext2D, sim: Sim, cam: Camera, W: number, H: number, fps: number): void {
+  draw(ctx: CanvasRenderingContext2D, sim: Sim, cam: Camera, W: number, H: number, fps: number, minimal = false): void {
+    if (minimal) { this.drawBanners(ctx, W, H); return; }
     // Красная вспышка по краям при уроне.
     const hf = Math.max(...this.hurtFlash);
     if (hf > 0) {

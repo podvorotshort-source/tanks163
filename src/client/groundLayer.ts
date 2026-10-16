@@ -181,6 +181,12 @@ export class GroundLayer {
     for (const [k, ch] of this.chunks) if (this.frame - ch.used > 300) this.chunks.delete(k);
   }
 
+  /** Нарисовать все декали в холст с масштабом (пикселей на единицу). */
+  drawDecalsInto(c: HTMLCanvasElement, zq: number): void {
+    const fake: Chunk = { c, ctx: c.getContext('2d')!, zq, cx: 0, cy: 0, used: 0 };
+    for (const dc of this.decals) drawDecal(fake, dc);
+  }
+
   /** Картинка всей арены с декалями (для снимка-реликвии). */
   snapshot(w: number, h: number, pxW: number, pxH: number): HTMLCanvasElement {
     const c = makeCanvas(pxW, pxH);

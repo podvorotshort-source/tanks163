@@ -63,8 +63,10 @@ class Painter {
 
 interface TransitionFx {
   from: number;
-  /** Снимок старой арены (1 px = G старых единиц). */
+  /** Снимок старой арены (1 px = G старых единиц) — без препятствий (реликвия). */
   snap: Painter;
+  /** Снимок с препятствиями — для кинематографичного отъезда. */
+  snapFull: HTMLCanvasElement | null;
   /** Обзор нового мира (1 px = 4 новых единицы). */
   overview: Painter;
   ovX0: number;
@@ -343,24 +345,34 @@ export class GameScene implements Scene {
     const sw = Math.round(old.w / G), sh = Math.round(old.h / G);
     const relicPrev = ground.relic;
     const props = sim.props.props.filter(p => !p.dead);
+    const fx: TransitionFx = { snapFull: null } as unknown as TransitionFx;
     const snap = new Painter(sw, sh, (x, y) => {
       return groundAt(from, (x + 0.5) * G, (y + 0.5) * G, 1 / G);
     }, ctx => {
       ctx.imageSmoothingEnabled = false;
       if (relicPrev) ctx.drawImage(relicPrev.canvas, relicPrev.x0 / G, relicPrev.y0 / G, relicPrev.w / G, relicPrev.h / G);
+      // Воронки и гарь прежней арены остаются на «реликвии».
+      ground.drawDecalsInto(snap.canvas, 1 / G);
+      // Для кинематографичного отъезда — копия с препятствиями (в игре они станут настоящими).
+      const full = makeCanvas(sw, sh);
+      const fc = full.getContext('2d')!;
+      fc.imageSmoothingEnabled = false;
+      fc.drawImage(snap.canvas, 0, 0);
       for (const p of props) {
         const img = rasterize(propDef(p.kind, p.w, p.h, p.v), 1 / G, 0, 0);
         const c = makeCanvas(img.w, img.h);
         c.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(img.data.buffer as ArrayBuffer), img.w, img.h), 0, 0);
-        ctx.drawImage(c, Math.round(p.x / G - img.w / 2), Math.round(p.y / G - img.h / 2));
+        fc.drawImage(c, Math.round(p.x / G - img.w / 2), Math.round(p.y / G - img.h / 2));
       }
+      fx.snapFull = full;
+      void ctx;
     });
     // Обзор нового мира вокруг: 1 px = 4 новых ед.
     const ovW = next.w * 1.5, ovH = next.h * 1.5;
     const ovX0 = next.w / 2 - ovW / 2, ovY0 = next.h / 2 - ovH / 2;
     const k = 4;
     const overview = new Painter(Math.round(ovW / k), Math.round(ovH / k), (x, y) => groundAt(from + 1, ovX0 + (x + 0.5) * k, ovY0 + (y + 0.5) * k, 1 / k));
-    return { from, snap, overview, ovX0, ovY0, ovW, ovH, startZoom: this.cam.zoom, evolved: false, titled: false, revealed: false };
+    return Object.assign(fx, { from, snap, overview, ovX0, ovY0, ovW, ovH, startZoom: this.cam.zoom, evolved: false, titled: false, revealed: false });
   }
 
   private transitionCamera(dt: number): void {
@@ -464,8 +476,7 @@ export class GameScene implements Scene {
     });
     // Виньетка.
     vignette(ctx, W, H);
-    if (sim.state !== 'transition' || (tr && tr.t > 7.6)) this.hud.draw(ctx, sim, this.cam, W, H, app.fps);
-    else this.hud.draw(ctx, { ...sim, players: [], boss: null } as unknown as Sim, this.cam, W, H, app.fps);
+    this.hud.draw(ctx, sim, this.cam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
     if (sim.state === 'levelup') this.levelUI.draw(ctx, sim, W, H);
     if (this.pause.open) this.pause.draw(ctx, W, H, sim);
     if ((sim.state === 'gameover' || sim.state === 'victory') && this.endT > 1.5) {
@@ -504,7 +515,7 @@ export class GameScene implements Scene {
     if (T.snap.done) {
       const [x0, y0] = toCur(next.relicX - old.w / G / 2, next.relicY - old.h / G / 2);
       const w = (old.w / G) * k * cam.zoom, h = (old.h / G) * k * cam.zoom;
-      ctx.drawImage(T.snap.canvas, Math.round(cam.sxOf(x0)), Math.round(cam.syOf(y0)), Math.round(w), Math.round(h));
+      ctx.drawImage(T.snapFull ?? T.snap.canvas, Math.round(cam.sxOf(x0)), Math.round(cam.syOf(y0)), Math.round(w), Math.round(h));
       // Подсветка прежней арены, пока она мала.
       if (w < cam.w * 0.6) {
         ctx.globalAlpha = 0.6 + 0.4 * Math.sin(this.time * 4);

@@ -88,6 +88,28 @@ if (which === 'enemies') {
   console.log('tools/out/enemies.png');
 }
 
+if (which === 'bosses') {
+  const ids = ['bossGeneral', 'bossTyrant', 'bossVacuum', 'bossFridge', 'bossRoller', 'bossSky', 'bossTitan', 'bossEater'];
+  const cell = 150;
+  const sheet = new Sheet(cell * 4, cell * 2);
+  ids.forEach((id, i) => {
+    const art = unitArt(id);
+    const k = 1.2;
+    const cx = (i % 4) * cell + cell / 2, cy = Math.floor(i / 4) * cell + cell / 2;
+    const h = rasterize(art.hull(art.ramp), k, -0.3, 0);
+    sheet.blit(h, cx - h.w / 2, cy - h.h / 2, 1);
+    if (art.turret) {
+      const t = rasterize(art.turret(art.ramp), k, -0.1, 0);
+      const [px, py] = art.pivot ?? [0, 0];
+      const ox = Math.round((px * Math.cos(-0.3) - py * Math.sin(-0.3)) * k), oy = Math.round((px * Math.sin(-0.3) + py * Math.cos(-0.3)) * k);
+      sheet.blit(t, cx + ox - t.w / 2, cy + oy - t.h / 2, 1);
+    }
+    if (art.rotor) { const r = rasterize(art.rotor(art.ramp), k * (id === 'bossVacuum' ? 0.4 : 1), 0.4, 0); sheet.blit(r, cx - r.w / 2, cy - r.h / 2, 1); }
+  });
+  sheet.save('tools/out/bosses.png');
+  console.log('tools/out/bosses.png');
+}
+
 if (which === 'props') {
   const items: [string, number, number, number][] = [
     ['brick', 8, 8, 0], ['brick', 8, 8, 1], ['steel', 16, 16, 0], ['bush', 16, 16, 1], ['water', 48, 32, 0], ['toyCube', 48, 48, 2], ['crate', 30, 30, 0], ['hq', 44, 44, 0],

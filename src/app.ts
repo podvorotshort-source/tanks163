@@ -25,6 +25,7 @@ export class App {
   /** Ускорение времени (только для отладки/тестов). */
   timeScale = 1;
   paused = false;
+  errors = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.screen = new Screen(canvas);
@@ -60,7 +61,13 @@ export class App {
     const loop = (now: number) => {
       const real = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
       this.last = now;
-      this.frame(real);
+      try {
+        this.frame(real);
+      } catch (e) {
+        // Сбой одного кадра не должен останавливать игру.
+        this.errors++;
+        if (this.errors < 20) console.error(e);
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);

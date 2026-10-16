@@ -9,7 +9,7 @@ import {
 import { Player, Enemy, Shot, Mine, Zone, Pickup, Drone, type WeaponInst } from './entities';
 import { CLASSES, ABILITIES } from './content/classes';
 import { STAGE_DEFS, type StageDef } from './content/stages';
-import { PropWorld, type Prop } from './props';
+import { PropWorld, MATS, makeProp, type Prop } from './props';
 import { NavGrid } from './nav';
 import { FireGrid } from './fire';
 import { SpatialHash } from './spatial';
@@ -532,7 +532,14 @@ export class Sim {
       const map = (x: number, y: number): [number, number] => [next.relicX + (x - old.w / 2) / G, next.relicY + (y - old.h / 2) / G];
       for (const p of this.players) { [p.x, p.y] = map(p.x, p.y); p.px = p.x; p.py = p.y; }
       [this.viewX, this.viewY] = map(this.viewX, this.viewY);
+      // Препятствия прежней арены переезжают в новый мир уменьшенными — их можно давить.
+      const carry = this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
       this.setupStage(tr.from + 1, tr);
+      for (const p of carry) {
+        const [x, y] = map(p.x, p.y);
+        this.props.add(makeProp(p.kind, p.mat, x, y, p.w / G, p.h / G, p.hp, { round: p.round, v: p.v, a: p.a }));
+      }
+      this.nav.rebuildBlocked(this.props);
       for (const p of this.players) { p.px = p.x; p.py = p.y; }
       // Камера ровно над игроками.
     }

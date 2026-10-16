@@ -82,7 +82,7 @@ export function killEnemy(sim: Sim, e: Enemy, owner: number, w: WeaponId | '', c
   // Синергии при гибели.
   if (p) {
     if (e.burnT > 0 && p.mods.has('syn_pyre')) {
-      explode(sim, e.x, e.y, Math.max(e.size * 0.9, sim.size * 0.7), 20 * sim.tankPower() * p.stats.dmg, 'he', owner, '', { kind: 'fire', knock: 0.5 });
+      explode(sim, e.x, e.y, Math.max(e.size * 1.3, sim.size * 0.9) * p.stats.blast, 20 * sim.tankPower() * p.stats.dmg, 'he', owner, '', { kind: 'fire', knock: 0.5 });
     }
     if (w === 'tesla' && p.mods.has('ts_overload')) {
       chainLightning(sim, e.x, e.y, null, 2, sim.size * 2.4, 10 * sim.tankPower() * p.stats.dmg, 0.2, owner);

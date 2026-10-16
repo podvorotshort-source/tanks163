@@ -6,6 +6,7 @@ import { STAGE_DEFS } from '../src/sim/content/stages';
 import { save, sanitize, defaultSave, SAVE_KEY } from '../src/meta/save';
 import { storage } from '../src/meta/storage';
 import { WORKSHOP } from '../src/meta/meta';
+import { baseStats } from '../src/sim/entities';
 
 describe('переход между масштабами', () => {
   it('танк не меняет абсолютный размер, мир становится крупнее', () => {
@@ -101,6 +102,6 @@ describe('сохранения', () => {
     expect(p.mods.size).toBe(0);
     expect(p.stats.dmg).toBeCloseTo(1, 6);
     expect(p.lives).toBe(4);
-    expect(p.stats.maxHp).toBeCloseTo(1.18, 6);
+    expect(p.stats.maxHp).toBeCloseTo(baseStats(p.cls).maxHp + 0.18, 6);
   });
 });

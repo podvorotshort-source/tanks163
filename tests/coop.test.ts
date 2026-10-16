@@ -106,7 +106,8 @@ describe('опыт и уровни', () => {
 
   it('общий уровень: пауза, каждый выбирает своё, игра идёт после выбора обоих', () => {
     const sim = makeSim();
-    sim.gainXp(sim.xpNeed() + 0.1);
+    // Вдвоём опыт за врага делится на множитель числа игроков.
+    sim.gainXp((sim.xpNeed() + 0.1) * sim.director.playersFactor());
     expect(sim.state).toBe('levelup');
     expect(sim.levelUp!.offers.length).toBe(2);
     const t = sim.time;

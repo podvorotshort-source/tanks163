@@ -496,9 +496,14 @@ export class Sim {
   // Босс и переход между масштабами
   // -------------------------------------------------------------------------
 
+  /** Побеждённые боссы этого забега (id). */
+  defeated: string[] = [];
+  abandoned = false;
+
   onBossKilled(b: Enemy): void {
     this.bossDefeated = true;
     this.bossesKilled++;
+    this.defeated.push(this.stage.boss);
     this.boss = null;
     this.emit({ t: 'bossDead', x: b.x, y: b.y });
     // Рост танка при переходе не меняется: раскрывается мир, а не танк.

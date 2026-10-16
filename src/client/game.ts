@@ -193,7 +193,7 @@ export class GameScene implements Scene {
     if (this.onEnd) {
       const cb = this.onEnd;
       this.onEnd = null;
-      (this.sim as unknown as { abandoned: boolean }).abandoned = abandoned;
+      this.sim.abandoned = abandoned;
       cb(this.sim);
     }
   }

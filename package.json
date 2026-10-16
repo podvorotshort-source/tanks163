@@ -1,0 +1,24 @@
+{
+  "name": "tankorost",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sim": "tsx tools/sim.ts",
+    "e2e": "tsx e2e/run.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "playwright": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^5.0.5"
+  }
+}

@@ -12,6 +12,8 @@ export interface Scene {
   exit?(): void;
   /** Сцена прозрачна — под ней рисуется предыдущая (для оверлеев). */
   overlay?: boolean;
+  /** Имя сцены (для тестов). */
+  readonly id?: string;
 }
 
 export class App {

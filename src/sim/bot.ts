@@ -85,8 +85,8 @@ export function botCommand(sim: Sim, p: Player, o: BotOpts): PlayerCmd {
 export function defaultPick(p: Player, c: Card): number {
   let s = Math.random() * 0.5;
   switch (c.kind) {
-    case 'wlevel': s += c.id.endsWith(p.weapons[0].id) ? 3 : 2.4; break;
-    case 'weapon': s += p.weapons.length < 3 ? 3.2 : 2; break;
+    case 'wlevel': s += c.id.endsWith(p.weapons[0].id) ? 3.4 : 2.8; break;
+    case 'weapon': s += p.weapons.length < 2 ? 3.2 : p.weapons.length < 4 ? 2.2 : 1.4; break;
     case 'synergy': s += 4; break;
     case 'mod': s += 2.8; break;
     case 'stat': s += 1.6 + c.rarity * 0.4; break;

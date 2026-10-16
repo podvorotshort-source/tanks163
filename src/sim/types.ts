@@ -20,13 +20,13 @@ export const DT = 1 / 60;
 
 /** Эффективность типа урона против класса брони. */
 export const EFFECT: Record<DmgType, Record<ArmorClass, number>> = {
-  mg: { light: 1.5, medium: 0.6, heavy: 0.25, air: 1.2, structure: 0.3 },
-  ap: { light: 0.7, medium: 1.3, heavy: 1.7, air: 0.8, structure: 0.8 },
-  he: { light: 1.2, medium: 0.9, heavy: 0.5, air: 0.6, structure: 1.8 },
+  mg: { light: 1.5, medium: 0.75, heavy: 0.45, air: 1.2, structure: 0.45 },
+  ap: { light: 0.75, medium: 1.3, heavy: 1.6, air: 0.85, structure: 0.9 },
+  he: { light: 1.2, medium: 0.95, heavy: 0.7, air: 0.7, structure: 1.6 },
   rocket: { light: 1.0, medium: 1.0, heavy: 0.9, air: 1.3, structure: 1.2 },
-  fire: { light: 1.5, medium: 0.8, heavy: 0.4, air: 0.3, structure: 0.6 },
+  fire: { light: 1.5, medium: 0.9, heavy: 0.6, air: 0.35, structure: 0.7 },
   mine: { light: 1.0, medium: 1.2, heavy: 1.1, air: 0, structure: 0.5 },
-  tesla: { light: 1.0, medium: 1.0, heavy: 0.6, air: 1.5, structure: 0.4 },
+  tesla: { light: 1.0, medium: 1.0, heavy: 0.75, air: 1.5, structure: 0.6 },
   ram: { light: 1.2, medium: 1.0, heavy: 0.8, air: 0, structure: 1.5 },
   crush: { light: 1, medium: 1, heavy: 1, air: 0, structure: 1 },
   true: { light: 1, medium: 1, heavy: 1, air: 1, structure: 1 },

@@ -24,10 +24,11 @@ import { groundAt } from '../gfx/art/ground';
 import { propDef } from '../gfx/art/props';
 import { rasterize } from '../gfx/raster';
 import { easeInOutCubic, clamp } from '../core/math';
-import { setDisplayTier, TIER_NAMES, TIER_ROMAN } from './tiers';
+import { setDisplayTier, tierOf, TIER_NAMES, TIER_ROMAN } from './tiers';
 import { PauseMenu } from './pause';
 import { settings } from '../meta/settings';
 import { emitExplosion, emitKill, emitPropBreak, emitShot, emitHit, emitAbility } from './effects';
+import { Ending } from './ending';
 
 /** Постепенная отрисовка картинки поверхности (чтобы не было подвисаний). */
 class Painter {
@@ -80,6 +81,7 @@ interface TransitionFx {
 }
 
 export class GameScene implements Scene {
+  readonly id = 'game';
   sim: Sim;
   cam = new Camera();
   ground = new GroundLayer();
@@ -96,6 +98,7 @@ export class GameScene implements Scene {
   /** Колбэк по окончании забега (результаты). */
   onEnd: ((sim: Sim) => void) | null = null;
   private zoomSmooth = 1;
+  private pend: [boolean, boolean, boolean][] = [[false, false, false], [false, false, false]];
 
   constructor(cfg: RunConfig) {
     this.sim = new Sim(cfg);
@@ -116,6 +119,16 @@ export class GameScene implements Scene {
 
   exit(): void {
     music.stop();
+    audio.stopEngines();
+  }
+
+  private engineSound(): void {
+    const sim = this.sim;
+    const running = sim.state === 'play' && !this.pause.open;
+    sim.players.forEach((p, i) => {
+      const sp = Math.hypot(p.vx, p.vy) / Math.max(1, p.cls.speed * sim.size);
+      audio.engine(i, sp, tierOf(sim.stageIdx), running && p.state === 'alive', this.pan(p.x));
+    });
   }
 
   private gameplayZoom(): number {
@@ -145,12 +158,14 @@ export class GameScene implements Scene {
     this.time += dt;
     this.hud.update(dt);
     if (this.pause.open) {
+      this.engineSound();
       const r = this.pause.update(dt);
       if (r === 'quit') this.finish(true);
       return;
     }
     if (input.menu.pressed.pause && sim.state !== 'levelup') { this.pause.show(); audio.play('select'); return; }
     if (sim.state === 'levelup') {
+      this.engineSound();
       this.levelUI.update(sim, dt);
       this.fx.update(dt * 0.15);
       return;
@@ -159,15 +174,22 @@ export class GameScene implements Scene {
     let rate = 1;
     if (sim.state === 'transition' && sim.transition && sim.transition.t < 1.2) rate = 0.45;
     this.acc += dt * rate;
+    // Нажатия копятся до ближайшего шага симуляции (на 120–144 Гц шаг бывает не в каждом кадре).
+    sim.players.forEach((_, i) => {
+      const f = input.players[i];
+      if (f.pressed.a1) this.pend[i][0] = true;
+      if (f.pressed.a2) this.pend[i][1] = true;
+      if (f.pressed.a3) this.pend[i][2] = true;
+    });
     let steps = 0;
     while (this.acc >= DT && steps < 5) {
       const cmds: PlayerCmd[] = sim.players.map((_, i) => {
         const f = input.players[i];
-        return { mx: f.moveX, my: f.moveY, a: [f.pressed.a1, f.pressed.a2, f.pressed.a3] };
+        return { mx: f.moveX, my: f.moveY, a: [this.pend[i][0], this.pend[i][1], this.pend[i][2]] };
       });
       sim.step(cmds);
       this.handleEvents(sim.events);
-      if (steps === 0) input.consumePressed();
+      if (steps === 0) { input.consumePressed(); this.pend = [[false, false, false], [false, false, false]]; }
       this.acc -= DT;
       steps++;
       if ((sim.state as string) === 'levelup') { this.acc = 0; break; }
@@ -183,11 +205,21 @@ export class GameScene implements Scene {
       this.syncCamera(Math.min(1, dt * 5));
     }
     this.cam.update(dt, settings.data.shake);
-    if (sim.state === 'gameover' || sim.state === 'victory') {
+    this.engineSound();
+    if (sim.state === 'gameover') {
       this.endT += dt;
       if (this.endT > 3.2) this.finish(false);
     }
+    if (sim.state === 'victory') {
+      this.endT += dt;
+      if (!this.ending) this.ending = new Ending(sim);
+      if (this.endT > 1.5) this.ending.prepare(4);
+      if (this.endingDone || (this.endT > 10 && (input.menu.pressed.a1 || input.mouse.clicked))) this.finish(false);
+    }
   }
+
+  private ending: Ending | null = null;
+  private endingDone = false;
 
   private finish(abandoned: boolean): void {
     if (this.onEnd) {
@@ -479,13 +511,25 @@ export class GameScene implements Scene {
     this.hud.draw(ctx, sim, this.cam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
     if (sim.state === 'levelup') this.levelUI.draw(ctx, sim, W, H);
     if (this.pause.open) this.pause.draw(ctx, W, H, sim);
-    if ((sim.state === 'gameover' || sim.state === 'victory') && this.endT > 1.5) {
+    if (sim.state === 'gameover' && this.endT > 1.5) {
       ctx.globalAlpha = Math.min(1, (this.endT - 1.5) / 1.5);
       ctx.fillStyle = '#07060b';
       ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
+    if (sim.state === 'victory' && this.ending && this.endT > 2.5) {
+      // Финал: планета — глобус на столе.
+      if (this.ending.draw(ctx, W, H, app.time - this.lastEndDraw > 0.2 ? 0 : app.time - this.lastEndDraw)) this.endingDone = true;
+      this.lastEndDraw = app.time;
+    } else if (sim.state === 'victory' && this.endT > 1.5) {
+      ctx.globalAlpha = Math.min(1, (this.endT - 1.5));
+      ctx.fillStyle = '#07060b';
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
   }
+
+  private lastEndDraw = 0;
 
   private chunkAlpha(T: TransitionFx): number {
     const tr = this.sim.transition!;

@@ -81,7 +81,7 @@ export class Director {
   targetAlive(): number {
     const s = this.sim, st = s.stageTime, B = s.stage.bossAt;
     const k = Math.pow(Math.min(st, B) / B, 1.1);
-    let n = (10 + 58 * k) * this.playersFactor() * (1 + 0.12 * s.threat);
+    let n = (10 + 38 * k) * this.playersFactor() * (1 + 0.15 * s.threat);
     if (s.boss) n *= 0.4;
     if (st < 6) n *= st / 6;
     return Math.round(n);

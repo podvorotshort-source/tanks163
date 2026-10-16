@@ -148,7 +148,7 @@ export function enemyExplode(sim: Sim, x: number, y: number, r: number, dmg: num
     const d = Math.hypot(p.x - x, p.y - y);
     if (d > r + p.r) continue;
     const fall = 1 - 0.5 * Math.min(1, Math.max(0, d - p.r) / r);
-    damagePlayer(sim, p, dmg * fall);
+    damagePlayer(sim, p, dmg * fall, 'boom:' + kind);
   }
   if (breakProps) {
     sim.props.queryCircle(x, y, r * 0.7, tmpP);
@@ -175,7 +175,7 @@ export function breakProp(sim: Sim, pr: Prop): void {
 }
 
 /** Урон игроку от врага. */
-export function damagePlayer(sim: Sim, p: Player, dmg: number): number {
+export function damagePlayer(sim: Sim, p: Player, dmg: number, src = '?'): number {
   if (p.state !== 'alive' || p.invulnT > 0 || p.dashT > 0 || p.fortressT > 0 || sim.helmetT > 0) return 0;
   let k = 1 - p.stats.armor;
   if (p.inSmoke) k *= 0.5;
@@ -185,6 +185,7 @@ export function damagePlayer(sim: Sim, p: Player, dmg: number): number {
   p.hp -= d;
   p.hurtT = 0.25;
   p.damageTaken += d;
+  if (sim.dmgLog) sim.dmgLog.set(src, (sim.dmgLog.get(src) ?? 0) + d / p.maxHp);
   sim.emit({ t: 'hurt', p: p.idx, dmg: d });
   if (p.hp <= 0) downPlayer(sim, p);
   return d;

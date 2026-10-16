@@ -21,6 +21,7 @@ for (let r = 0; r < runs; r++) {
   const seed = seed0 + r;
   const cfg: RunConfig = { seed, players: classes.map(c => ({ cls: c })), startStage };
   const sim = new Sim(cfg);
+  sim.dmgLog = new Map();
   const t0 = Date.now();
   let deaths = 0;
   const stageLog: string[] = [];
@@ -49,7 +50,8 @@ for (let r = 0; r < runs; r++) {
     build: sim.players.map(p => `${p.classId}: ` + p.weapons.map(w => `${WEAPONS[w.id].name.split(' ')[0]} ${w.level}`).join(', ') + ' | ' + [...p.mods].join(',')),
   };
   results.push(res);
-  console.log(`run ${r} seed ${seed}: ${res.win ? 'ПОБЕДА' : 'поражение'} ступень ${res.stage}, ${res.time}s, ур ${res.level}, убийств ${res.kills}, потерь жизней ${deaths}, ${(Date.now() - t0) / 1000}s CPU`);
+  console.log(`run ${r} seed ${seed}: ${res.win ? 'ПОБЕДА' : sim.state === 'gameover' ? 'поражение' : 'лимит времени'} ступень ${res.stage}, ${res.time}s, ур ${res.level}, убийств ${res.kills}, потерь жизней ${deaths}, ${(Date.now() - t0) / 1000}s CPU`);
   for (const s of stageLog) console.log('   ', s);
   for (const b of res.build) console.log('   ', b);
+  console.log('    урон по источникам (в макс. прочностях):', [...sim.dmgLog!.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', '));
 }

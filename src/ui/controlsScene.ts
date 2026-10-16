@@ -10,6 +10,7 @@ import { drawControls } from './controlsView';
 import { menuBackground } from './widgets';
 
 export class ControlsScene implements Scene {
+  readonly id = 'controls';
   t = 0;
   constructor(private back: () => Scene) {}
 

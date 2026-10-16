@@ -13,6 +13,7 @@ import { audio } from '../audio/audio';
 const c01 = (v: number) => Math.max(0, Math.min(1, Math.round(v * 10) / 10));
 
 export class SettingsScene implements Scene {
+  readonly id = 'settings';
   t = 0;
   menu: VMenu;
   confirmReset = false;

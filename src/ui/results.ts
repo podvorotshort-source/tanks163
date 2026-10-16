@@ -21,6 +21,7 @@ import { startRun } from './flow';
 import { iconCanvas } from '../gfx/art/icons';
 
 export class ResultsScene implements Scene {
+  readonly id = 'results';
   t = 0;
   scrap: number;
   win: boolean;

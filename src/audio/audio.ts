@@ -136,6 +136,45 @@ class AudioEngine {
     s.stop(t + dur + 0.02);
   }
 
+  private engines: ({ osc: OscillatorNode; osc2: OscillatorNode; f: BiquadFilterNode; g: GainNode; pan: StereoPannerNode } | null)[] = [null, null];
+
+  /**
+   * Гул двигателя танка: громкость и высота от скорости, с поколением — ниже и мощнее.
+   * active=false — заглушить.
+   */
+  engine(i: number, speed01: number, tier: number, active: boolean, pan = 0): void {
+    const ac = this.ac;
+    if (!ac || !this.sfxBus) return;
+    let e = this.engines[i];
+    if (!e) {
+      if (!active) return;
+      const osc = ac.createOscillator(), osc2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain(), p = ac.createStereoPanner();
+      osc.type = 'sawtooth'; osc2.type = 'square';
+      f.type = 'lowpass'; f.frequency.value = 300; f.Q.value = 4;
+      g.gain.value = 0;
+      osc.connect(f); osc2.connect(f); f.connect(g); g.connect(p); p.connect(this.sfxBus);
+      osc.start(); osc2.start();
+      e = this.engines[i] = { osc, osc2, f, g, pan: p };
+    }
+    const t = ac.currentTime;
+    const base = 46 - tier * 3.2 + i * 3;
+    const s = Math.max(0, Math.min(1, speed01));
+    e.osc.frequency.setTargetAtTime(base * (1 + s * 0.9), t, 0.12);
+    e.osc2.frequency.setTargetAtTime(base * 0.5 * (1 + s * 0.9) + 0.7, t, 0.12);
+    e.f.frequency.setTargetAtTime(160 + s * 520 + tier * 20, t, 0.15);
+    e.g.gain.setTargetAtTime(active ? 0.035 + s * 0.05 + tier * 0.004 : 0, t, 0.2);
+    e.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, pan)), t, 0.1);
+  }
+
+  stopEngines(): void {
+    for (let i = 0; i < this.engines.length; i++) {
+      const e = this.engines[i];
+      if (!e) continue;
+      try { e.g.gain.setTargetAtTime(0, this.now, 0.05); e.osc.stop(this.now + 0.3); e.osc2.stop(this.now + 0.3); } catch { /* уже остановлен */ }
+      this.engines[i] = null;
+    }
+  }
+
   /** Проигрывает эффект с ограничением частоты и числа голосов. */
   play(name: string, o: { pan?: number; vol?: number; pitch?: number; gap?: number } = {}): void {
     if (!this.ac || this.settings.muted) return;

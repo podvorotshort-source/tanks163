@@ -6,7 +6,7 @@ import { app } from '../app';
 import { drawText, wrapText } from '../gfx/font';
 import { UI } from '../gfx/palette';
 import { panel, menuBackground, showcaseTank } from './widgets';
-import { input, KEYS, padName } from '../input/input';
+import { input, padName } from '../input/input';
 import { audio } from '../audio/audio';
 import { save } from '../meta/save';
 import { VARIANTS, THREATS, type VariantDef } from '../meta/meta';
@@ -53,10 +53,7 @@ export class SetupScene implements Scene {
     audio.play('confirm');
   }
 
-  private keyPressed(codes: string[]): boolean {
-    // Прямой опрос: нажатие 2P до присоединения.
-    return codes.some(c => input.keysDown.has(c)) && input.players[1].pressed.a1;
-  }
+  readonly id = 'setup';
 
   update(dt: number): void {
     this.t += dt;
@@ -67,7 +64,7 @@ export class SetupScene implements Scene {
     }
     const n = this.available.length;
     // 2P присоединяется кнопкой способности 1 (Num0/Enter) или новым геймпадом.
-    if (this.players === 1 && (this.keyPressed(KEYS[1].a1))) { this.join(); return; }
+    if (this.players === 1 && input.players[1].pressed.a1) { this.join(); return; }
     for (let i = 0; i < this.players; i++) {
       const f = input.players[i];
       if (!this.ready[i]) {

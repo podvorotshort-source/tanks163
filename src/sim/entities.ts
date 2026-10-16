@@ -31,7 +31,7 @@ export interface Stats {
 export function baseStats(c: ClassDef): Stats {
   return {
     dmg: 1, cd: 1, projSpeed: 1, range: c.range, blast: 1, fireSpread: 1, burn: 1, duration: 1,
-    armor: c.armor, maxHp: 1, regen: 0, speed: 1, abilityCd: 1, crit: c.crit, critMult: 2, luck: 0, xp: 1,
+    armor: c.armor, maxHp: 1.3, regen: 0.004, speed: 1, abilityCd: 1, crit: c.crit, critMult: 2, luck: 0, xp: 1,
     crush: c.crush, knock: 1, chain: 0,
   };
 }

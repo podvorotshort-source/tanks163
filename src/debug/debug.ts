@@ -19,9 +19,9 @@ export function installDebug(app: App): void {
     /** Состояние для проверки. */
     state() {
       const s = game()?.sim;
-      if (!s) return { scene: app.top?.constructor.name };
+      if (!s) return { scene: app.top?.id };
       return {
-        scene: app.top?.constructor.name, state: s.state, stage: s.stageIdx, level: s.level, xp: s.xp, time: s.time, size: s.size,
+        scene: app.top?.id, state: s.state, stage: s.stageIdx, level: s.level, xp: s.xp, time: s.time, size: s.size,
         enemies: s.enemies.length, shots: s.shots.length, kills: s.kills, fps: app.fps,
         players: s.players.map(p => ({ cls: p.classId, state: p.state, hp: Math.round(p.hp), maxHp: Math.round(p.maxHp), lives: p.lives, x: Math.round(p.x), y: Math.round(p.y), weapons: p.weapons.map(w => w.id + w.level), abilities: p.abilities.map(a => a.id + a.level), kills: p.kills })),
         levelUp: s.levelUp ? { offers: s.levelUp.offers.map(o => o.map(c => c.id)), done: s.levelUp.done } : null,

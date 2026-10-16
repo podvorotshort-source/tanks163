@@ -314,16 +314,21 @@ export class Sim {
     return s;
   }
 
+  /** Множитель кривой опыта (подбирается балансными прогонами). */
+  static XP_K = 1.3;
+
   xpNeed(level = this.level): number {
-    return Math.round(16 + level * 2.2 + Math.pow(level, 1.25) * 0.8);
+    return Math.round((40 + 10 * level + 0.05 * level * level) * Sim.XP_K);
   }
 
   /** Начислить опыт команде (мгновенно при убийстве). */
   gainXp(v: number): void {
-    if (this.state !== 'play' && this.state !== 'levelup') return;
+    if (this.state !== 'play' && this.state !== 'levelup' && this.state !== 'transition') return;
     let xm = 1;
     for (const p of this.players) xm = Math.max(xm, p.stats.xp);
-    this.xp += v * xm;
+    // Вдвоём врагов больше — опыт за каждого делится, темп уровней одинаковый.
+    const pf = this.director ? this.director.playersFactor() : 1;
+    this.xp += (v * xm) / pf;
     let gained = 0;
     while (this.xp >= this.xpNeed()) {
       this.xp -= this.xpNeed();
@@ -499,6 +504,8 @@ export class Sim {
   /** Побеждённые боссы этого забега (id). */
   defeated: string[] = [];
   abandoned = false;
+  /** Журнал урона по источникам (доли макс. прочности) — для балансных прогонов. */
+  dmgLog: Map<string, number> | null = null;
 
   onBossKilled(b: Enemy): void {
     this.bossDefeated = true;

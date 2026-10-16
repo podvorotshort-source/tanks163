@@ -27,6 +27,9 @@ export interface BossDef {
   minion: string;
 }
 
+/** Множитель прочности боссов (балансные прогоны). */
+export const BOSS_HP_K = 1.5;
+
 export const BOSSES: Record<string, BossDef> = {
   windupGeneral: { id: 'windupGeneral', name: 'Заводной генерал', subtitle: 'Пружинный танк-игрушка. Слабое место — заводной ключ на корме', size: 280, hp: 1300, dmg: 16, speed: 34, armor: 'heavy', armorPct: 0.2, weak: { dir: Math.PI, arc: 0.9, mult: 2, name: 'ключ' }, art: 'bossGeneral', minion: 'soldier' },
   rcTyrant: { id: 'rcTyrant', name: 'Пульт-тиран', subtitle: 'Боевой робот на радиоуправлении. Слабое место — антенна на спине', size: 270, hp: 1350, dmg: 18, speed: 40, armor: 'heavy', armorPct: 0.2, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'антенна' }, art: 'bossTyrant', minion: 'rcCar' },
@@ -66,7 +69,7 @@ export function spawnBoss(sim: Sim, id: string, x: number, y: number): Enemy | n
   const pw = powerOf(def.size * sim.unit);
   const e = new Enemy(sim.newId(), edef, def.size, pw);
   const n = sim.players.length;
-  e.maxHp = e.hp = e.hp * (1 + 0.75 * (n - 1)) * (1 + 0.25 * sim.threat);
+  e.maxHp = e.hp = e.hp * BOSS_HP_K * (1 + 0.75 * (n - 1)) * (1 + 0.25 * sim.threat);
   e.x = e.px = x; e.y = e.py = y;
   e.noCrush = true;
   e.spawnT = 0;
@@ -156,7 +159,7 @@ function contactAll(sim: Sim, e: Enemy, k: number): void {
     if (p.state !== 'alive') continue;
     const rr = e.r + p.r;
     if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 < rr * rr) {
-      damagePlayer(sim, p, e.dmg * k);
+      damagePlayer(sim, p, e.dmg * k, 'boss:contact');
       // Отбросить игрока, чтобы не застревал.
       const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
       p.x += (dx / d) * sim.size * 0.8; p.y += (dy / d) * sim.size * 0.8;
@@ -290,7 +293,7 @@ function vacuum(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
       if (inCone && d < sim.size * 9) {
         const pull = sim.size * 2.4 * (1 - d / (sim.size * 9.5));
         p.x += (dx / d) * pull * dt; p.y += (dy / d) * pull * dt;
-        if (d < e.r + p.r + sim.size * 0.3 && e.contactT <= 0) { damagePlayer(sim, p, e.dmg * 1.2); e.contactT = 0.5; }
+        if (d < e.r + p.r + sim.size * 0.3 && e.contactT <= 0) { damagePlayer(sim, p, e.dmg * 1.2, 'boss:suck'); e.contactT = 0.5; }
       }
     }
     if ((b.t * 6 | 0) % 3 === 0) {

@@ -148,6 +148,15 @@ function onDashEnd(sim: Sim, p: Player): void {
 
 const ARMOR_RANK: Record<string, number> = { heavy: 4, structure: 3, medium: 2, air: 1, light: 0 };
 
+/** Насколько цель опасна (для «гущи врагов»): стрелки и крупные — важнее мелочи. */
+function threatWeight(e: Enemy): number {
+  const b = e.def.behavior;
+  let w = b === 'shooter' || b === 'artillery' || b === 'spawner' ? 1.6 : b === 'swarm' ? 0.55 : 1;
+  if (e.elite) w += 1;
+  if (e.armor === 'heavy') w *= 0.8;
+  return w;
+}
+
 function canHit(type: DmgType, e: Enemy): boolean {
   return EFFECT[type][e.armor] > 0;
 }
@@ -165,7 +174,7 @@ export function pickTarget(sim: Sim, p: Player, mode: string, range: number, typ
     for (const c of cands) {
       sim.enemiesNear(c.x, c.y, br, near);
       let score = 0;
-      for (const n of near) if (!n.dead) score += n.armor === 'heavy' ? 0.6 : 1;
+      for (const n of near) if (!n.dead) score += threatWeight(n);
       if (c === sim.boss) score += 3;
       score -= Math.sqrt((c.x - p.x) ** 2 + (c.y - p.y) ** 2) / range * 0.5;
       if (score > bs) { bs = score; best = c; }

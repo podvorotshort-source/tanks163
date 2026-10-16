@@ -8,6 +8,9 @@ import { damagePlayer, enemyExplode, breakProp, damageProp } from './combat';
 import { updateBoss } from './bosses';
 import { spawnEnemy } from './director';
 
+/** Множитель перезарядки вражеского оружия (базовая сложность). */
+export const ENEMY_FIRE_K = 1.5;
+
 const tmpE: Enemy[] = [];
 const tmpP: Prop[] = [];
 
@@ -142,7 +145,7 @@ function contact(sim: Sim, e: Enemy, tgt: Player, mul: number): void {
     if (p.state !== 'alive') continue;
     const rr = e.r + p.r + 1;
     if ((p.x - e.x) ** 2 + (p.y - e.y) ** 2 > rr * rr) continue;
-    damagePlayer(sim, p, e.dmg * mul);
+    damagePlayer(sim, p, e.dmg * mul, 'contact:' + e.def.id);
     e.contactT = 0.75;
     return;
   }
@@ -181,7 +184,7 @@ function shootLogic(sim: Sim, e: Enemy, tgt: Player, dt: number): void {
   e.fireT -= dt;
   if (e.burstLeft > 0 && e.fireT <= 0) {
     e.burstLeft--;
-    e.fireT = e.burstLeft > 0 ? 0.13 : (e.def.fireCd ?? 2) * sim.rng.range(0.85, 1.2);
+    e.fireT = e.burstLeft > 0 ? 0.13 : (e.def.fireCd ?? 2) * ENEMY_FIRE_K * sim.rng.range(0.85, 1.2);
     fireAt(sim, e, tgt);
     return;
   }
@@ -190,7 +193,7 @@ function shootLogic(sim: Sim, e: Enemy, tgt: Player, dt: number): void {
   if (d > range || !los(sim, e, tgt)) { e.fireT = 0.3; return; }
   const burst = e.def.burst ?? 1;
   e.burstLeft = burst - 1;
-  e.fireT = burst > 1 ? 0.13 : (e.def.fireCd ?? 2) * sim.rng.range(0.85, 1.2);
+  e.fireT = burst > 1 ? 0.13 : (e.def.fireCd ?? 2) * ENEMY_FIRE_K * sim.rng.range(0.85, 1.2);
   fireAt(sim, e, tgt);
 }
 
@@ -204,6 +207,7 @@ export function fireAt(sim: Sim, e: Enemy, tgt: Player): void {
   const d = Math.hypot(tgt.x - e.x, tgt.y - e.y);
   const t = Math.min(1, d / Math.max(1, sp));
   let a = Math.atan2(tgt.y + tgt.vy * t * 0.5 - e.y, tgt.x + tgt.vx * t * 0.5 - e.x);
+  a += sim.rng.range(-1, 1) * (kind === 'bullet' ? 0.16 : 0.1);
   if (tgt.inSmoke) a += sim.rng.range(-0.7, 0.7);
   const fan = e.def.fan ?? 1;
   for (let i = 0; i < fan; i++) {
@@ -217,9 +221,9 @@ export function enemyShot(sim: Sim, e: Enemy, a: number, kind: string, sp: numbe
   s.team = 1; s.owner = -1; s.w = kind; s.kind = kind;
   const L = e.size * 0.55;
   s.x = s.px = e.x + Math.cos(a) * L; s.y = s.py = e.y + Math.sin(a) * L;
-  const slow = kind === 'steam' ? 0.6 : 1;
+  const slow = kind === 'steam' ? 0.6 : kind === 'shell' || kind === 'plasma' ? 0.7 : 0.85;
   s.vx = Math.cos(a) * sp * slow; s.vy = Math.sin(a) * sp * slow;
-  s.dmg = e.dmg * dmgK * (kind === 'bullet' ? 0.55 : kind === 'steam' ? 0.35 : 1);
+  s.dmg = e.dmg * dmgK * (kind === 'bullet' ? 0.5 : kind === 'steam' ? 0.35 : 0.75);
   s.life = kind === 'steam' ? 0.7 : ((e.def.range ?? 6) * e.size * 1.4) / Math.max(1, sp);
   s.r = e.size * (kind === 'bullet' ? 0.07 : kind === 'shell' ? 0.1 : kind === 'plasma' ? 0.14 : 0.09);
   s.size = e.size * (kind === 'bullet' ? 0.13 : kind === 'shell' ? 0.2 : kind === 'plasma' ? 0.28 : 0.2);

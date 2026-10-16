@@ -61,12 +61,12 @@ function add(...defs: EnemyDef[]) { for (const d of defs) ENEMIES[d.id] = d; }
 // ---------------------------------------------------------------------------
 add(
   E({ id: 'soldier', name: 'Пластиковый солдатик', stage: 0, art: 'soldier', size: 9, maxMul: 1.4, hp: 7, dmg: 2.4, speed: 24, armor: 'light', behavior: 'swarm', xp: 1, radius: 0.45, fireCd: 3.2, range: 14, shotSpeed: 14, shot: 'bullet', weight: 16 }),
-  E({ id: 'toyTank', name: 'Игрушечный танк', stage: 0, art: 'toyTank', size: 24, maxMul: 3, hp: 38, dmg: 7, speed: 36, armor: 'medium', behavior: 'shooter', xp: 4, fireCd: 2.4, range: 6.5, shotSpeed: 7, shot: 'shell', weight: 12 }),
+  E({ id: 'toyTank', name: 'Игрушечный танк', stage: 0, art: 'toyTank', size: 24, maxMul: 3, hp: 38, dmg: 7, speed: 36, armor: 'medium', behavior: 'shooter', xp: 4, fireCd: 2.4, range: 6, shotSpeed: 7, shot: 'shell', weight: 9 }),
   E({ id: 'jeep', name: 'Игрушечный джип', stage: 0, art: 'jeep', size: 20, maxMul: 2.2, hp: 20, dmg: 9, speed: 82, armor: 'light', behavior: 'charger', xp: 3, chargeSpeed: 9, weight: 8, minTime: 25 }),
   E({ id: 'heli', name: 'Игрушечный вертолёт', stage: 0, art: 'heli', size: 26, maxMul: 2.6, hp: 24, dmg: 5, speed: 58, armor: 'air', behavior: 'air', air: true, xp: 4, fireCd: 1.6, burst: 3, range: 6, shotSpeed: 9, shot: 'bullet', weight: 6, minTime: 70 }),
-  E({ id: 'armorToy', name: 'Броневой танк', stage: 0, art: 'armorToy', size: 34, maxMul: 3, hp: 150, dmg: 13, speed: 26, armor: 'heavy', armorPct: 0.15, behavior: 'shooter', xp: 10, fireCd: 3, range: 6, shotSpeed: 6.5, shot: 'shell', weight: 6, minTime: 100 }),
+  E({ id: 'armorToy', name: 'Броневой танк', stage: 0, art: 'armorToy', size: 34, maxMul: 3, hp: 150, dmg: 13, speed: 26, armor: 'heavy', armorPct: 0.15, behavior: 'shooter', xp: 10, fireCd: 3, range: 6, shotSpeed: 6.5, shot: 'shell', weight: 4, minTime: 100 }),
   E({ id: 'mortar', name: 'Игрушечный миномёт', stage: 0, art: 'mortar', size: 26, maxMul: 2.2, hp: 55, dmg: 16, speed: 20, armor: 'medium', behavior: 'artillery', xp: 7, fireCd: 4.2, range: 11, shot: 'mortar', boom: 1.6, weight: 4, minTime: 140 }),
-  E({ id: 'bigToy', name: 'Танк на батарейках', stage: 0, art: 'bigToy', size: 62, maxMul: 1.8, hp: 520, dmg: 22, speed: 30, armor: 'heavy', armorPct: 0.2, behavior: 'shooter', xp: 32, fireCd: 2.6, burst: 2, range: 5.5, shotSpeed: 6, shot: 'shell', weight: 5, minTime: 200, crusher: true }),
+  E({ id: 'bigToy', name: 'Танк на батарейках', stage: 0, art: 'bigToy', size: 62, maxMul: 1.8, hp: 300, dmg: 18, speed: 30, armor: 'heavy', armorPct: 0.15, behavior: 'shooter', xp: 32, fireCd: 2.6, burst: 2, range: 5.5, shotSpeed: 6, shot: 'shell', weight: 3, minTime: 200, crusher: true }),
   E({ id: 'toyBunker', name: 'Коробка-штаб', stage: 0, art: 'toyBunker', size: 70, maxMul: 1.6, hp: 700, dmg: 10, speed: 12, armor: 'structure', behavior: 'spawner', spawn: 'toyTank', spawnCd: 5, spawnN: 2, xp: 40, weight: 2, minTime: 240, fireCd: 2, range: 5, shotSpeed: 6, shot: 'shell' }),
 );
 
@@ -165,6 +165,12 @@ add(
   E({ id: 'moonlet', name: 'Луна-крепость', stage: 7, art: 'moonlet', size: 70, maxMul: 1.8, hp: 4400, dmg: 36, speed: 22, armor: 'heavy', armorPct: 0.3, behavior: 'spawner', spawn: 'meteorite', spawnCd: 2.5, spawnN: 4, fireCd: 2, range: 8, shotSpeed: 7, shot: 'plasma', xp: 90, weight: 4, minTime: 120, crusher: true }),
   E({ id: 'starTitan', name: 'Звёздный титан', stage: 7, art: 'starTitan', size: 80, maxMul: 1.7, hp: 5200, dmg: 44, speed: 32, armor: 'heavy', armorPct: 0.35, behavior: 'shooter', fireCd: 2.2, burst: 4, fan: 3, spreadShot: 0.3, range: 8, shotSpeed: 8, shot: 'plasma', xp: 100, weight: 5, minTime: 200, crusher: true }),
 );
+
+// Балансный проход (см. docs/BALANCE.md): стрелки бьют слабее, тяжёлая броня — меньше прочности.
+for (const d of Object.values(ENEMIES)) {
+  if (d.behavior === 'shooter' || d.behavior === 'air') d.dmg *= 0.8;
+  if (d.armor === 'heavy') { d.hp *= 0.7; d.armorPct = (d.armorPct ?? 0) * 0.7; }
+}
 
 export function rosterOf(stage: number): EnemyDef[] {
   return Object.values(ENEMIES).filter(e => e.stage === stage && e.behavior !== 'boss');

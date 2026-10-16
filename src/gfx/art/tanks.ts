@@ -172,15 +172,27 @@ const hullCache = new Map<string, SpriteDef>();
  * Материал по поколению: 0 — глянцевый пластик с чёрными резиновыми
  * гусеницами, 2 — камуфляж, 3+ — металл с потёртостями.
  */
-function material(layers: Layer[], P: RampId, tier: number): Layer[] {
+function material(layers: Layer[], P: RampId, tier: number, turret = false): Layer[] {
+  // С поколением корпус «взрослеет»: пластик → металл → тёмная броня.
+  // Цвет игрока остаётся на башне, верхней плите (до VI) и полосах — своих легко узнать.
+  const metal: RampId = tier >= 6 ? 'ink' : 'steel';
   return layers.map(l => {
     if (tier === 0) {
       if (l.c === 'iron') return { ...l, c: 'ink' as RampId, t: Math.min(5, l.t + 1) };
       if (l.c === P) return { ...l, hi: 2, tex: undefined };
       return l;
     }
-    if (l.c === P && l.t === 3 && tier === 2) return { ...l, tex: sumTex(l.tex ?? (() => 0), texCamo(4.5, 2)) };
-    if (l.c === P && l.t === 3 && tier >= 3) return { ...l, tex: sumTex(l.tex ?? (() => 0), texSpeckle(0.05, -1, 1, 7 + tier)) };
+    if (l.c !== P) return l;
+    if (turret) {
+      // Люк/командирская башенка (тон 5) остаются цвета игрока.
+      if (tier >= 5 && l.t <= 4) return { ...l, c: tier >= 6 ? 'iron' as RampId : 'steel' as RampId, t: tier >= 6 ? 4 : 4, tex: sumTex(l.tex ?? (() => 0), texSpeckle(0.04, -1, 1, 5 + tier)) };
+      if (tier >= 3) return { ...l, tex: sumTex(l.tex ?? (() => 0), texSpeckle(0.04, -1, 1, 5 + tier)) };
+      return l;
+    }
+    if (tier >= 3 && l.t <= 2) return { ...l, c: metal, t: tier >= 6 ? l.t + 1 : l.t };
+    if (tier >= 6 && l.t === 3) return { ...l, c: metal, t: 4, tex: sumTex(l.tex ?? (() => 0), texSpeckle(0.05, -1, 1, 7 + tier)) };
+    if (l.t === 3 && tier === 2) return { ...l, tex: sumTex(l.tex ?? (() => 0), texCamo(4.5, 2)) };
+    if (l.t === 3 && tier >= 3) return { ...l, tex: sumTex(l.tex ?? (() => 0), texSpeckle(0.05, -1, 1, 7 + tier)) };
     return l;
   });
 }
@@ -217,10 +229,15 @@ function tierHull(info: HullInfo, P: RampId, tier: number): Layer[] {
       l.push(rect(L * 0.24, s * W * 0.5, L * 0.22, W * 0.05, 'iron', 3));
     }
   }
+  if (tier >= 3) {
+    // Полосы цвета игрока по бортам — опознавание «свой».
+    l.push(...sym(rect(-L * 0.05, W * 0.24, L * 0.62, Math.max(1, W * 0.05), P, 4, { bevel: 0 })));
+  }
   if (tier >= 6) {
     l.push(...sym(circ(-L * 0.43, W * 0.3, W * 0.06, 'iron', 2)), ...sym(circ(-L * 0.43, W * 0.3, W * 0.03, 'fire', 4, { glow: true })));
     l.push(circ(-L * 0.3, 0, W * 0.14, P, 4), rect(-L * 0.45, 0, L * 0.2, W * 0.05, 'iron', 3));
-    l.push(...sym(rect(0, W * 0.3, L * 0.5, 0.5, 'sky', 4, { glow: true, min: 1 })));
+    l.push(...sym(rect(0, W * 0.3, L * 0.5, 0.5, P, 5, { glow: true, min: 1 })));
+    l.push(rect(L * 0.1, 0, L * 0.5, 0.7, P, 5, { glow: true, min: 1 }));
   }
   if (tier >= 7) {
     l.push(...sym(rect(-L * 0.05, W * 0.2, L * 0.7, 0.7, 'teal', 5, { glow: true })));
@@ -327,6 +344,11 @@ function tierTurret(gun: GunKind, P: RampId, tier: number): Layer[] {
   if (tier >= 4) l.push(...sym(rect(0.5, 6.2, 3.4, 1.4, 'iron', 3)), ...sym(rect(-1.5, 6.2, 1.2, 1.4, 'iron', 2)));
   if (tier >= 5 && barrel) l.push(...sym(rect(11.5, 2.1, 13, 1.6, 'iron', 3)));
   if (tier >= 5 && gun === 'flame') l.push(...sym(rect(9, 2.6, 6, 1.8, 'iron', 3)), ...sym(circ(12, 2.6, 0.7, 'fire', 4, { glow: true })));
+  if (tier >= 5) {
+    // Опознавательная полоса и кольцо цвета игрока на башне.
+    l.push(rect(-1, 0, 2.2, 10.5, P, 5, { bevel: 0, glow: tier >= 6 }));
+    l.push(ring(-1, 0, 3.6, 4.4, P, 4, { glow: tier >= 6 }));
+  }
   if (tier >= 6) l.push(rect(-3.5, -5.2, 4, 2.6, 'steel', 4, { r: 0.4 }), circ(-2.2, -5.2, 0.7, 'sky', 5, { glow: true }));
   if (tier >= 7) {
     if (barrel) l.push(rect(12, 0, 14, 0.6, 'teal', 5, { glow: true }), circ(19.5, 0, 1.3, 'teal', 5, { glow: true }));
@@ -340,7 +362,7 @@ export function turretDef(cls: HullClass, gun: GunKind, P: RampId, tier = 0): Sp
   let d = turretCache.get(key);
   if (d) return d;
   const k = HULLS[cls].turretK * (1 + Math.max(0, tier - 3) * 0.04);
-  const layers = [...material(turretLayers(gun, P), P, tier), ...tierTurret(gun, P, tier)];
+  const layers = [...material(turretLayers(gun, P), P, tier, true), ...tierTurret(gun, P, tier)];
   d = { id: key, layers: transformLayers(layers, 0, 0, k), castDist: 1.5 };
   turretCache.set(key, d);
   return d;

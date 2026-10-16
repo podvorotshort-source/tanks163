@@ -161,10 +161,10 @@ function enemyShotStep(sim: Sim, s: Shot, nx: number, ny: number): void {
     return;
   }
   if (!hitP) return;
-  if (s.pierce > 0) { s.hits.push(hitP.idx); damagePlayer(sim, hitP, s.dmg); return; }
+  if (s.pierce > 0) { s.hits.push(hitP.idx); damagePlayer(sim, hitP, s.dmg, 'shot:' + s.kind); return; }
   s.dead = true;
   if (s.blast > 0) enemyExplode(sim, s.x + (nx - s.x) * tp, s.y + (ny - s.y) * tp, s.blast, s.dmg, 'enemy');
-  else damagePlayer(sim, hitP, s.dmg);
+  else damagePlayer(sim, hitP, s.dmg, 'shot:' + s.kind);
 }
 
 function igniteAt(sim: Sim, s: Shot, x: number, y: number): void {
@@ -270,7 +270,7 @@ export function updateZones(sim: Sim, dt: number): void {
           if (p.state !== 'alive') continue;
           if ((p.x - z.x) ** 2 + (p.y - z.y) ** 2 < (z.r + p.r * 0.5) ** 2) {
             p.slowT = 0.15; p.slowAmt = z.kind === 'tar' ? 0.45 : 0.35;
-            if (z.dps > 0) damagePlayer(sim, p, z.dps * dt);
+            if (z.dps > 0) damagePlayer(sim, p, z.dps * dt, 'zone:' + z.kind);
           }
         }
         if (z.t >= z.dur) z.dead = true;
@@ -283,7 +283,7 @@ export function updateZones(sim: Sim, dt: number): void {
             const ex = z.x + Math.cos(z.power) * z.r, ey = z.y + Math.sin(z.power) * z.r;
             for (const p of sim.players) {
               if (p.state !== 'alive') continue;
-              if (segCircle(z.x, z.y, ex, ey, p.x, p.y, p.r + (z.data[0] ?? 4)) >= 0) damagePlayer(sim, p, z.dps);
+              if (segCircle(z.x, z.y, ex, ey, p.x, p.y, p.r + (z.data[0] ?? 4)) >= 0) damagePlayer(sim, p, z.dps, 'beam');
             }
             sim.emit({ t: 'arc', pts: [z.x, z.y, ex, ey, -1] });
           } else {

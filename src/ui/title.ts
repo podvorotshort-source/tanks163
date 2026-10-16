@@ -14,6 +14,7 @@ import { ControlsScene } from './controlsScene';
 import { input } from '../input/input';
 
 export class TitleScene implements Scene {
+  readonly id = 'title';
   t = 0;
   menu: VMenu;
   notice = '';

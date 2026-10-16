@@ -6,6 +6,9 @@ import type { Player } from './entities';
 import { WEAPONS, MAX_WEAPON_LEVEL, weaponStatsAt, type WeaponStats } from './content/weapons';
 import { ABILITIES, ABILITY_SLOTS, MAX_ABILITY_LEVEL, ABILITY_IDS } from './content/classes';
 
+/** Общий множитель урона оружия игроков (базовая сложность). */
+export const PLAYER_DMG_K = 1.25;
+
 export type Rarity = 0 | 1 | 2 | 3; // обычная, редкая, эпическая, легендарная
 export const RARITY_NAMES = ['Обычное', 'Редкое', 'Эпическое', 'Легендарное'];
 
@@ -130,7 +133,7 @@ export function computeWeaponStats(p: Player, id: WeaponId, level: number, starT
   const s = weaponStatsAt(id, level);
   const st = p.stats;
   const d = WEAPONS[id];
-  s.dmg *= st.dmg;
+  s.dmg *= st.dmg * PLAYER_DMG_K;
   s.cd *= st.cd;
   s.speed *= st.projSpeed;
   s.range *= st.range;

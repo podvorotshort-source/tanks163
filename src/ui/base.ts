@@ -38,6 +38,7 @@ interface Row {
 }
 
 export class BaseScene implements Scene {
+  readonly id = 'base';
   t = 0;
   tab = 0;
   sel = 0;

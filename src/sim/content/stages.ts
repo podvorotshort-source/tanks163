@@ -294,7 +294,7 @@ export const STAGE_DEFS: StageDef[] = [
     idx: 1, name: 'Ковёр и детская', title: 'СТУПЕНЬ II', subtitle: 'Ковёр и детская', w: ARENA_W, h: ARENA_H,
     relicX: 1340, relicY: 820, boss: 'rcTyrant', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'hq', 'marbles', 'swarm', 'convoy'],
-    fuel: (x, y) => 0.75 + fuelNoise(0.003, 7)(x, y) * 0.25, props: carpetProps,
+    fuel: (x, y) => 0.45 + fuelNoise(0.003, 7)(x, y) * 0.3, props: carpetProps,
   },
   {
     idx: 2, name: 'Детская комната', title: 'СТУПЕНЬ III', subtitle: 'Вся комната целиком', w: ARENA_W, h: ARENA_H,

@@ -102,7 +102,7 @@ export class FireGrid {
         if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
         const j = ny * cols + nx;
         if (this.isActive[j] || this.fuel[j] < 0.1) continue;
-        if (rng.next() < this.fuel[j] * 0.55 * s * dt) this.light(j, 1.5 + this.fuel[j] * 2.5, this.dps[i] * 0.85, this.owner[i]);
+        if (rng.next() < this.fuel[j] * 0.4 * s * dt) this.light(j, 1.2 + this.fuel[j] * 2, this.dps[i] * 0.85, this.owner[i]);
       }
     }
     list.length = n;

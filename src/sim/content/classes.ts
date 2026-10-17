@@ -30,20 +30,20 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   scout: {
     id: 'scout', name: 'Разведчик',
     desc: 'Быстрый и манёвренный. Бьёт издалека и точно, уклоняется рывком.',
-    speed: 3.5, hp: 80, armor: 0, main: 'ap', ability: 'dash', auxSlots: 3, crush: 0.42, turn: 11, range: 1.15, crit: 0.12,
-    perks: ['Скорость +30%', 'Дальность +15%', 'Шанс крита 12%'],
+    speed: 3.5, hp: 80, armor: 0, main: 'ap', ability: 'dash', auxSlots: 3, crush: 0.42, turn: 11, range: 1.08, crit: 0.12,
+    perks: ['Скорость +30%', 'Дальность +8%', 'Шанс крита 12%'],
   },
   assault: {
     id: 'assault', name: 'Штурмовик',
     desc: 'Универсал. Лишний слот для систем — лучший для комбинированных билдов. Залп отбрасывает толпу.',
-    speed: 2.75, hp: 105, armor: 0.1, main: 'he', ability: 'volley', auxSlots: 4, crush: 0.45, turn: 8, range: 1, crit: 0.05,
-    perks: ['4 слота доп. систем', 'Броня 10%', 'Сбалансирован'],
+    speed: 2.75, hp: 115, armor: 0.15, main: 'he', ability: 'volley', auxSlots: 4, crush: 0.45, turn: 8, range: 1, crit: 0.05,
+    perks: ['4 слота доп. систем', 'Броня 15%', 'Сбалансирован'],
   },
   heavy: {
     id: 'heavy', name: 'Тяжёлый',
     desc: 'Медленная крепость. Держит позицию, давит крупных врагов, огнемёт и мины — его стихия.',
-    speed: 2.1, hp: 160, armor: 0.25, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, range: 1, crit: 0.05,
-    perks: ['Броня 25%', 'Прочность +60%', 'Давит врагов до 58% своего размера'],
+    speed: 2.1, hp: 180, armor: 0.32, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, range: 1, crit: 0.05,
+    perks: ['Броня 32%', 'Прочность +55%', 'Давит врагов до 58% своего размера'],
   },
 };
 

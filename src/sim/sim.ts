@@ -115,6 +115,8 @@ export class Sim {
   /** Опыт команды. */
   xp = 0;
   level = 1;
+  /** Уровней получено на текущей ступени. */
+  levelsThisStage = 0;
   /** Экспонента роста (абсолютный размер = 28·G^e). */
   growE = 0;
   /** Текущий размер танка, локальные ед. (сглаженный). */
@@ -202,6 +204,7 @@ export class Sim {
     this.maxStage = Math.max(this.maxStage, n);
     this.stage = STAGE_DEFS[n];
     this.stageTime = 0;
+    this.levelsThisStage = 0;
     this.bossDefeated = false;
     this.boss = null;
     const s = this.stage;
@@ -328,11 +331,14 @@ export class Sim {
     for (const p of this.players) xm = Math.max(xm, p.stats.xp);
     // Вдвоём врагов больше — опыт за каждого делится, темп уровней одинаковый.
     const pf = this.director ? this.director.playersFactor() : 1;
-    this.xp += (v * xm) / pf;
+    // Убывающая отдача после ~13 уровней за ступень: темп роста ровный при любом билде.
+    const excess = Math.max(0, this.levelsThisStage - 13);
+    this.xp += (v * xm) / pf / (1 + excess * 0.3);
     let gained = 0;
     while (this.xp >= this.xpNeed()) {
       this.xp -= this.xpNeed();
       this.level++;
+      this.levelsThisStage++;
       gained++;
       this.grow();
     }

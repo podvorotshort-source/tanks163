@@ -30,13 +30,13 @@
 </head>
 <body>
 <header>
-  <h1>Варианты графики «Танкороста» — без пикселей</h1>
-  <p class="lead">Одна и та же сцена в четырёх стилях: игрушечный танк (модель I) и титан (модель VIII), игрушечные враги, кирпич, сталь, куст, бонус, выстрел и взрыв. Всё нарисовано кодом — так же будет рисовать игра.</p>
+  <h1>Варианты графики «Танкороста»</h1>
+  <p class="lead">Одна и та же сцена в шести стилях: игрушечный танк (модель I) и титан (модель VIII), игрушечные враги, кирпич, сталь, куст, бонус, выстрел и взрыв. Варианты 1–4 — векторные (без пикселей), 5–6 — настоящий пиксель-арт в родном разрешении. Всё нарисовано кодом — так же будет рисовать игра.</p>
 </header>
 <div class="bar">
   <label>Приближение <input id="zoom" type="range" min="0.6" max="3" step="0.05" value="1"><output id="zv">×1.00</output></label>
   <button id="pause" type="button">Пауза</button>
-  <span style="color:var(--dim)">Двигайте приближение: в любом из вариантов края остаются гладкими — без «лесенки» пикселей.</span>
+  <span style="color:var(--dim)">Двигайте приближение: в 1–4 края остаются гладкими, в 5–6 пиксели растут ровными квадратами (только целые увеличения).</span>
 </div>
 <main id="grid"></main>
 <footer>Выберите вариант (или сочетание: например, «мультяшный» с неоновыми эффектами поздних миров) — напишите номер в чате.</footer>
@@ -372,6 +372,268 @@ function scene(c, S, t) {
 }
 
 // ---------------------------------------------------------------------------
+// Пиксельные варианты: сцена рисуется в РОДНОМ низком разрешении (P пикселей на единицу мира),
+// каждый объект — отдельный спрайт: альфа без полутонов, цвета — только из палитры, контур в 1 пиксель.
+// На экран всё увеличивается в ЦЕЛОЕ число раз без сглаживания — пиксели всегда ровные квадраты.
+// ---------------------------------------------------------------------------
+const RAMPS5 = {
+  gold: ['#5a2c14', '#a85a1c', '#e0a020', '#f8cc3c', '#fff3a8'],
+  steel: ['#1c1f33', '#363e5c', '#5d6888', '#929fc0', '#d8e1f2'],
+  dark: ['#15131f', '#26243a', '#3c3a56', '#5a5a7a', '#8a8cab'],
+  track: ['#110f17', '#221e2b', '#36303f', '#4e4757', '#6e6678'],
+  enemy: ['#121838', '#22337a', '#3a5cc0', '#6a95ee', '#b8dcff'],
+  red: ['#38090f', '#781620', '#c42f2a', '#ee6b45', '#ffbe94'],
+  brick: ['#33120d', '#6e2617', '#b0432a', '#de7448', '#f7ae84'],
+  bush: ['#10261a', '#1d4a22', '#2f7a2c', '#5bb03a', '#a8e05a'],
+  energy: ['#0a2240', '#145a8a', '#20a0d0', '#5ae0ff', '#d0faff'],
+  light: ['#7a5a20', '#c8a040', '#f0d070', '#fff0b0', '#ffffff'],
+  fire: ['#3a0a0a', '#a0201a', '#e8601a', '#ffb030', '#fff4c0'],
+  smoke: ['#24202c', '#3e3848', '#5e5668', '#857c8e', '#b0a8b8'],
+  grass: ['#24401f', '#305a26', '#41752d', '#58913a', '#79ad4c'],
+  dirt: ['#4a301e', '#6a4528', '#8c6236', '#ab7f48', '#c99d62'],
+};
+const RAMPS6 = {
+  gold: ['#5e3218', '#b8601c', '#feae34', '#fee761', '#fffbd0'],
+  steel: ['#181425', '#3a4466', '#5a6988', '#8b9bb4', '#c0cbdc'],
+  dark: ['#181425', '#262b44', '#3a4466', '#5a6988', '#8b9bb4'],
+  track: ['#0e0b14', '#181425', '#262b44', '#3a4466', '#5a6988'],
+  enemy: ['#181425', '#124e89', '#0099db', '#2ce8f5', '#c0f7ff'],
+  red: ['#3e2731', '#a22633', '#e43b44', '#f77622', '#feae34'],
+  brick: ['#3e2731', '#8a3a2e', '#c2573a', '#e88a5a', '#f6c49a'],
+  bush: ['#193c3e', '#265c42', '#3e8948', '#63c74d', '#b6ec7c'],
+  energy: ['#0b2a5a', '#0099db', '#2ce8f5', '#a6fcff', '#ffffff'],
+  light: ['#b86f50', '#feae34', '#fee761', '#fff8c8', '#ffffff'],
+  fire: ['#3e2731', '#a22633', '#f77622', '#feae34', '#fee761'],
+  smoke: ['#181425', '#262b44', '#3a4466', '#5a6988', '#8b9bb4'],
+  grass: ['#1d4a2c', '#265c42', '#2f7346', '#3e8948', '#4f9e52'],
+  dirt: ['#5e3a26', '#733e39', '#8a5a3c', '#a8774e', '#c49a64'],
+};
+const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+function hsh(x, y) { let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967295; }
+function vnoise(x, y) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf); const a = hsh(xi, yi), b = hsh(xi + 1, yi), c = hsh(xi, yi + 1), d = hsh(xi + 1, yi + 1); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+function fbm(x, y) { return vnoise(x, y) * 0.6 + vnoise(x * 2.1 + 7, y * 2.1 + 3) * 0.3 + vnoise(x * 4.3 + 1, y * 4.3 + 9) * 0.1; }
+function hexRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+
+function makePixelStyle(n, name, desc, pros, R, P, outline, lights, text) {
+  const C = { gold: R.gold[2], gold2: R.gold[3], steel: R.steel[2], dark: R.dark[2], track: R.track[2], enemy: R.enemy[2], enemy2: R.red[2], brick: R.brick[2], steelB: R.steel[3], bush: R.bush[2], energy: R.energy[3], light: R.light[3], line: '#000' };
+  const rampOf = new Map();
+  for (const r of Object.values(R)) r.forEach((col, i) => { if (!rampOf.has(col)) rampOf.set(col, [r, i]); });
+  const pal = [...new Set(Object.values(R).flat())].map(hexRgb);
+  const S = {
+    n, name, desc, pros, C, text, pixel: { P, R, outline, lights, pal, snapCache: new Map() },
+    shadow() {},
+    glow() {},
+    solid(c, s, col, o = {}) {
+      const ri = rampOf.get(col);
+      c.fillStyle = col; c.fill(s.p);
+      if (!ri || o.flat) return;
+      const [r, bi] = ri, [x, y, w, h] = s.bb, [lx, ly] = lightDir(), k = Math.min(w, h);
+      c.save(); c.clip(s.p);
+      c.fillStyle = r[Math.max(0, bi - 1)]; c.fillRect(x - 2, y - 2, w + 4, h + 4);
+      c.translate(lx * k * 0.2, ly * k * 0.2); c.fillStyle = r[bi]; c.fill(s.p);
+      c.restore();
+      c.save(); c.clip(s.p); c.fillStyle = r[Math.min(4, bi + 1)];
+      c.beginPath(); c.ellipse(x + w / 2 + lx * w * 0.26, y + h / 2 + ly * h * 0.26, Math.max(w * 0.2, 1.4 / P), Math.max(h * 0.15, 1.2 / P), 0, 0, 7); c.fill();
+      c.restore();
+    },
+  };
+  return S;
+}
+
+STYLES.push(
+  makePixelStyle(5, 'Честный 16-бит', 'Настоящий пиксель-арт в родном разрешении: палитра с цветными тенями, выборочный контур, дизеринг на земле. Как Metal Slug и игры SNES. Увеличивается только в целое число раз.',
+    { 'Плюсы': 'Ретро-стиль вашего референса, но пиксели ровные при любом приближении', 'Минусы': 'Детали ограничены сеткой; переходы масштаба мира требуют аккуратной обработки' },
+    RAMPS5, 0.42, 'sel', false, '#efe7c8'),
+  makePixelStyle(6, 'Крупный пиксель + свет', 'Крупные чёткие пиксели и плавный современный свет поверх: свечение реактора, вспышки, фары. Как Enter the Gungeon и Nuclear Throne.',
+    { 'Плюсы': 'Отлично читается в толпе, ретро + «дорогие» эффекты', 'Минусы': 'Меньше деталей на танках — эволюцию показываем силуэтом и светом' },
+    RAMPS6, 0.28, 'black', true, '#f4f0e6'),
+);
+
+/** Ближайший цвет палитры (с кешем). */
+function snap(S, r, g, b) {
+  const key = (r << 16) | (g << 8) | b, cache = S.pixel.snapCache;
+  let v = cache.get(key);
+  if (v) return v;
+  let best = S.pixel.pal[0], bd = Infinity;
+  for (const p of S.pixel.pal) { const d = (p[0] - r) ** 2 * 0.3 + (p[1] - g) ** 2 * 0.59 + (p[2] - b) ** 2 * 0.11; if (d < bd) { bd = d; best = p; } }
+  cache.set(key, best);
+  return best;
+}
+
+const pool = new Map();
+function scratch(n) { let c = pool.get(n); if (!c) { c = document.createElement('canvas'); c.width = c.height = n; pool.set(n, c); } return c; }
+
+/** Спрайт объекта: рисуется векторно в разрешении P, затем — альфа 0/1, палитра, контур, тень. */
+function sprite(buf, S, wx, wy, R, draw, o = {}) {
+  const P = S.pixel.P, n = Math.ceil(R * 2 * P) + 4;
+  const oc = scratch(n), x = oc.getContext('2d', { willReadFrequently: true });
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, n, n);
+  x.setTransform(P, 0, 0, P, n / 2, n / 2); ROT = 0;
+  draw(x);
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  const img = x.getImageData(0, 0, n, n), d = img.data;
+  const bx = Math.round(wx * P - n / 2), by = Math.round(wy * P - n / 2);
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 128) { d[i + 3] = 0; continue; }
+    const p = snap(S, d[i], d[i + 1], d[i + 2]); d[i] = p[0]; d[i + 1] = p[1]; d[i + 2] = p[2]; d[i + 3] = 255;
+  }
+  if (!o.noOutline) {
+    const a = new Uint8Array(n * n); for (let i = 0; i < n * n; i++) a[i] = d[i * 4 + 3] ? 1 : 0;
+    const blk = hexRgb('#140c1c');
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) {
+      const i = yy * n + xx; if (a[i]) continue;
+      let nb = -1;
+      if (xx > 0 && a[i - 1]) nb = i - 1; else if (xx < n - 1 && a[i + 1]) nb = i + 1; else if (yy > 0 && a[i - n]) nb = i - n; else if (yy < n - 1 && a[i + n]) nb = i + n;
+      if (nb < 0) continue;
+      const q = S.pixel.outline === 'sel' ? snap(S, d[nb * 4] * 0.35 | 0, d[nb * 4 + 1] * 0.35 | 0, d[nb * 4 + 2] * 0.4 | 0) : blk;
+      d[i * 4] = q[0]; d[i * 4 + 1] = q[1]; d[i * 4 + 2] = q[2]; d[i * 4 + 3] = 255;
+    }
+  }
+  // Тень: силуэт со сдвигом; в 16-бит — «шахматный» дизеринг, в крупном — полупрозрачная.
+  if (o.shadow !== false) {
+    const sdx = o.air ? Math.round(8 * P * 2.4) : Math.max(1, Math.round(5 * P)), sdy = o.air ? Math.round(12 * P * 2.4) : Math.max(1, Math.round(6 * P));
+    const sh = new ImageData(n, n), sd = sh.data;
+    for (let yy = 0; yy < n; yy++) for (let xx = 0; xx < n; xx++) {
+      const i = (yy * n + xx) * 4; if (!d[i + 3]) continue;
+      if (S.pixel.outline === 'sel') { if ((xx + bx + sdx + yy + by + sdy) & 1) continue; sd[i] = 16; sd[i + 1] = 20; sd[i + 2] = 12; sd[i + 3] = 150; }
+      else { sd[i] = 10; sd[i + 1] = 8; sd[i + 2] = 20; sd[i + 3] = 95; }
+    }
+    x.putImageData(sh, 0, 0);
+    buf.drawImage(oc, bx + sdx, by + sdy);
+  }
+  x.putImageData(img, 0, 0);
+  buf.drawImage(oc, bx, by);
+}
+
+/** Блок 3/4 (кирпич/сталь), нарисованный пиксель за пикселем. */
+function pixelBlock(buf, S, wx, wy, kind) {
+  const P = S.pixel.P, R = S.pixel.R, r = kind === 'brick' ? R.brick : R.steel;
+  const s = Math.round(34 * P), d = Math.max(3, Math.round(s * 0.32));
+  const x0 = Math.round(wx * P - s / 2), y0 = Math.round(wy * P - s / 2);
+  const px = (x, y, col) => { buf.fillStyle = col; buf.fillRect(x0 + x, y0 + y, 1, 1); };
+  const sel = S.pixel.outline === 'sel';
+  // тень
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) { if (sel && (x + y + x0 + y0) & 1) continue; buf.fillStyle = sel ? 'rgba(16,20,12,0.6)' : 'rgba(10,8,20,0.38)'; buf.fillRect(x0 + x + 2, y0 + y + 2, 1, 1); }
+  buf.fillStyle = r[2]; buf.fillRect(x0, y0, s, s);
+  buf.fillStyle = r[3]; buf.fillRect(x0, y0, s, d);
+  buf.fillStyle = r[4]; buf.fillRect(x0, y0, s, 1);
+  buf.fillStyle = r[1]; buf.fillRect(x0, y0 + s - 1, s, 1); buf.fillRect(x0 + s - 1, y0 + d, 1, s - d);
+  if (kind === 'brick') {
+    const rows = Math.max(2, Math.round((s - d) / 3));
+    for (let k = 1; k < rows; k++) { const yy = d + Math.round((k * (s - d)) / rows); buf.fillStyle = r[1]; buf.fillRect(x0, y0 + yy, s - 1, 1); }
+    for (let k = 0; k < rows; k++) {
+      const ya = d + Math.round((k * (s - d)) / rows) + 1, yb = d + Math.round(((k + 1) * (s - d)) / rows);
+      for (let xx = (k % 2 ? 2 : Math.round(s / 2)); xx < s - 1; xx += Math.max(4, Math.round(s / 2))) for (let yy = ya; yy < yb; yy++) px(xx, yy, r[1]);
+    }
+    for (let xx = 1; xx < s - 1; xx += Math.max(3, Math.round(s / 4))) px(xx, Math.round(d / 2), r[2]);
+  } else {
+    for (const [xx, yy] of [[1, d + 1], [s - 3, d + 1], [1, s - 3], [s - 3, s - 3]]) { px(xx, yy, r[4]); px(xx + 1, yy + 1, r[1]); }
+    buf.fillStyle = r[1]; buf.fillRect(x0 + 2, y0 + Math.round((d + s) / 2), s - 4, 1);
+    buf.fillStyle = r[4]; buf.fillRect(x0 + 2, y0 + Math.round((d + s) / 2) - 1, s - 4, 1);
+  }
+  const ol = sel ? r[0] : '#140c1c';
+  buf.fillStyle = ol; buf.fillRect(x0 - 1, y0, 1, s); buf.fillRect(x0 + s, y0, 1, s); buf.fillRect(x0, y0 - 1, s, 1); buf.fillRect(x0, y0 + s, s, 1);
+}
+
+/** Земля в родном разрешении (кешируется). */
+function pixelGround(S, bw, bh) {
+  const key = bw + 'x' + bh;
+  if (S.pixel.ground && S.pixel.groundKey === key) return S.pixel.ground;
+  const c = document.createElement('canvas'); c.width = bw; c.height = bh;
+  const x = c.getContext('2d'), img = x.createImageData(bw, bh), d = img.data, P = S.pixel.P, R = S.pixel.R;
+  const g = R.grass.map(hexRgb), dt = R.dirt.map(hexRgb), sel = S.pixel.outline === 'sel';
+  for (let yy = 0; yy < bh; yy++) for (let xx = 0; xx < bw; xx++) {
+    const wx = xx / P, wy = yy / P, n0 = fbm(wx * 0.009, wy * 0.009), n1 = sel ? fbm(wx * 0.022 + 50, wy * 0.022 + 20) : fbm(wx * 0.012 + 50, wy * 0.012 + 20);
+    const bay = BAYER[yy & 3][xx & 3] / 16 - 0.5;
+    let col;
+    if (sel) {
+      if (n0 + bay * 0.06 > 0.6) col = dt[Math.max(0, Math.min(4, Math.round(1.6 + (n1 - 0.5) * 4 + bay)))];
+      else col = g[Math.max(0, Math.min(4, Math.round(2.2 + (n1 - 0.5) * 4.5 + bay)))];
+      const h = hsh(xx, yy);
+      if (h > 0.988) col = g[4]; else if (hsh(xx, yy - 1) > 0.988) col = g[1];
+    } else {
+      if (n0 > 0.6) col = n1 > 0.55 ? dt[3] : dt[2];
+      else col = n1 > 0.58 ? g[3] : n1 > 0.42 ? g[2] : g[1];
+      if (hsh(xx, yy) > 0.9985) col = hexRgb(R.steel[3]); else if (hsh(xx, yy - 1) > 0.9985) col = hexRgb(R.steel[1]);
+    }
+    const i = (yy * bw + xx) * 4; d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  S.pixel.ground = c; S.pixel.groundKey = key;
+  return c;
+}
+
+function pixelBoom(c, S, u) {
+  const R = S.pixel.R;
+  if (u > 0.25) {
+    const v = (u - 0.25) / 0.75;
+    for (let i = 0; i < 6; i++) { const a = i * 1.05 + 0.3, d = 14 + v * 30, r = (1 - v) * 13 + 4; S.solid(c, circ(Math.cos(a) * d, Math.sin(a) * d - v * 10, r), R.smoke[2]); }
+  }
+  if (u < 0.55) {
+    const k = Math.sin((u / 0.55) * Math.PI) * 0.9 + 0.2;
+    c.fillStyle = R.fire[1]; c.fill(star(0, 0, 44 * k, 30 * k, 9, u * 3).p);
+    c.fillStyle = R.fire[2]; c.fill(circ(0, 0, 26 * k).p);
+    c.fillStyle = R.fire[3]; c.fill(circ(-2, -2, 17 * k).p);
+    c.fillStyle = R.fire[4]; c.fill(circ(-3, -3, 8 * k).p);
+  }
+}
+
+/** Плавный свет поверх пикселей (вариант 6). */
+function addLight(c, x, y, r, col, a) {
+  c.save(); c.globalCompositeOperation = 'lighter';
+  const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, rgba(col, a)); g.addColorStop(0.35, rgba(col, a * 0.4)); g.addColorStop(1, rgba(col, 0));
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); c.restore();
+}
+
+function pixelFrame(cv, c, S, t, zoom, dpr) {
+  const P = S.pixel.P, bw = Math.round(W * P), bh = Math.round(H * P);
+  if (!S.pixel.buf || S.pixel.buf.width !== bw) { S.pixel.buf = document.createElement('canvas'); S.pixel.buf.width = bw; S.pixel.buf.height = bh; }
+  const buf = S.pixel.buf.getContext('2d'); buf.imageSmoothingEnabled = false;
+  buf.drawImage(pixelGround(S, bw, bh), 0, 0);
+  for (const [x, y] of [[100, 92], [146, 92], [192, 92], [100, 140]]) pixelBlock(buf, S, x, y, 'brick');
+  for (const [x, y] of [[396, 300], [442, 300]]) pixelBlock(buf, S, x, y, 'steel');
+  pixelBlock(buf, S, 488, 300, 'brick');
+  sprite(buf, S, 540, 110, 30, x => bush(x, S, 0, 0));
+  const sy = 52 + Math.sin(t * 3) * 3;
+  sprite(buf, S, 300, sy, 18, x => S.solid(x, star(0, 0, 14, 6.5), S.C.gold));
+  const ex = 470, ey = 168, px = 205, py = 222, aim = Math.atan2(ey - py, ex - px) + Math.sin(t * 1.3) * 0.08;
+  const ta = 0.15 + Math.sin(t * 0.5) * 0.05, tta = Math.atan2(ey - 140, ex - 330) + Math.sin(t) * 0.1;
+  sprite(buf, S, px, py, 38, x => toyTank(x, S, 0, 0, -0.25, aim, S.C.gold, t));
+  sprite(buf, S, 330, 140, 64, x => titan(x, S, 0, 0, ta, tta, t));
+  sprite(buf, S, ex, ey, 38, x => toyTank(x, S, 0, 0, Math.PI + 0.2, Math.PI - 0.1 + Math.sin(t * 1.7) * 0.2, S.C.enemy, t * 0.5));
+  sprite(buf, S, 520, 250, 40, x => heli(x, S, 0, 0, 3.6 + Math.sin(t * 0.8) * 0.2, t), { air: true });
+  const u = (t % 1.6) / 1.6, sa = Math.atan2(ey - py, ex - px);
+  let shellPos = null, boomU = -1;
+  if (u < 0.45) { const v = u / 0.45; shellPos = [px + (ex - px) * v, py + (ey - py) * v]; sprite(buf, S, shellPos[0], shellPos[1], 30, x => shell(x, S, 0, 0, sa), { shadow: false }); }
+  else { boomU = (u - 0.45) / 0.55; sprite(buf, S, ex - 6, ey - 2, 62, x => pixelBoom(x, S, boomU), { shadow: false, noOutline: S.pixel.outline === 'sel' }); }
+
+  // На экран — только целое увеличение.
+  const fit = Math.min(cv.width / W, cv.height / H) * zoom;
+  const k = Math.max(1, Math.round(fit / P));
+  const fx = zoom > 1 ? 250 : W / 2, fy = zoom > 1 ? 200 : H / 2;
+  const ox = Math.round(cv.width / 2 - fx * P * k), oy = Math.round(cv.height / 2 - fy * P * k);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.imageSmoothingEnabled = false;
+  c.fillStyle = '#0d0b12'; c.fillRect(0, 0, cv.width, cv.height);
+  c.drawImage(S.pixel.buf, ox, oy, bw * k, bh * k);
+  const scr = (wx, wy) => [ox + wx * P * k, oy + wy * P * k], sc = P * k;
+  if (S.pixel.lights) {
+    c.fillStyle = 'rgba(12,8,24,0.22)'; c.fillRect(0, 0, cv.width, cv.height);
+    const rot = (a, x, y) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+    const pulse = 0.75 + 0.25 * Math.sin(t * 4);
+    let [qx, qy] = scr(300, sy); addLight(c, qx, qy, 34 * sc, '#fee761', 0.55);
+    const [cx0, cy0] = rot(ta, -26, 0); [qx, qy] = scr(330 + cx0, 140 + cy0); addLight(c, qx, qy, 46 * sc * pulse, '#2ce8f5', 0.75);
+    for (const yy of [-7.5, 7.5]) { const [a1, b1] = rot(ta, 4, 0), [a2, b2] = rot(tta, 56, yy); [qx, qy] = scr(330 + a1 + a2, 140 + b1 + b2); addLight(c, qx, qy, 16 * sc * pulse, '#2ce8f5', 0.7); }
+    for (const yy of [-8, 8]) { const [a1, b1] = rot(-0.25, 24, yy); [qx, qy] = scr(px + a1, py + b1); addLight(c, qx, qy, 14 * sc, '#fff8c8', 0.45); }
+    if (shellPos) { [qx, qy] = scr(shellPos[0], shellPos[1]); addLight(c, qx, qy, 22 * sc, '#feae34', 0.7); }
+    if (boomU >= 0) { [qx, qy] = scr(ex - 6, ey - 2); const f = Math.max(0, 1 - boomU * 1.4); addLight(c, qx, qy, 90 * sc, '#f77622', 0.9 * f); addLight(c, qx, qy, 40 * sc, '#fff8c8', f); }
+  }
+  c.font = `600 ${Math.max(10, Math.min(14 * dpr, Math.round(4.4 * k)))}px ui-monospace, Consolas, monospace`; c.textAlign = 'center'; c.fillStyle = S.text; c.globalAlpha = 0.85;
+  let [lx2, ly2] = scr(205, 262); c.fillText('Модель I', lx2, ly2);
+  [lx2, ly2] = scr(330, 200); c.fillText('Модель VIII', lx2, ly2);
+  c.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------------------
 // Холсты
 // ---------------------------------------------------------------------------
 const grid = document.getElementById('grid');
@@ -396,6 +658,7 @@ function frame(now) {
     if (!cw) continue;
     if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) { cv.width = Math.round(cw * dpr); cv.height = Math.round(ch * dpr); }
     const c = cv.getContext('2d');
+    if (S.pixel) { pixelFrame(cv, c, S, t, zoom, dpr); continue; }
     const fit = Math.min(cw / W, ch / H) * zoom;
     SCALE = fit * dpr;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);

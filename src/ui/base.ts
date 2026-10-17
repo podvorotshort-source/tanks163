@@ -1,5 +1,6 @@
 // База между забегами: мастерская, арсенал, исследования, гараж, трофеи.
 
+import { drawIcon } from '../gfx/hi';
 import type { Scene } from '../app';
 import { app } from '../app';
 import { drawText, wrapText } from '../gfx/font';
@@ -10,7 +11,6 @@ import { audio } from '../audio/audio';
 import { music } from '../audio/music';
 import { save } from '../meta/save';
 import { WORKSHOP, ARSENAL, RESEARCH, GARAGE, VARIANTS, THREATS, type UnlockDef } from '../meta/meta';
-import { iconCanvas } from '../gfx/art/icons';
 import { BOSSES } from '../sim/bosses';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { spriteSet, drawSprite } from '../gfx/sprites';
@@ -164,7 +164,7 @@ export class BaseScene implements Scene {
       ctx.fillStyle = sel ? (this.flash > 0 ? '#3a3550' : '#1f1c2e') : 'rgba(21,19,32,0.82)';
       ctx.fillRect(x0, y, listW, rh - 2);
       if (sel) { ctx.fillStyle = UI.gold; ctx.fillRect(x0, y, 2, rh - 2); }
-      ctx.drawImage(iconCanvas(r.icon), x0 + 4, y - 1);
+      drawIcon(ctx, r.icon, x0 + 4, y - 1, 18);
       drawText(ctx, r.name.toUpperCase(), x0 + 24, y + 5, { color: r.owned ? UI.dim : sel ? UI.gold : UI.text });
       if (r.ranks) for (let q = 0; q < r.ranks[1]; q++) { ctx.fillStyle = q < r.ranks[0] ? UI.gold : '#3a3550'; ctx.fillRect(x0 + listW - 70 + q * 6, y + 6, 4, 4); }
       drawText(ctx, r.status, x0 + listW - 6, y + 5, { align: 'right', color: r.owned ? UI.green : r.can ? UI.gold : UI.faint });
@@ -176,7 +176,7 @@ export class BaseScene implements Scene {
     const dx = x0 + listW + 10, dw = W - dx - 10;
     if (r && dw > 80) {
       panel(ctx, dx, y0, dw, 130);
-      ctx.drawImage(iconCanvas(r.icon, 3), dx + dw / 2 - 27, y0 + 6);
+      drawIcon(ctx, r.icon, dx + dw / 2 - 27, y0 + 6, 54);
       let yy = y0 + 64;
       for (const l of wrapText(r.name.toUpperCase(), dw - 12)) { drawText(ctx, l, dx + dw / 2, yy, { align: 'center', color: UI.gold }); yy += 10; }
       yy += 2;

@@ -10,12 +10,14 @@
       body { display: flex; align-items: center; justify-content: center; }
       #wrap { position: relative; }
       #wrap canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; display: block; outline: none; }
+      #hi { pointer-events: none; }
     </style>
   </head>
   <body>
     <div id="wrap">
       <canvas id="world"></canvas>
       <canvas id="screen" tabindex="0"></canvas>
+      <canvas id="hi"></canvas>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

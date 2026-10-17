@@ -59,6 +59,14 @@ export function botCommand(sim: Sim, p: Player, o: BotOpts): PlayerCmd {
     const dx = pu.x - p.x, dy = pu.y - p.y, d = Math.hypot(dx, dy) || 1;
     if (d < L * 8) { fx += (dx / d) * 1.2; fy += (dy / d) * 1.2; }
   }
+  // Ближнее основное оружие (огнемёт): держаться на его дистанции от босса, пока цел.
+  const main = p.weapons[0];
+  if (sim.boss && !sim.boss.dead && main && main.s.range < 5 && p.hp > p.maxHp * 0.45) {
+    const b = sim.boss, dx = b.x - p.x, dy = b.y - p.y, d = Math.hypot(dx, dy) || 1;
+    const want = b.r + main.s.range * L * 0.75;
+    const k = (d - want) / L;
+    fx += (dx / d) * Math.max(-2, Math.min(4, k * 1.5)) * o.skill; fy += (dy / d) * Math.max(-2, Math.min(4, k * 1.5)) * o.skill;
+  }
   // Ящики снабжения и центр арены (не жаться к краю).
   const st = sim.stage;
   fx += ((st.w / 2 - p.x) / st.w) * 0.6;

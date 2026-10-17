@@ -28,7 +28,9 @@ export interface BossDef {
 }
 
 /** Множитель прочности боссов (балансные прогоны). */
-export const BOSS_HP_K = 1.5;
+export const BOSS_HP_K = 1.85;
+/** Урон боссов (бой длиннее обычной стычки — удары мягче). */
+export const BOSS_DMG_K = 0.72;
 
 export const BOSSES: Record<string, BossDef> = {
   windupGeneral: { id: 'windupGeneral', name: 'Заводной генерал', subtitle: 'Пружинный танк-игрушка. Слабое место — заводной ключ на корме', size: 280, hp: 1300, dmg: 16, speed: 34, armor: 'heavy', armorPct: 0.2, weak: { dir: Math.PI, arc: 0.9, mult: 2, name: 'ключ' }, art: 'bossGeneral', minion: 'soldier' },
@@ -63,13 +65,14 @@ export function spawnBoss(sim: Sim, id: string, x: number, y: number): Enemy | n
   const def = BOSSES[id];
   if (!def) return null;
   const edef: EnemyDef = {
-    id: 'boss_' + id, name: def.name, stage: sim.stageIdx, size: def.size, maxMul: 1, hp: def.hp, dmg: def.dmg, speed: def.speed,
+    id: 'boss_' + id, name: def.name, stage: sim.stageIdx, size: def.size, maxMul: 1, hp: def.hp, dmg: def.dmg * BOSS_DMG_K, speed: def.speed,
     armor: def.armor, armorPct: def.armorPct, behavior: 'boss', air: def.air, xp: 120, weight: 0, art: def.art, radius: 0.4, crusher: true,
   };
   const pw = powerOf(def.size * sim.unit);
   const e = new Enemy(sim.newId(), edef, def.size, pw);
   const n = sim.players.length;
-  e.maxHp = e.hp = e.hp * BOSS_HP_K * (1 + 0.75 * (n - 1)) * (1 + 0.25 * sim.threat);
+  // Игрок копит улучшения от ступени к ступени — боссы крепнут так же, как обычные враги (~×1.55 за ступень).
+  e.maxHp = e.hp = e.hp * BOSS_HP_K * Math.pow(1.55, sim.stageIdx) * (1 + 0.75 * (n - 1)) * (1 + 0.25 * sim.threat);
   e.x = e.px = x; e.y = e.py = y;
   e.noCrush = true;
   e.spawnT = 0;

@@ -10,6 +10,11 @@ export class Screen {
   readonly ctx: CanvasRenderingContext2D;
   readonly world: HTMLCanvasElement;
   readonly wctx: CanvasRenderingContext2D;
+  /** Слой высокой чёткости поверх интерфейса (размер как у мира): иконки и витрины из внешней графики. */
+  readonly hi: HTMLCanvasElement;
+  readonly hctx: CanvasRenderingContext2D;
+  /** В этом кадре что-то рисовали в слой hi (иначе его не надо чистить). */
+  hiUsed = false;
   /** Размер интерфейса (виртуальные пиксели). */
   w = 640;
   h = 360;
@@ -25,14 +30,17 @@ export class Screen {
   wunit = 1.5;
   private listeners: (() => void)[] = [];
 
-  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement) {
     this.canvas = canvas;
     this.world = world;
+    this.hi = hi;
     const ctx = canvas.getContext('2d', { alpha: true });
     const wctx = world.getContext('2d', { alpha: false });
-    if (!ctx || !wctx) throw new Error('Canvas 2D недоступен');
+    const hctx = hi.getContext('2d', { alpha: true });
+    if (!ctx || !wctx || !hctx) throw new Error('Canvas 2D недоступен');
     this.ctx = ctx;
     this.wctx = wctx;
+    this.hctx = hctx;
     this.resize();
     addEventListener('resize', () => this.resize());
   }
@@ -62,7 +70,7 @@ export class Screen {
     this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2));
     this.wunit = this.wh / BASE_H;
     const cssW = (this.w * k) / dpr, cssH = (this.h * k) / dpr;
-    for (const [c, w, h] of [[this.canvas, this.w, this.h], [this.world, this.ww, this.wh]] as const) {
+    for (const [c, w, h] of [[this.canvas, this.w, this.h], [this.world, this.ww, this.wh], [this.hi, this.ww, this.wh]] as const) {
       c.width = w;
       c.height = h;
       c.style.width = `${cssW}px`;
@@ -72,6 +80,7 @@ export class Screen {
     if (wrap) { wrap.style.width = `${cssW}px`; wrap.style.height = `${cssH}px`; }
     this.ctx.imageSmoothingEnabled = false;
     this.wctx.imageSmoothingEnabled = false;
+    this.hctx.imageSmoothingEnabled = false;
     for (const fn of this.listeners) fn();
   }
 }

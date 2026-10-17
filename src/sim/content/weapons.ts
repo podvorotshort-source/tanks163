@@ -110,7 +110,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: 'flame', name: 'Огнемёт', role: 'ближний бой, горение',
     desc: 'Конус пламени поджигает врагов и поверхность. Огонь перекидывается на соседей. Слаб против тяжёлой брони.',
     dmgType: 'fire', main: true, tags: ['fire', 'area'], targeting: 'nearest',
-    base: S({ cd: 0.07, dmg: 2.3, range: 3.3, speed: 7, spread: 26, extra: 7, extra2: 2.2 }),
+    base: S({ cd: 0.07, dmg: 2.7, range: 3.6, speed: 7, spread: 26, extra: 7, extra2: 2.2 }),
     levels: [
       { text: 'Дальность +15%', apply: s => { s.range *= 1.15; } },
       { text: 'Урон +25%', apply: s => { s.dmg *= 1.25; } },

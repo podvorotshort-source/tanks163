@@ -512,6 +512,8 @@ export class Sim {
   abandoned = false;
   /** Журнал урона по источникам (доли макс. прочности) — для балансных прогонов. */
   dmgLog: Map<string, number> | null = null;
+  /** Урон по боссу по источникам (доли его прочности) — для балансных прогонов. */
+  bossLog: Map<string, number> | null = null;
 
   onBossKilled(b: Enemy): void {
     this.bossDefeated = true;

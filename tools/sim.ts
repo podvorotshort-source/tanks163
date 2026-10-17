@@ -22,6 +22,7 @@ for (let r = 0; r < runs; r++) {
   const cfg: RunConfig = { seed, players: classes.map(c => ({ cls: c })), startStage };
   const sim = new Sim(cfg);
   sim.dmgLog = new Map();
+  sim.bossLog = new Map();
   const t0 = Date.now();
   let deaths = 0;
   const stageLog: string[] = [];
@@ -39,7 +40,9 @@ for (let r = 0; r < runs; r++) {
       if (verbose && (e.t === 'bossSpawn' || e.t === 'bossDead' || e.t === 'lifeLost' || e.t === 'out' || e.t === 'event')) console.log(`  [${sim.time.toFixed(0)}s st${sim.stageIdx}] ${e.t} ${'text' in e ? e.text : ''}${'name' in e ? e.name : ''}`);
     }
     if (sim.stageIdx !== lastStage) {
-      stageLog.push(`S${lastStage + 1}: ${(sim.time - stageStart).toFixed(0)}s (boss ${bossSpawnT > 0 ? (sim.time - bossSpawnT - 3).toFixed(0) : '?'}s) lvl ${sim.level}`);
+      const bl = [...sim.bossLog!.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} ${(v * 100).toFixed(0)}%`).join(', ');
+      sim.bossLog!.clear();
+      stageLog.push(`S${lastStage + 1}: ${(sim.time - stageStart).toFixed(0)}s (boss ${bossSpawnT > 0 ? (sim.time - bossSpawnT - 3).toFixed(0) : '?'}s) lvl ${sim.level} | по боссу: ${bl}`);
       lastStage = sim.stageIdx; stageStart = sim.time; bossSpawnT = -1;
     }
     if (sim.state === 'gameover' || sim.state === 'victory') break;

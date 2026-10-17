@@ -34,8 +34,8 @@ export class App {
   private worldDirty = true;
   readonly perf = { update: 0, world: 0, ui: 0 };
 
-  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement) {
-    this.screen = new Screen(canvas, world);
+  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement) {
+    this.screen = new Screen(canvas, world, hi);
     input.attach(canvas, (cx, cy) => {
       const r = canvas.getBoundingClientRect();
       return [((cx - r.left) / r.width) * this.screen.w, ((cy - r.top) / r.height) * this.screen.h];
@@ -101,6 +101,7 @@ export class App {
     if (!world && this.worldDirty) { wctx.fillStyle = '#07060b'; wctx.fillRect(0, 0, this.screen.ww, this.screen.wh); }
     this.worldDirty = world;
     const t2 = performance.now();
+    if (this.screen.hiUsed) { this.screen.hctx.clearRect(0, 0, this.screen.ww, this.screen.wh); this.screen.hiUsed = false; }
     ctx.clearRect(0, 0, this.screen.w, this.screen.h);
     for (let i = from; i < this.stack.length; i++) this.stack[i].render(ctx);
     const t3 = performance.now();

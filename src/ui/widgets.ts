@@ -1,5 +1,6 @@
 // Общие элементы интерфейса меню.
 
+import { hiTank } from '../gfx/hi';
 import { drawText, textWidth } from '../gfx/font';
 import { UI } from '../gfx/palette';
 import { input } from '../input/input';
@@ -7,7 +8,6 @@ import { audio } from '../audio/audio';
 import { makeCanvas } from '../gfx/screen';
 import { groundAt } from '../gfx/art/ground';
 import { spriteSet, drawSprite } from '../gfx/sprites';
-import { hullDef, turretDef } from '../gfx/art/tanks';
 import { unitArt } from '../gfx/art/units';
 
 export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, border: string = UI.line, fill = 'rgba(21,19,32,0.92)'): void {
@@ -158,11 +158,7 @@ export function menuBackground(ctx: CanvasRenderingContext2D, W: number, H: numb
 
 /** Танк игрока для витрин меню. */
 export function showcaseTank(ctx: CanvasRenderingContext2D, cls: 'scout' | 'assault' | 'heavy', ramp: 'gold' | 'lime', main: string, aux: string[], x: number, y: number, scale: number, a: number, tier = 0): void {
-  const hull = spriteSet(hullDef(cls, ramp, aux as never[], tier), scale);
-  const tur = spriteSet(turretDef(cls, main as never, ramp, tier), scale);
-  ctx.globalAlpha = 0.35;
-  drawSprite(ctx, hull, x + 3, y + 4, a, 0, 2);
-  ctx.globalAlpha = 1;
-  drawSprite(ctx, hull, x, y, a, 0);
-  drawSprite(ctx, tur, x, y, a);
+  // В слое высокой чёткости (в меню витрину ничего не перекрывает).
+  void ctx;
+  hiTank(cls, ramp, main, aux, x, y, scale, a, tier);
 }

@@ -8,6 +8,9 @@ import { dropPowerup } from './powerups';
 import { bossHitMult } from './bosses';
 
 const tmpE: Enemy[] = [];
+
+/** Поправки урона по боссам: бронебойная иначе решает бой в одиночку, фугас и огонь — наоборот. */
+const BOSS_TYPE_K: Partial<Record<DmgType, number>> = { ap: 0.62, he: 2.1, fire: 2.3, mg: 1.2 };
 const tmpP: Prop[] = [];
 
 export interface DmgOpts {
@@ -36,18 +39,26 @@ export function damageEnemy(sim: Sim, e: Enemy, base: number, type: DmgType, own
     if (type === 'rocket' && e.markT > 0 && p.mods.has('syn_spotter')) eff *= 1.4;
   }
   if (type === 'ap' || type === 'true' || o.pierceArmor) armorPct = 0;
+  // Боссы: различия типов урона сглажены (бой с боссом не решается одним оружием),
+  // бронебойные пробивают лишь половину брони.
+  const boss = e === sim.boss;
+  if (boss) {
+    eff = Math.sqrt(eff) * (BOSS_TYPE_K[type] ?? 1);
+    if (type === 'ap' || o.pierceArmor) armorPct = e.armorPct * 0.5;
+  }
   let dmg = base * eff * (1 - armorPct) * (o.mult ?? 1);
   let weak = false;
   if (e === sim.boss && o.fromX !== undefined && o.fromY !== undefined) {
     const m = bossHitMult(sim, e, o.fromX, o.fromY);
     if (m > 1) { dmg *= m; weak = true; }
   }
-  if (e.markT > 0) dmg *= 1.25;
+  if (e.markT > 0) dmg *= boss ? 1.1 : 1.25;
   if (e.stunT > 0 && p && p.ability('emp') && p.ability('emp')!.level >= 5) dmg *= 1.25;
   if (e.shieldAura > 0) dmg *= 1 - e.shieldAura;
   let crit = false;
   if (p && !o.noCrit && sim.rng.next() < p.stats.crit) { crit = true; dmg *= p.stats.critMult; }
   dmg *= sim.threatDealt();
+  if (e === sim.boss && sim.bossLog) { const k = `${type}:${w || '-'}${weak ? '*' : ''}`; sim.bossLog.set(k, (sim.bossLog.get(k) ?? 0) + Math.min(dmg, Math.max(0, e.hp)) / e.maxHp); }
   e.hp -= dmg;
   e.flash = 0.08;
   if (owner >= 0) { e.lastHit = owner; e.lastHitW = w; }

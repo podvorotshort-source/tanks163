@@ -42,8 +42,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   heavy: {
     id: 'heavy', name: 'Тяжёлый',
     desc: 'Медленная крепость. Держит позицию, давит крупных врагов, огнемёт и мины — его стихия.',
-    speed: 2.1, hp: 180, armor: 0.32, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, range: 1, crit: 0.05,
-    perks: ['Броня 32%', 'Прочность +55%', 'Давит врагов до 58% своего размера'],
+    speed: 2.15, hp: 205, armor: 0.38, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, range: 1, crit: 0.05,
+    perks: ['Броня 38%', 'Прочность +80%', 'Давит врагов до 58% своего размера'],
   },
 };
 

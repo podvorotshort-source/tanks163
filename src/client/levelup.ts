@@ -1,9 +1,9 @@
 // Выбор улучшений: оба игрока выбирают одновременно, каждый своим вводом.
 
+import { drawIcon } from '../gfx/hi';
 import type { Sim } from '../sim/sim';
 import type { Card } from '../sim/upgrades';
 import { drawText, wrapText, textWidth } from '../gfx/font';
-import { iconCanvas } from '../gfx/art/icons';
 import { UI } from '../gfx/palette';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
@@ -145,17 +145,15 @@ export class LevelUpUI {
       ctx.globalAlpha = 1;
     }
     if (layout === 'v') {
-      const ic = iconCanvas(c.icon, 2);
-      ctx.drawImage(ic, Math.round(x + w / 2 - ic.width / 2), y + 8);
-      let ty = y + 8 + ic.height + 4;
+      drawIcon(ctx, c.icon, Math.round(x + w / 2 - 18), y + 8, 36);
+      let ty = y + 8 + 36 + 4;
       for (const line of wrapText(c.title.toUpperCase(), w - 10)) { drawText(ctx, line, x + w / 2, ty, { align: 'center', color: rc }); ty += 9; }
       drawText(ctx, c.tag, x + w / 2, ty, { align: 'center', color: UI.dim, font: 'main' }); ty += 12;
       for (const line of wrapText(c.text, w - 10)) { if (ty > y + h - 18) break; drawText(ctx, line, x + w / 2, ty, { align: 'center', color: UI.text }); ty += 9; }
       drawText(ctx, RARITY_NAME[c.rarity].toUpperCase(), x + w / 2, y + h - 10, { align: 'center', color: rc, font: 'main' });
     } else {
-      const ic = iconCanvas(c.icon, 2);
-      ctx.drawImage(ic, x + 4, Math.round(y + h / 2 - ic.height / 2));
-      const tx = x + 4 + ic.width + 6, tw = w - (tx - x) - 6;
+      drawIcon(ctx, c.icon, x + 4, Math.round(y + h / 2 - 18), 36);
+      const tx = x + 4 + 36 + 6, tw = w - (tx - x) - 6;
       drawText(ctx, c.title.toUpperCase(), tx, y + 4, { color: rc });
       const tag = c.tag;
       drawText(ctx, tag, x + w - 5, y + 4, { color: UI.faint, align: 'right' });

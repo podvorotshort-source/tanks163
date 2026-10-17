@@ -15,7 +15,7 @@ import { loadExt } from './gfx/ext';
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const worldCanvas = document.getElementById('world') as HTMLCanvasElement;
-const app = new App(canvas, worldCanvas);
+const app = new App(canvas, worldCanvas, document.getElementById('hi') as HTMLCanvasElement);
 setApp(app);
 settings.load();
 save.load();

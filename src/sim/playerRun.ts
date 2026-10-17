@@ -235,36 +235,58 @@ function canHit(type: DmgType, e: Enemy): boolean {
   return EFFECT[type][e.armor] > 0;
 }
 
-/** Выбор цели по правилу оружия. */
+/**
+ * Приоритет целей (решение пользователя): сначала босс, затем командир, затем элита, затем остальные —
+ * сильнейшие первыми. Сила — полоса по максимальной прочности (×2 на полосу), чтобы почти равных
+ * врагов дальше выбирало правило самого оружия (броня, гуща, близость).
+ */
+export function targetKey(sim: Sim, e: Enemy): number {
+  const tier = e === sim.boss ? 4 : e.elite && e.bonus ? 3 : e.elite ? 2 : 1;
+  const band = Math.max(0, Math.floor(Math.log2(1 + e.maxHp / Math.max(1e-9, sim.tankPower()))));
+  return tier * 100 + band;
+}
+
+const cand: Enemy[] = [];
+
+/** Выбор цели: сначала по приоритету (targetKey), среди равных — по правилу оружия. */
 export function pickTarget(sim: Sim, p: Player, mode: string, range: number, type: DmgType, blast = 0): Enemy | null {
   sim.enemiesNear(p.x, p.y, range, tmpE);
-  let best: Enemy | null = null, bs = -Infinity;
   const r2 = range * range;
+  // Кандидаты в зоне действия орудия с наивысшим приоритетом.
+  let top = -1;
+  cand.length = 0;
+  for (const e of tmpE) {
+    if (e.dead || e.spawnT > 0 || !canHit(type, e)) continue;
+    const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
+    if (d2 > r2 + e.r * e.r) continue;
+    const k = targetKey(sim, e);
+    if (k > top) { top = k; cand.length = 0; }
+    if (k === top) cand.push(e);
+  }
+  if (!cand.length) return null;
+  if (cand.length === 1) return cand[0];
+  let best: Enemy | null = null, bs = -Infinity;
   if (mode === 'cluster') {
-    // Кандидаты — ближайшие 14; оцениваем плотность в радиусе взрыва.
-    const cands = tmpE.filter(e => !e.dead && e.spawnT <= 0 && canHit(type, e)).sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, 14);
+    // Среди равных — где гуще враги в радиусе взрыва (ближайшие 14 кандидатов).
+    const list = cand.length > 14 ? cand.slice().sort((a, b) => ((a.x - p.x) ** 2 + (a.y - p.y) ** 2) - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, 14) : cand;
     const br = Math.max(blast, sim.size * 0.8);
     const near: Enemy[] = [];
-    for (const c of cands) {
+    for (const c of list) {
       sim.enemiesNear(c.x, c.y, br, near);
       let score = 0;
       for (const n of near) if (!n.dead) score += threatWeight(n);
-      if (c === sim.boss) score += 3;
       score -= Math.sqrt((c.x - p.x) ** 2 + (c.y - p.y) ** 2) / range * 0.5;
       if (score > bs) { bs = score; best = c; }
     }
     return best;
   }
-  for (const e of tmpE) {
-    if (e.dead || e.spawnT > 0 || !canHit(type, e)) continue;
-    const d2 = (e.x - p.x) ** 2 + (e.y - p.y) ** 2;
-    if (d2 > r2 + e.r * e.r) continue;
-    const dn = Math.sqrt(d2) / range;
+  for (const e of cand) {
+    const dn = Math.sqrt((e.x - p.x) ** 2 + (e.y - p.y) ** 2) / range;
     let s: number;
     switch (mode) {
-      case 'armored': s = ARMOR_RANK[e.armor] * 2 + (e === sim.boss ? 6 : 0) + (e.elite ? 2 : 0) + Math.min(3, e.pw / sim.tankPower()) - dn * 2.5; break;
-      case 'far': s = Math.log(1 + e.maxHp / sim.tankPower()) + (e.markT > 0 ? 6 : 0) + (e === sim.boss ? 4 : 0) + dn * 0.5; break;
-      default: s = -dn + (e.armor === 'light' && type === 'mg' ? 0.15 : 0);
+      case 'armored': s = ARMOR_RANK[e.armor] * 2 + Math.min(3, e.pw / sim.tankPower()) - dn * 2.5; break;
+      case 'far': s = Math.log(1 + e.maxHp / sim.tankPower()) + (e.markT > 0 ? 6 : 0) + dn * 0.5; break;
+      default: s = Math.log(1 + e.maxHp / sim.tankPower()) * 0.5 - dn + (e.armor === 'light' && type === 'mg' ? 0.15 : 0);
     }
     if (s > bs) { bs = s; best = e; }
   }

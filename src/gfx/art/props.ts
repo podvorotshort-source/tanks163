@@ -173,6 +173,7 @@ function star5(cx: number, cy: number, R: number, r: number): number[] {
 // Внешняя графика: prop_<kind>.png. Полосы стен мостятся плитками, вода растягивается,
 // игрушки разных вариантов перекрашиваются по тону.
 const TILED = new Set(['brick', 'steel', 'steelWall', 'block', 'houseWall']);
+const BLOCK = new Set(['brick', 'steel', 'steelWall']);
 const FILLED = new Set(['water']);
 const HUED = new Set(['block', 'toyCube', 'crayon', 'marble', 'book', 'pillow', 'slipper']);
 
@@ -185,7 +186,10 @@ export function propDef(kind: string, w: number, h: number, v: number, damaged =
     const ek = pickExt(`prop_${kind}`);
     if (ek) {
       let ext: ExtSpec;
-      if (TILED.has(kind)) { const cell = Math.min(rw, rh); ext = { key: ek, w: cell, tile: cell, foot: [rw, rh] }; }
+      // Кирпич и сталь стен — объёмные блоки (3/4): чуть крупнее клетки, перекрывают соседей —
+      // при отрисовке сзади наперёд стена выглядит сплошной, как на референсе.
+      if (BLOCK.has(kind) && Math.abs(rw - rh) < 0.5) ext = { key: ek, w: rw * 1.32, foot: [rw, rh] };
+      else if (TILED.has(kind)) { const cell = Math.min(rw, rh); ext = { key: ek, w: cell, tile: cell, foot: [rw, rh] }; }
       else if (FILLED.has(kind)) ext = { key: ek, w: rw, foot: [rw, rh], fill: true };
       else ext = { key: ek, w: rw, foot: [rw, rh] };
       if (HUED.has(kind) && v) ext.hue = (v * 83) % 360;

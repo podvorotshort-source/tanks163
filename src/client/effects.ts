@@ -85,12 +85,12 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
   const frames = plasma ? 0 : extFrames('fx_explosion');
   if (frames) {
     const p = fx.spawn('anim', e.x, e.y);
-    p.text = 'fx_explosion'; p.va = frames; p.r = r * 1.3 * k; p.life = 0.5 + Math.min(0.3, r * cam.zoom * 0.004); p.drag = 0;
+    p.text = 'fx_explosion'; p.va = frames; p.r = r * 0.95 * k * (dens < 1 ? 0.8 : 1); p.life = 0.45 + Math.min(0.25, r * cam.zoom * 0.003); p.drag = 0;
   }
   // Огненный шар
   dens *= fx.density();
   const rp = (r * cam.zoom) / (cam.h / 360);
-  const nf = Math.round(Math.min(26, Math.round(6 + rp * 0.25)) * k * (frames ? 0.4 : 1) * dens);
+  const nf = Math.round(Math.min(26, Math.round(6 + rp * 0.25)) * k * (frames ? 0.2 : 1) * dens);
   for (let i = 0; i < nf; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.6;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d * 0.3, e.y + Math.sin(a) * d * 0.3);

@@ -72,7 +72,7 @@ function drawProps(ctx: CanvasRenderingContext2D, rc: RenderCtx, canopy: boolean
   const z = cam.zoom;
   const frame = Math.floor(rc.time * 3) % 4;
   // Сзади наперёд (у картинок 3/4 верх заходит на соседей).
-  list.sort((a, b) => a.y + a.h / 2 - (b.y + b.h / 2));
+  list.sort((a, b) => a.y + a.h / 2 - (b.y + b.h / 2) || a.x - b.x);
   // Под кустами — танк игрока: делаем кусты полупрозрачными.
   for (const p of list) {
     const mat = MATS[p.mat];
@@ -324,7 +324,7 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
 }
 
 // Снаряды из внешней графики: proj_<вид>.png (нос вправо). Трассеры пуль остаются линиями.
-const PROJ_LEN: Record<string, number> = { proj_shell: 2.2, proj_rocket: 3.2, proj_plasma: 1.8, proj_laser: 4, proj_bullet: 2.6 };
+const PROJ_LEN: Record<string, number> = { proj_shell: 1.5, proj_rocket: 2.2, proj_plasma: 1.6, proj_laser: 3, proj_bullet: 2 };
 function projKey(s: Shot): string | null {
   let k: string | null = null;
   if (s.team === 0) {

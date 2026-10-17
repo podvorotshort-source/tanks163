@@ -47,7 +47,7 @@ for (const file of files) {
   const [sheet, layout] = found ?? [name, { keys: [], max: 320 }];
   const mime = /\.webp$/i.test(file) ? 'image/webp' : /\.jpe?g$/i.test(file) ? 'image/jpeg' : 'image/png';
   const url = `data:${mime};base64,${readFileSync(file).toString('base64')}`;
-  const res = (await page.evaluate(sliceInPage, { url, whole: !!layout.whole, max: layout.max, gap: gapOpt ? Number(gapOpt) : 0 })) as Result;
+  const res = (await page.evaluate(sliceInPage, { url, whole: !!layout.whole, max: layout.max, gap: gapOpt ? Number(gapOpt) : 0, rows: (layout as { rows?: number[] }).rows ?? null })) as Result;
   const keys = keysOverride ?? layout.keys;
   const pieces = res.pieces.filter((_, i) => !skip.has(i));
   console.log(`${sheet}: ${res.w}×${res.h}, фон rgb(${res.bg.join(',')}), найдено объектов: ${res.pieces.length}${skip.size ? `, пропущено: ${[...skip].join(',')}` : ''}, ожидалось: ${keys.length || '—'}`);
@@ -56,7 +56,7 @@ for (const file of files) {
   console.log(`  контактный лист: tools/out/slice-${sheet}.png`);
   pieces.forEach((p, i) => {
     const key = keys[i] ?? `${sheet}_${i}`;
-    const path = resolve(outDir, key.toLowerCase() + '.png');
+    const path = resolve(outDir, key.toLowerCase() + '.webp');
     if (!dry) writeFileSync(path, Buffer.from(p.png.split(',')[1], 'base64'));
     console.log(`  #${String(i).padStart(2)} ${key.padEnd(26)} ${p.w}×${p.h}${dry ? '' : ' → ' + path.replace(resolve('.') + '\\', '')}${existsSync(path) && dry ? ' (есть)' : ''}`);
   });
@@ -68,7 +68,7 @@ await browser.close();
 // Код ниже выполняется в браузере.
 // ---------------------------------------------------------------------------
 
-async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boolean; max: number; gap: number }): Promise<Result> {
+async function sliceInPage({ url, whole, max, gap, rows: gridRows }: { url: string; whole: boolean; max: number; gap: number; rows: number[] | null }): Promise<Result> {
   const img = new Image();
   img.src = url;
   await img.decode();
@@ -80,6 +80,8 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
   const src = cx.getImageData(0, 0, W, H);
   const d = src.data;
   const toUrl = (c: HTMLCanvasElement) => c.toDataURL('image/png');
+  // Нарезанные спрайты — WebP (в разы меньше PNG; альфа без потерь).
+  const toWebp = (c: HTMLCanvasElement) => c.toDataURL('image/webp', 0.9);
   const fit = (w: number, h: number, m: number) => { const k = Math.min(1, m / Math.max(w, h)); return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))]; };
 
   if (whole) {
@@ -90,8 +92,7 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
     const ox = o.getContext('2d')!;
     ox.imageSmoothingQuality = 'high';
     ox.drawImage(img, 0, 0, tw, th);
-    const u = toUrl(o);
-    return { w: W, h: H, bg: [], pieces: [{ x: 0, y: 0, w: tw, h: th, png: u, area: W * H }], contact: u };
+    return { w: W, h: H, bg: [], pieces: [{ x: 0, y: 0, w: tw, h: th, png: toWebp(o), area: W * H }], contact: toUrl(o) };
   }
 
   // Цвет фона — медиана пикселей рамки.
@@ -120,7 +121,8 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
   for (let i = 0; i < W * H; i++) fg[i] = bgness[i] < 0.5 ? 1 : 0;
 
   // Склейка близких частей: расширение маски на G px (раздельно по осям — быстро).
-  const G = gap || Math.max(3, Math.round(Math.min(W, H) * 0.008));
+  // По сетке части объекта собираются ячейками — склейка нужна минимальная (соседи не слипаются).
+  const G = gap || (gridRows ? 2 : Math.max(3, Math.round(Math.min(W, H) * 0.008)));
   const tmp = new Uint8Array(W * H), dil = new Uint8Array(W * H);
   for (let y = 0; y < H; y++) {
     let last = -1e9;
@@ -158,20 +160,73 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
   let list = comps.filter(c => c.area > 0);
   const areas = list.map(c => c.area).sort((a, b) => a - b);
   const medArea = areas[areas.length >> 1] ?? 1;
-  list = list.filter(c => c.area >= Math.max(40, medArea * 0.06));
-
-  // Порядок чтения: строки по вертикальным центрам.
-  const hs = list.map(c => c.y1 - c.y0 + 1).sort((a, b) => a - b);
-  const medH = hs[hs.length >> 1] ?? 1;
-  list.sort((a, b) => (a.y0 + a.y1) - (b.y0 + b.y1));
-  const rows: (typeof list)[] = [];
-  for (const c of list) {
-    const cy = (c.y0 + c.y1) / 2;
-    const row = rows[rows.length - 1];
-    const rcy = row ? row.reduce((s, q) => s + (q.y0 + q.y1) / 2, 0) / row.length : -1e9;
-    if (row && Math.abs(cy - rcy) < medH * 0.55) row.push(c); else rows.push([c]);
+  type Group = { ids: Set<number>; x0: number; y0: number; x1: number; y1: number; area: number };
+  let groups: Group[];
+  if (gridRows) {
+    // Сетка известна: части одного объекта (искры, вагоны, стайки) склеиваются по ячейкам.
+    list = list.filter(c => c.area >= 6);
+    const big = list.filter(c => c.area >= medArea * 0.05);
+    const by0 = Math.min(...big.map(c => c.y0)), by1 = Math.max(...big.map(c => c.y1));
+    const nr = gridRows.length;
+    const cells = new Map<string, Group>();
+    // Разрезы — по самым «пустым» линиям вблизи равномерного деления (между рядами/столбцами пусто).
+    const cutsAlong = (lo: number, hi: number, n: number, occ: (v: number) => number): number[] => {
+      const out = [lo - 1];
+      const step = (hi - lo + 1) / n;
+      for (let k = 1; k < n; k++) {
+        const exp = lo + k * step, win = step * 0.35;
+        let best = Math.round(exp), bv = Infinity;
+        for (let v = Math.round(exp - win); v <= Math.round(exp + win); v++) {
+          const o = occ(v) + Math.abs(v - exp) / step * 0.5;
+          if (o < bv) { bv = o; best = v; }
+        }
+        out.push(best);
+      }
+      out.push(hi + 1);
+      return out;
+    };
+    const cx0 = Math.min(...big.map(c => c.x0)), cx1 = Math.max(...big.map(c => c.x1));
+    const rowOcc = new Float32Array(H);
+    for (let y = 0; y < H; y++) { let n = 0; for (let x = cx0; x <= cx1; x++) n += fg[y * W + x]; rowOcc[y] = n; }
+    const ys = cutsAlong(by0, by1, nr, v => rowOcc[Math.max(0, Math.min(H - 1, v))] ?? 0);
+    const rowOf = (c: typeof list[0]) => { const cy = (c.y0 + c.y1) / 2; for (let r = 0; r < nr; r++) if (cy < ys[r + 1]) return r; return nr - 1; };
+    for (let r = 0; r < nr; r++) {
+      const inRow = list.filter(c => rowOf(c) === r);
+      const bigRow = inRow.filter(c => c.area >= medArea * 0.05);
+      if (!bigRow.length) continue;
+      const rx0 = Math.min(...bigRow.map(c => c.x0)), rx1 = Math.max(...bigRow.map(c => c.x1));
+      const nc = gridRows[r];
+      const yA = Math.max(0, ys[r] + 1), yB = Math.min(H - 1, ys[r + 1] - 1);
+      const colOcc = (x: number) => { if (x < 0 || x >= W) return 0; let n = 0; for (let y = yA; y <= yB; y++) n += fg[y * W + x]; return n; };
+      const xs = cutsAlong(rx0, rx1, nc, colOcc);
+      for (const c of inRow) {
+        const cx = (c.x0 + c.x1) / 2;
+        let col = nc - 1;
+        for (let k = 0; k < nc; k++) if (cx < xs[k + 1]) { col = k; break; }
+        const key = r * 100 + col;
+        let g = cells.get(String(key));
+        if (!g) { g = { ids: new Set(), x0: W, y0: H, x1: -1, y1: -1, area: 0 }; cells.set(String(key), g); }
+        g.ids.add(c.id); g.area += c.area;
+        g.x0 = Math.min(g.x0, c.x0); g.y0 = Math.min(g.y0, c.y0); g.x1 = Math.max(g.x1, c.x1); g.y1 = Math.max(g.y1, c.y1);
+      }
+    }
+    groups = [...cells.entries()].sort((a, b) => Number(a[0]) - Number(b[0])).map(e => e[1]);
+  } else {
+    list = list.filter(c => c.area >= Math.max(40, medArea * 0.06));
+    // Порядок чтения: строки по вертикальным центрам.
+    const hs = list.map(c => c.y1 - c.y0 + 1).sort((a, b) => a - b);
+    const medH = hs[hs.length >> 1] ?? 1;
+    list.sort((a, b) => (a.y0 + a.y1) - (b.y0 + b.y1));
+    const rowsL: (typeof list)[] = [];
+    for (const c of list) {
+      const cy = (c.y0 + c.y1) / 2;
+      const row = rowsL[rowsL.length - 1];
+      const rcy = row ? row.reduce((s, q) => s + (q.y0 + q.y1) / 2, 0) / row.length : -1e9;
+      if (row && Math.abs(cy - rcy) < medH * 0.55) row.push(c); else rowsL.push([c]);
+    }
+    groups = rowsL.flatMap(r => r.sort((a, b) => a.x0 + a.x1 - b.x0 - b.x1)).map(c => ({ ids: new Set([c.id]), x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1, area: c.area }));
   }
-  const ordered = rows.flatMap(r => r.sort((a, b) => a.x0 + a.x1 - b.x0 - b.x1));
+  const ordered = groups;
 
   // Вырезка с мягкой альфой и очисткой ореола.
   const pieces: Piece[] = [];
@@ -186,7 +241,7 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
     const o = out.data;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const si = (y0 + y) * W + x0 + x, oi = (y * w + x) * 4;
-      if (lab[si] !== c.id) continue;
+      if (!c.ids.has(lab[si])) continue;
       const a = 1 - bgness[si];
       if (a <= 0.02) continue;
       let r = d[si * 4], g = d[si * 4 + 1], b = d[si * 4 + 2];
@@ -214,7 +269,7 @@ async function sliceInPage({ url, whole, max, gap }: { url: string; whole: boole
       fx.imageSmoothingQuality = 'high';
       fx.drawImage(pc, 0, 0, tw, th);
     }
-    pieces.push({ x: x0, y: y0, w: tw, h: th, png: toUrl(fin), area: c.area });
+    pieces.push({ x: x0, y: y0, w: tw, h: th, png: toWebp(fin), area: c.area });
   }
 
   // Контактный лист: исходник, рамки, номера.

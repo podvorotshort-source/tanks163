@@ -31,23 +31,51 @@ export class Particle {
 
 /** Кеш пиксельных дисков: радиус в пикселях × цвет. */
 const discs = new Map<string, HTMLCanvasElement>();
+let discPixels = 0;
+const DISC_MAX = 96;
+const rgbCache = new Map<string, number>();
+function abgr(col: string): number {
+  let v = rgbCache.get(col);
+  if (v === undefined) {
+    const n = parseInt(col.slice(1), 16);
+    v = (0xff000000 | ((n & 255) << 16) | (n & 0xff00) | ((n >> 16) & 255)) >>> 0;
+    rgbCache.set(col, v);
+  }
+  return v;
+}
+/** Квантованный радиус: мелкие — шаг 0.5 px, крупные — шаг ~7% (иначе на каждый кадр новый диск). */
+function quantR(r: number): number {
+  if (r <= 12) return Math.max(0.5, Math.round(r * 2) / 2);
+  return Math.round(Math.exp(Math.round(Math.log(r) / 0.07) * 0.07));
+}
 export function disc(r: number, col: string): HTMLCanvasElement {
-  r = Math.max(0.5, Math.round(r * 2) / 2);
+  r = quantR(Math.min(r, DISC_MAX));
   const key = r + col;
   let c = discs.get(key);
   if (!c) {
     const s = Math.ceil(r * 2) + 1;
     c = makeCanvas(s, s);
     const x = c.getContext('2d')!;
-    x.fillStyle = col;
-    const cx = s / 2, cy = s / 2;
-    for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
-      if ((i + 0.5 - cx) ** 2 + (j + 0.5 - cy) ** 2 <= r * r) x.fillRect(i, j, 1, 1);
-    }
-    if (discs.size > 3000) discs.clear();
+    const img = x.createImageData(s, s);
+    const d = new Uint32Array(img.data.buffer);
+    const v = abgr(col), cx = s / 2, cy = s / 2, rr = r * r;
+    for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) if ((i + 0.5 - cx) ** 2 + (j + 0.5 - cy) ** 2 <= rr) d[j * s + i] = v;
+    x.putImageData(img, 0, 0);
+    discPixels += s * s;
+    if (discs.size > 3000 || discPixels > 8e6) { discs.clear(); discPixels = 0; }
     discs.set(key, c);
   }
   return c;
+}
+
+/** Диск любого радиуса: больше DISC_MAX — растянутый (крупные дым/огонь). */
+function drawDisc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, col: string): void {
+  if (r <= DISC_MAX) {
+    const c = disc(r, col);
+    ctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2));
+  } else {
+    ctx.drawImage(disc(DISC_MAX, col), Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2));
+  }
 }
 
 /** Мягкое пятно света (радиальный градиент) — рисуется в полуразрешении. */
@@ -96,6 +124,11 @@ export class Fx {
   drawMs = 0;
   /** Масштаб «силы» эффектов (растёт с поколением танка). */
   power = 1;
+
+  /** Плотность новых эффектов: при сотнях частиц (массовая гибель врагов) — меньше частиц на событие. */
+  density(): number {
+    return Math.max(0.25, Math.min(1, 1 - (this.parts.length - 500) / 1200));
+  }
 
   spawn(kind: PKind, x: number, y: number): Particle {
     if (this.parts.length >= this.max) {
@@ -160,19 +193,17 @@ export class Fx {
         case 'fire': case 'ember': {
           const ramp = RAMPS[p.ramp ?? 'fire'];
           const ci = Math.max(0, Math.min(5, Math.round(5 - u * 5.5)));
-          const r = Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z);
-          ctx.drawImage(disc(r, ramp[ci]), Math.round(sx - r), Math.round(sy - r));
+          drawDisc(ctx, sx, sy, Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z), ramp[ci]);
           break;
         }
         case 'smoke': case 'dust': case 'bubble': {
-          const r = Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z);
           ctx.globalAlpha = p.alpha * (1 - u) * (u < 0.15 ? u / 0.15 : 1);
-          ctx.drawImage(disc(r, p.col), Math.round(sx - r), Math.round(sy - r));
+          drawDisc(ctx, sx, sy, Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z), p.col);
           ctx.globalAlpha = 1;
           break;
         }
         case 'spark': {
-          const len = Math.max(1, Math.hypot(p.vx, p.vy) * z * 0.025);
+          const len = Math.max(1, Math.min(24 * (cam.h / 360), Math.hypot(p.vx, p.vy) * z * 0.025));
           const a = Math.atan2(p.vy, p.vx);
           ctx.fillStyle = u < 0.4 ? '#fff4b0' : u < 0.7 ? '#fbc63e' : '#f08a1c';
           const n = Math.ceil(len);
@@ -240,7 +271,7 @@ export class Fx {
     lc.clearRect(0, 0, lw, lh);
     lc.globalCompositeOperation = 'lighter';
     const add = (x: number, y: number, r: number, col: string, a: number) => {
-      const sx = cam.sxOf(x) / 2, sy = cam.syOf(y) / 2, rr = (r * cam.zoom) / 2;
+      const sx = cam.sxOf(x) / 2, sy = cam.syOf(y) / 2, rr = Math.min((r * cam.zoom) / 2, Math.max(lw, lh) * 1.5);
       if (sx + rr < 0 || sy + rr < 0 || sx - rr > lw || sy - rr > lh || rr < 0.5) return;
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(glowTinted(col), sx - rr, sy - rr, rr * 2, rr * 2);

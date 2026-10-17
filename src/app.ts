@@ -32,7 +32,7 @@ export class App {
   paused = false;
   errors = 0;
   private worldDirty = true;
-  readonly perf = { update: 0, world: 0, ui: 0 };
+  readonly perf = { update: 0, world: 0, ui: 0, peakFrame: 0 };
 
   constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement) {
     this.screen = new Screen(canvas, world, hi);
@@ -108,6 +108,7 @@ export class App {
     // Скользящее среднее времени фаз кадра (мс) — для отладки производительности.
     const p = this.perf;
     p.update += (t1 - t0 - p.update) * 0.05; p.world += (t2 - t1 - p.world) * 0.05; p.ui += (t3 - t2 - p.ui) * 0.05;
+    p.peakFrame = Math.max(p.peakFrame, t3 - t0);
     input.endFrame();
   }
 }

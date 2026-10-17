@@ -48,7 +48,7 @@ export function emitShot(fx: Fx, sim: Sim, e: Ev<'shot'>, cam: Camera): void {
   } else if (e.w === 'tesla') fx.light(e.x, e.y, e.size * 1.2, '#62cfac', 0.8, 0.1);
 }
 
-export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, ground: GroundLayer): void {
+export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, ground: GroundLayer, dens = 1): void {
   const r = e.r;
   if (!cam.visible(e.x, e.y, r * 1.5)) {
     if (e.kind !== 'tesla') ground.addDecal({ x: e.x, y: e.y, r: r * 0.5, kind: 'scorch', col: '#1a1724', seed: (e.x * 13 + e.y * 7) | 0, a: 0 });
@@ -59,6 +59,21 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
     const ring = fx.spawn('ring', e.x, e.y); ring.r = r * 0.1; ring.r1 = r; ring.life = 0.35; ring.col = '#bdf3dc';
     fx.light(e.x, e.y, r * 1.3, '#62cfac', 1, 0.25);
     for (let i = 0; i < 14; i++) { const p = fx.spawn('pixel', e.x, e.y); const a = Math.random() * Math.PI * 2; p.vx = Math.cos(a) * r * 3; p.vy = Math.sin(a) * r * 3; p.r = 1 / cam.zoom; p.life = 0.3; p.col = '#bdf3dc'; }
+    return;
+  }
+  // Взрыв больше ~80 базовых пикселей (граната на весь экран, ядерные удары) — это россыпь
+  // обычных взрывов + общая вспышка и волна: один гигантский огненный шар выглядит хуже
+  // и рисовался бы дисками в сотни пикселей (раньше это вешало игру на секунды).
+  const maxR = (80 * (cam.h / 360)) / cam.zoom;
+  if (r > maxR) {
+    const n = Math.min(10, Math.ceil((r / maxR) ** 2 * 0.9));
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.75;
+      emitExplosion(fx, sim, { ...e, x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d, r: maxR * (0.45 + Math.random() * 0.4) }, cam, ground, 0.55);
+    }
+    fx.light(e.x, e.y, r * 1.6, e.kind === 'plasma' ? '#bb70cc' : '#fff4b0', 1, 0.3);
+    const ring = fx.spawn('ring', e.x, e.y);
+    ring.r = maxR * 0.5; ring.r1 = r * 1.1; ring.life = 0.45; ring.col = '#fff4b0'; ring.alpha = 0.7;
     return;
   }
   const plasma = e.kind === 'plasma';
@@ -73,7 +88,9 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
     p.text = 'fx_explosion'; p.va = frames; p.r = r * 1.3 * k; p.life = 0.5 + Math.min(0.3, r * cam.zoom * 0.004); p.drag = 0;
   }
   // Огненный шар
-  const nf = Math.round(Math.min(26, Math.round(6 + r * cam.zoom * 0.25)) * k * (frames ? 0.4 : 1));
+  dens *= fx.density();
+  const rp = (r * cam.zoom) / (cam.h / 360);
+  const nf = Math.round(Math.min(26, Math.round(6 + rp * 0.25)) * k * (frames ? 0.4 : 1) * dens);
   for (let i = 0; i < nf; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.6;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d * 0.3, e.y + Math.sin(a) * d * 0.3);
@@ -81,7 +98,7 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
     p.r = r * (0.22 + Math.random() * 0.2); p.r1 = r * 0.05; p.life = 0.3 + Math.random() * 0.35; p.drag = 5; p.ramp = ramp;
   }
   // Дым
-  const ns = Math.min(14, Math.round(3 + r * cam.zoom * 0.12)) * k;
+  const ns = Math.round(Math.min(14, Math.round(3 + rp * 0.12)) * k * dens);
   for (let i = 0; i < ns; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.6;
     const p = fx.spawn('smoke', e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
@@ -90,7 +107,7 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
     p.col = Math.random() < 0.5 ? '#3a3550' : '#57535f'; p.alpha = 0.55;
   }
   // Искры
-  const nk = Math.min(20, Math.round(6 + r * cam.zoom * 0.2));
+  const nk = Math.round(Math.min(20, Math.round(6 + rp * 0.2)) * dens);
   for (let i = 0; i < nk; i++) {
     const a = Math.random() * Math.PI * 2, sp = r * (3 + Math.random() * 5);
     const p = fx.spawn('spark', e.x, e.y);
@@ -134,6 +151,7 @@ function fmtDmg(v: number): string {
 export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: GroundLayer): void {
   if (!cam.visible(e.x, e.y, e.size)) return;
   const sz = e.size;
+  const dens = fx.density(), zp = (sz * cam.zoom) / (cam.h / 360);
   if (e.crushed) {
     ground.addDecal({ x: e.x, y: e.y, r: sz * 0.55, kind: 'splat', col: '#24222a', seed: (e.x * 3 + e.y) | 0, a: 0 });
     for (let i = 0; i < 6; i++) {
@@ -145,16 +163,16 @@ export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: G
   }
   // Взрыв корпуса.
   fx.light(e.x, e.y, sz * 2.2, '#fbc63e', 0.9, 0.18);
-  for (let i = 0; i < 8 + Math.min(16, sz * cam.zoom * 0.4); i++) {
+  for (let i = 0; i < (8 + Math.min(16, zp * 0.4)) * dens; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.random() * sz * 0.4;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
     p.vx = Math.cos(a) * sz * 2; p.vy = Math.sin(a) * sz * 2 - sz; p.r = sz * 0.25; p.r1 = sz * 0.05; p.life = 0.35 + Math.random() * 0.3; p.drag = 4;
   }
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 5 * dens; i++) {
     const p = fx.spawn('smoke', e.x, e.y);
     p.vx = (Math.random() - 0.5) * sz * 1.5; p.vy = -sz * (0.5 + Math.random()); p.r = sz * 0.2; p.r1 = sz * 0.6; p.life = 1.2; p.col = '#3a3550'; p.alpha = 0.6;
   }
-  for (let i = 0; i < 6 + Math.min(10, sz * cam.zoom * 0.2); i++) {
+  for (let i = 0; i < (6 + Math.min(10, zp * 0.2)) * dens; i++) {
     const p = fx.spawn('debris', e.x, e.y);
     const a = Math.random() * Math.PI * 2, sp = sz * (2 + Math.random() * 4);
     p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp; p.vz = sz * (1 + Math.random() * 2); p.r = sz * (0.06 + Math.random() * 0.1); p.r1 = sz / 10; p.life = 0.8 + Math.random() * 0.6; p.col = RAMPS.iron[1 + (i % 4)]; p.va = (Math.random() - 0.5) * 30;
@@ -169,7 +187,7 @@ export function emitPropBreak(fx: Fx, sim: Sim, e: Ev<'propBreak'>, cam: Camera,
   const sz = Math.max(e.w, e.h);
   ground.addDecal({ x: e.x, y: e.y, r: sz * 0.5, kind: 'rubble', col: cols[0], seed: (e.x + e.y * 3) | 0, a: 0 });
   if (!cam.visible(e.x, e.y, sz)) return;
-  const n = Math.min(14, 4 + Math.round(sz * cam.zoom * 0.3));
+  const n = Math.round(Math.min(14, 4 + Math.round(((sz * cam.zoom) / (cam.h / 360)) * 0.3)) * fx.density());
   for (let i = 0; i < n; i++) {
     const p = fx.spawn('debris', e.x + (Math.random() - 0.5) * e.w, e.y + (Math.random() - 0.5) * e.h);
     const a = Math.random() * Math.PI * 2, sp = sz * (1 + Math.random() * 2) + sim.size;

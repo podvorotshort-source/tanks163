@@ -83,7 +83,7 @@ export const SHEETS: Record<string, SheetLayout> = {
   },
   '12_props_5-6': { keys: ['house', 'tree', 'car', 'tower', 'midrise'].map(k => `prop_${k}`), rows: [3, 2], max: 384 },
   '12_props_7-8': { keys: ['mountain', 'cityDot', 'volcano', 'crystal'].map(k => `prop_${k}`), rows: [2, 2], max: 384 },
-  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => [`13_ground_${i}`, { keys: [`ground_${i}`], max: 512, whole: true }])),
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map(i => [`13_ground_${i}`, { keys: [`ground_${i}`], max: 1280, whole: true }])),
 };
 
 /** Лист по имени файла (без расширения, с учётом вариантов вроде «01_hulls_1-4 (2)»). */

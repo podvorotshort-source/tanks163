@@ -185,7 +185,7 @@ export { PAINTERS };
 // ---------------------------------------------------------------------------
 
 /** Сторона плитки текстуры в единицах ступени (танк в начале ступени — 28). */
-const TILE_UNITS = 224;
+const TILE_UNITS = 448;
 
 interface Tex { levels: { w: number; h: number; d: Uint32Array }[] }
 const texCache = new Map<number, Tex | null>();
@@ -194,7 +194,7 @@ function groundTex(n: number): Tex | null {
   let t = texCache.get(n);
   if (t !== undefined) return t;
   const key = pickExt(`ground_${n + 1}`);
-  const px = key ? extPixels(key, 1024) : null;
+  const px = key ? extPixels(key, 2048) : null;
   if (!px) {
     if (extReady()) texCache.set(n, null);
     return null;

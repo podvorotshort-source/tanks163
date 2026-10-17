@@ -186,9 +186,8 @@ export function propDef(kind: string, w: number, h: number, v: number, damaged =
     const ek = pickExt(`prop_${kind}`);
     if (ek) {
       let ext: ExtSpec;
-      // Кирпич и сталь стен — объёмные блоки (3/4): чуть крупнее клетки, перекрывают соседей —
-      // при отрисовке сзади наперёд стена выглядит сплошной, как на референсе.
-      if (BLOCK.has(kind) && Math.abs(rw - rh) < 0.5) ext = { key: ek, w: rw * 1.32, foot: [rw, rh] };
+      // Одиночный квадратный блок (кирпич, сталь) — картинка целиком в размер клетки.
+      if (BLOCK.has(kind) && Math.abs(rw - rh) < 0.5) ext = { key: ek, w: rw, foot: [rw, rh] };
       else if (TILED.has(kind)) { const cell = Math.min(rw, rh); ext = { key: ek, w: cell, tile: cell, foot: [rw, rh] }; }
       else if (FILLED.has(kind)) ext = { key: ek, w: rw, foot: [rw, rh], fill: true };
       else ext = { key: ek, w: rw, foot: [rw, rh] };

@@ -393,6 +393,11 @@ export function unitArt(id: string): UnitArt {
 }
 
 // Внешняя графика: enemy_<art>.png (+ _turret, _rotor — если нарисованы отдельно).
+// Игрушечные враги первых миров на картинках мелковаты — рисуем крупнее (хитбокс прежний).
+const EXT_VIS: Record<string, number> = {
+  soldier: 1.7, toyTank: 1.35, jeep: 1.35, heli: 1.3, armorToy: 1.3, mortar: 1.35, bigToy: 1.2, toyBunker: 1.15,
+  windMouse: 1.3, top: 1.25, rcCar: 1.25, toyRobot: 1.25, plane: 1.25, blockGolem: 1.15, jackBox: 1.15, rcTank: 1.15,
+};
 const extUnits = new Map<string, UnitArt>();
 function extUnit(id: string, base: UnitArt): UnitArt {
   let u = extUnits.get(id);
@@ -403,7 +408,7 @@ function extUnit(id: string, base: UnitArt): UnitArt {
     return base;
   }
   const [iw, ih] = extSizePx(key)!;
-  const W = (base.size * iw) / Math.max(iw, ih);
+  const W = (base.size * (EXT_VIS[id] ?? 1) * iw) / Math.max(iw, ih);
   const defs = new Map<string, SpriteDef>();
   const mk = (k: string, c: RampId, w: number): SpriteDef => {
     const did = `ext:${k}:${c}`;

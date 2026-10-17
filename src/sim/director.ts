@@ -71,7 +71,8 @@ export class Director {
   }
 
   playersFactor(): number {
-    return 1 + 0.6 * (this.sim.players.filter(p => p.state !== 'out').length - 1);
+    // Вдвоём — вдвое больше врагов: двое стреляют и спасают друг друга.
+    return 1 + 1.0 * (this.sim.players.filter(p => p.state !== 'out').length - 1);
   }
 
   cap(): number {

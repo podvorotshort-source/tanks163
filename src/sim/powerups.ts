@@ -72,14 +72,16 @@ export function applyPowerup(sim: Sim, id: PowerupId, by: number): void {
       break;
     case 'grenade': {
       // Масштабируется: обычных — уничтожает, элитам — треть, боссу — 6%.
+      // Доли прочности точные: делим на множитель «крепости» врагов ступени/угрозы.
+      const pct = 1 / sim.threatDealt();
       const [hw, hh] = sim.viewHalf();
       sim.enemiesNear(sim.viewX, sim.viewY, Math.hypot(hw, hh), tmpE);
       for (const e of tmpE.slice()) {
         if (e.dead || Math.abs(e.x - sim.viewX) > hw || Math.abs(e.y - sim.viewY) > hh) continue;
-        if (e === sim.boss) damageEnemy(sim, e, e.maxHp * 0.06, 'true', by, '', { noCrit: true });
-        else if (e.elite) damageEnemy(sim, e, e.maxHp * 0.35, 'true', by, '', { noCrit: true });
+        if (e === sim.boss) damageEnemy(sim, e, e.maxHp * 0.06 * pct, 'true', by, '', { noCrit: true });
+        else if (e.elite) damageEnemy(sim, e, e.maxHp * 0.35 * pct, 'true', by, '', { noCrit: true });
         else if (e.size <= sim.size * 1.6) killEnemy(sim, e, by, '', false);
-        else damageEnemy(sim, e, e.maxHp * 0.5, 'true', by, '', { noCrit: true });
+        else damageEnemy(sim, e, e.maxHp * 0.5 * pct, 'true', by, '', { noCrit: true });
       }
       sim.emit({ t: 'boom', x: sim.viewX, y: sim.viewY, r: Math.hypot(hw, hh), kind: 'big', p: by });
       break;

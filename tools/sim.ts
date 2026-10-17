@@ -32,7 +32,7 @@ for (let r = 0; r < runs; r++) {
   sim.dmgLog = new Map();
   sim.bossLog = new Map();
   const t0 = Date.now();
-  let deaths = 0;
+  let deaths = 0, downs = 0;
   const stageLog: string[] = [];
   let lastStage = sim.stageIdx;
   let stageStart = 0;
@@ -44,6 +44,7 @@ for (let r = 0; r < runs; r++) {
     sim.step(cmds);
     for (const e of sim.events) {
       if (e.t === 'down' || e.t === 'lifeLost') deaths += e.t === 'lifeLost' ? 1 : 0;
+      if (e.t === 'down') downs++;
       if (e.t === 'bossSpawn') bossSpawnT = sim.time;
       if (verbose && (e.t === 'bossSpawn' || e.t === 'bossDead' || e.t === 'lifeLost' || e.t === 'out' || e.t === 'event')) console.log(`  [${sim.time.toFixed(0)}s st${sim.stageIdx}] ${e.t} ${'text' in e ? e.text : ''}${'name' in e ? e.name : ''}`);
     }
@@ -61,7 +62,7 @@ for (let r = 0; r < runs; r++) {
     build: sim.players.map(p => `${p.classId}: ` + p.weapons.map(w => `${WEAPONS[w.id].name.split(' ')[0]} ${w.level}`).join(', ') + ' | ' + [...p.mods].join(',')),
   };
   results.push(res);
-  console.log(`run ${r} seed ${seed}: ${res.win ? 'ПОБЕДА' : sim.state === 'gameover' ? 'поражение' : 'лимит времени'} ступень ${res.stage}, ${res.time}s, ур ${res.level}, убийств ${res.kills}, потерь жизней ${deaths}, ${(Date.now() - t0) / 1000}s CPU`);
+  console.log(`run ${r} seed ${seed}: ${res.win ? 'ПОБЕДА' : sim.state === 'gameover' ? 'поражение' : 'лимит времени'} ступень ${res.stage}, ${res.time}s, ур ${res.level}, убийств ${res.kills}, подбит ${downs}, потерь жизней ${deaths}, ${(Date.now() - t0) / 1000}s CPU`);
   for (const s of stageLog) console.log('   ', s);
   for (const b of res.build) console.log('   ', b);
   console.log('    урон по источникам (в макс. прочностях):', [...sim.dmgLog!.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', '));

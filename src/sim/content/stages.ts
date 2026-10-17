@@ -54,51 +54,77 @@ function free(list: Prop[], x: number, y: number, w: number, h: number, keep: { 
 }
 
 // ---------------------------------------------------------------------------
-// 1. Игрушечный полигон — кирпич, сталь, кусты, вода (в духе Dendy)
+// 1. Игрушечный полигон — укрытия в духе Dendy: аккуратная симметричная раскладка
+//    по сетке из нескольких понятных форм; кирпич : сталь ≈ 3 : 1, кусты и вода — акценты,
+//    между укрытиями — свободные проезды. У старта — четыре стенки для первого боя.
 // ---------------------------------------------------------------------------
-function toyProps(rng: Rng, s: StageDef): Prop[] {
+
+/** Деталь модуля: кирпичная стена (в кирпичах) или стальной блок; координаты — в ячейке. */
+type Piece = { k: 'brick' | 'steel' | 'bush' | 'water'; x: number; y: number; w: number; h: number };
+const TB = 10; // кирпич
+const TS = 20; // стальной блок
+const TOY_CELL = 144;
+
+const TOY_MODULES: { p: number; parts: Piece[] }[] = [
+  // Пусто — проезды и «воздух» между укрытиями.
+  { p: 0.36, parts: [] },
+  // Горизонтальная стена 8×2 кирпича.
+  { p: 0.12, parts: [{ k: 'brick', x: 32, y: 62, w: 80, h: 20 }] },
+  // Вертикальная стена.
+  { p: 0.12, parts: [{ k: 'brick', x: 62, y: 32, w: 20, h: 80 }] },
+  // Угол «Г».
+  { p: 0.1, parts: [{ k: 'brick', x: 32, y: 32, w: 70, h: 20 }, { k: 'brick', x: 32, y: 52, w: 20, h: 50 }] },
+  // Стена со стальными торцами.
+  { p: 0.09, parts: [{ k: 'steel', x: 22, y: 62, w: 20, h: 20 }, { k: 'brick', x: 42, y: 62, w: 60, h: 20 }, { k: 'steel', x: 102, y: 62, w: 20, h: 20 }] },
+  // Пара стальных блоков.
+  { p: 0.08, parts: [{ k: 'steel', x: 52, y: 62, w: 40, h: 20 }] },
+  // Стальной квадрат 2×2 — надёжное укрытие.
+  { p: 0.05, parts: [{ k: 'steel', x: 52, y: 52, w: 40, h: 40 }] },
+  // Кусты.
+  { p: 0.06, parts: [{ k: 'bush', x: 40, y: 48, w: 64, h: 48 }] },
+  // Пруд.
+  { p: 0.03, parts: [{ k: 'water', x: 48, y: 52, w: 48, h: 40 }] },
+];
+
+function toyProps(_rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
-  const B = 8; // кирпичик
   const cx = s.w / 2, cy = s.h / 2;
-  const keep = [{ x: cx, y: cy, r: 90 }];
-  const cell = 64;
-  const cols = Math.floor(s.w / cell), rows = Math.floor(s.h / cell);
-  // Сетка кварталов: стены из кирпича с узором, стальные блоки, кусты, вода.
-  for (let gy = 1; gy < rows - 1; gy++) for (let gx = 1; gx < cols - 1; gx++) {
-    const x0 = gx * cell, y0 = gy * cell;
-    const r = hash2(gx, gy, 77);
-    const n = fbm(gx * 0.18, gy * 0.18, 2, 5);
-    if (r < 0.34) {
-      // Кирпичная стена: горизонтальная или вертикальная, 2 кирпича толщиной.
-      const horiz = hash2(gx, gy, 3) < 0.5;
-      const len = 3 + Math.floor(hash2(gx, gy, 9) * 5);
-      for (let i = 0; i < len; i++) for (let j = 0; j < 2; j++) {
-        const bx = x0 + 8 + (horiz ? i : j) * B + B / 2, by = y0 + 8 + (horiz ? j : i) * B + B / 2;
-        if (free(out, bx, by, B, B, keep, -0.5)) out.push(P(0, 'brick', 'brick', bx, by, B, B, { v: (i + j) & 1 }));
+  const keep = [{ x: cx, y: cy, r: 105 }];
+  const C = TOY_CELL;
+  const cols = Math.floor(s.w / C), rows = Math.floor(s.h / C);
+  const ox = (s.w - cols * C) / 2, oy = (s.h - rows * C) / 2;
+  // Деталь → препятствия (кирпич и сталь дробятся на блоки — их выбивают по частям).
+  const place = (pc: Piece, x0: number, y0: number, flipX: boolean, flipY: boolean, v: number) => {
+    const px = flipX ? C - pc.x - pc.w : pc.x, py = flipY ? C - pc.y - pc.h : pc.y;
+    const X = x0 + px, Y = y0 + py;
+    if (pc.k === 'brick' || pc.k === 'steel') {
+      const B = pc.k === 'brick' ? TB : TS;
+      for (let j = 0; j < Math.round(pc.h / B); j++) for (let i = 0; i < Math.round(pc.w / B); i++) {
+        const bx = X + i * B + B / 2, by = Y + j * B + B / 2;
+        if (free(out, bx, by, B, B, keep, -0.5)) out.push(P(0, pc.k, pc.k, bx, by, B, B, { v: (i + j) & 1 }));
       }
-    } else if (r < 0.42) {
-      const sz = 16;
-      const k = 1 + Math.floor(hash2(gx, gy, 11) * 2);
-      for (let i = 0; i < k; i++) {
-        const bx = x0 + 16 + i * sz + sz / 2, by = y0 + 24;
-        if (free(out, bx, by, sz, sz, keep)) out.push(P(0, 'steel', 'steel', bx, by, sz, sz));
+    } else if (pc.k === 'bush') {
+      for (let j = 0; j < Math.round(pc.h / 16); j++) for (let i = 0; i < Math.round(pc.w / 16); i++) {
+        const bx = X + i * 16 + 8, by = Y + j * 16 + 8;
+        if (free(out, bx, by, 16, 16, keep, -1)) out.push(P(0, 'bush', 'bush', bx, by, 16, 16, { v: (i * 7 + j + v) % 3 }));
       }
-    } else if (r < 0.55 && n > 0.45) {
-      // Кусты — пятна.
-      for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
-        if (hash2(gx * 3 + i, gy * 3 + j, 21) < 0.35) continue;
-        const bx = x0 + 10 + i * 16 + 8, by = y0 + 10 + j * 16 + 8;
-        if (free(out, bx, by, 16, 16, keep, -1)) out.push(P(0, 'bush', 'bush', bx, by, 16, 16, { v: (i * 7 + j) % 3 }));
-      }
-    } else if (r < 0.6 && n < 0.4) {
-      const w = 32 + Math.floor(hash2(gx, gy, 31) * 2) * 16, h = 32;
-      if (free(out, x0 + 32, y0 + 32, w, h, keep)) out.push(P(0, 'water', 'water', x0 + 32, y0 + 32, w, h));
-    }
+    } else if (free(out, X + pc.w / 2, Y + pc.h / 2, pc.w, pc.h, keep)) out.push(P(0, 'water', 'water', X + pc.w / 2, Y + pc.h / 2, pc.w, pc.h));
+  };
+  for (let gy = 0; gy < rows; gy++) for (let gx = 0; gx < cols; gx++) {
+    // Зеркальная симметрия относительно центра арены: модуль выбирается по «четверти».
+    const qx = Math.min(gx, cols - 1 - gx), qy = Math.min(gy, rows - 1 - gy);
+    const x0 = ox + gx * C, y0 = oy + gy * C;
+    // Модуль целиком пропускаем, если он задевает зону старта (не оставляем обрубков).
+    const mcx = x0 + C / 2, mcy = y0 + C / 2;
+    if (Math.abs(mcx - cx) < C && Math.abs(mcy - cy) < C) continue;
+    let r = hash2(qx, qy, 77), mod = TOY_MODULES[0];
+    for (const m of TOY_MODULES) { if (r < m.p) { mod = m; break; } r -= m.p; }
+    for (const pc of mod.parts) place(pc, x0, y0, gx > cols - 1 - gx, gy > rows - 1 - gy, qx + qy);
   }
-  // Крупные «кубики»-ориентиры (игрушки с ковра, заехавшие на поле).
-  for (let i = 0; i < 6; i++) {
-    const x = rng.range(200, s.w - 200), y = rng.range(150, s.h - 150), sz = rng.range(40, 56);
-    if (free(out, x, y, sz, sz, keep, 6)) out.push(P(0, 'toyCube', 'plastic', x, y, sz, sz, { v: rng.int(0, 3) }));
+  // Укрытия у старта: четыре стенки вокруг, углы открыты.
+  for (const [dx, dy, w, h] of [[-150, 0, 20, 70], [150, 0, 20, 70], [0, -118, 70, 20], [0, 118, 70, 20]]) {
+    const pc: Piece = { k: 'brick', x: 0, y: 0, w, h };
+    place(pc, cx + dx - w / 2, cy + dy - h / 2, false, false, 0);
   }
   return out;
 }

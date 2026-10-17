@@ -248,6 +248,14 @@ export function targetKey(sim: Sim, e: Enemy): number {
 
 const cand: Enemy[] = [];
 
+/** Линия огня до врага не перекрыта препятствиями, задерживающими снаряды (свои стены — не помеха). */
+function clearShot(sim: Sim, p: Player, e: Enemy): boolean {
+  const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
+  const k = Math.max(0, (d - e.r * 0.8) / d);
+  const ph = sim.props.raycast(p.x, p.y, p.x + (e.x - p.x) * k, p.y + (e.y - p.y) * k, sim.size * 0.05, pr => MATS[pr.mat].shots && !pr.friendly && !pr.dead);
+  return !ph;
+}
+
 /** Выбор цели: сначала по приоритету (targetKey), среди равных — по правилу оружия. */
 export function pickTarget(sim: Sim, p: Player, mode: string, range: number, type: DmgType, blast = 0): Enemy | null {
   sim.enemiesNear(p.x, p.y, range, tmpE);
@@ -264,6 +272,12 @@ export function pickTarget(sim: Sim, p: Player, mode: string, range: number, typ
     if (k === top) cand.push(e);
   }
   if (!cand.length) return null;
+  // Внутри группы — сначала те, по кому есть линия огня (не тратить снаряды на стены).
+  // Между группами приоритет не меняется: босс за стеной всё равно главная цель.
+  if (cand.length > 1) {
+    const vis = cand.filter(e => clearShot(sim, p, e));
+    if (vis.length) { cand.length = 0; cand.push(...vis); }
+  }
   if (cand.length === 1) return cand[0];
   let best: Enemy | null = null, bs = -Infinity;
   if (mode === 'cluster') {

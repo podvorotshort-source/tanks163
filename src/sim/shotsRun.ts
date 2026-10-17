@@ -157,7 +157,8 @@ function enemyShotStep(sim: Sim, s: Shot, nx: number, ny: number): void {
     }
     s.dead = true;
     if (s.blast > 0) enemyExplode(sim, hx, hy, s.blast, s.dmg, 'enemy');
-    else if (!ph.p.friendly) damageProp(sim, ph.p, s.dmg * 0.8, 'he');
+    // Обычный снаряд врага выбивает кирпич (за пару попаданий), сталь ему не по зубам — за ней можно укрыться.
+    else if (!ph.p.friendly && ph.p.mat !== 'steel') damageProp(sim, ph.p, s.dmg * 0.8, 'ap');
     return;
   }
   if (!hitP) return;

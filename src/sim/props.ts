@@ -25,7 +25,7 @@ export interface MatInfo {
 }
 
 export const MATS: Record<Material, MatInfo> = {
-  brick: { hp: 1.2, move: true, shots: true, burn: 0, res: { he: 2, rocket: 1.8, mg: 0.6, fire: 0.1 } },
+  brick: { hp: 2.4, move: true, shots: true, burn: 0, res: { he: 2, rocket: 1.8, mg: 0.6, fire: 0.1 } },
   steel: { hp: 7, move: true, shots: true, burn: 0, res: { mg: 0.05, fire: 0, tesla: 0.1, he: 0.7, ap: 1.4 } },
   concrete: { hp: 9, move: true, shots: true, burn: 0, res: { mg: 0.15, fire: 0, he: 1.6, rocket: 1.5 } },
   wood: { hp: 2, move: true, shots: true, burn: 0.8, res: { fire: 2.5, he: 1.6 } },

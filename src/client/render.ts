@@ -1,5 +1,7 @@
 // Отрисовка мира симуляции.
 
+import { hasExt } from '../gfx/ext';
+import type { SpriteDef } from '../gfx/raster';
 import type { Sim } from '../sim/sim';
 import type { Enemy, Player, Shot } from '../sim/entities';
 import type { Camera } from './camera';
@@ -37,7 +39,9 @@ export function drawWorld(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   drawZonesGround(ctx, rc);
   drawMines(ctx, rc);
   drawPickups(ctx, rc);
+  const tf0 = performance.now();
   rc.fx.draw(ctx, cam, 0);
+  rc.fx.drawMs += performance.now() - tf0;
   if (!rc.hideUnits) {
     // Тени и наземные.
     for (const e of sim.enemies) if (!e.air) drawEnemy(ctx, rc, e);
@@ -51,7 +55,9 @@ export function drawWorld(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   drawShots(ctx, rc, true);
   if (!rc.hideProps) drawProps(ctx, rc, true);
   drawZonesTop(ctx, rc);
+  const tf = performance.now();
   rc.fx.draw(ctx, cam, 1);
+  rc.fx.drawMs += performance.now() - tf;
   drawTelegraphs(ctx, rc);
 }
 
@@ -65,6 +71,8 @@ function drawProps(ctx: CanvasRenderingContext2D, rc: RenderCtx, canopy: boolean
   const list = sim.props.queryRect(x0, y0, x1, y1, tmpProps);
   const z = cam.zoom;
   const frame = Math.floor(rc.time * 3) % 4;
+  // Сзади наперёд (у картинок 3/4 верх заходит на соседей).
+  list.sort((a, b) => a.y + a.h / 2 - (b.y + b.h / 2));
   // Под кустами — танк игрока: делаем кусты полупрозрачными.
   for (const p of list) {
     const mat = MATS[p.mat];
@@ -113,7 +121,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, rc: RenderCtx, p: Play
   const ramp = PLAYER_RAMPS[p.idx];
   const tier = tierOf(sim.stageIdx);
   if (p.state === 'down') {
-    const set = spriteSet(wreckDef(p.classId), k);
+    const set = spriteSet(wreckDef(p.classId, tier), k);
     drawSprite(ctx, set, sx, sy, p.angle, 0);
     // Кольцо спасения.
     const R = sim.size * 1.8 * cam.zoom;
@@ -121,7 +129,6 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, rc: RenderCtx, p: Play
     ringPixels(ctx, sx, sy, R, '#fbcd4a', 1);
     ctx.globalAlpha = 1;
     if (p.reviveProg > 0) arcPixels(ctx, sx, sy, R + 2, p.reviveProg, '#6ccc4a', 2);
-    drawText(ctx, String(Math.ceil(p.downT)), sx, sy - 6 - (sim.size * cam.zoom) / 2, { align: 'center', color: '#ea6a3f', outline: '#07060b' });
     return;
   }
   const hull = spriteSet(hullDef(p.classId, ramp, playerModules(p), tier), k);
@@ -150,9 +157,20 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, rc: RenderCtx, p: Play
     ringPixels(ctx, sx, sy, R - 1.5, p.fortressT > 0 ? '#df981c' : '#68a6f0', 1);
     ctx.globalAlpha = 1;
   }
-  // Метка игрока.
-  const label = p.idx === 0 ? '1P' : '2P';
-  if (sim.players.length > 1) drawText(ctx, label, sx, sy - (sim.size * cam.zoom) * 0.75 - 6, { align: 'center', color: p.idx ? '#6ccc4a' : '#fbcd4a', font: 'small', outline: '#07060b' });
+}
+
+/** Подписи над танками (в слое интерфейса, cam — камера интерфейса). */
+export function drawWorldLabels(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
+  const { sim, cam } = rc;
+  for (const p of sim.players) {
+    if (p.state === 'dead' || p.state === 'out') continue;
+    const sx = cam.sxOf(lerp(p.px, p.x, rc.alpha)), sy = cam.syOf(lerp(p.py, p.y, rc.alpha));
+    if (p.state === 'down') {
+      drawText(ctx, String(Math.ceil(p.downT)), sx, sy - 6 - (sim.size * cam.zoom) / 2, { align: 'center', color: '#ea6a3f', outline: '#07060b' });
+      continue;
+    }
+    if (sim.players.length > 1) drawText(ctx, p.idx === 0 ? '1P' : '2P', sx, sy - (sim.size * cam.zoom) * 0.75 - 6, { align: 'center', color: p.idx ? '#6ccc4a' : '#fbcd4a', font: 'small', outline: '#07060b' });
+  }
 }
 
 export function drawDrone(ctx: CanvasRenderingContext2D, rc: RenderCtx, x: number, y: number, a: number): void {
@@ -269,6 +287,8 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
     const [c1, c2] = SHOT_COL[key] ?? ['#ffffff', '#ea6a3f'];
     const a = Math.atan2(s.vy, s.vx);
     const r = Math.max(1, s.size * z * 0.5);
+    const pk = projKey(s);
+    if (pk) { drawSprite(ctx, spriteSet(projDef(pk, s.size), z), sx, sy, a); continue; }
     if (s.kind === 'ball') { ctx.drawImage(disc(r, '#bdf3dc'), Math.round(sx - r), Math.round(sy - r)); ctx.drawImage(disc(Math.max(0.5, r * 0.5), '#ffffff'), Math.round(sx - r * 0.5), Math.round(sy - r * 0.5)); continue; }
     if (s.kind === 'marble') { ctx.drawImage(disc(r, '#3aa8c2'), Math.round(sx - r), Math.round(sy - r)); ctx.drawImage(disc(Math.max(0.5, r * 0.35), '#d2fbff'), Math.round(sx - r * 0.5), Math.round(sy - r * 0.5)); continue; }
     if (s.team === 0 && (s.w === 'ap' || s.w === 'mg' || s.w === 'drone')) {
@@ -301,6 +321,27 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
     ctx.drawImage(disc(r, c2), Math.round(sx - r), Math.round(sy - r));
     if (r >= 1.5) ctx.drawImage(disc(r * 0.5, c1), Math.round(sx - r * 0.5 - r * 0.2), Math.round(sy - r * 0.5 - r * 0.2));
   }
+}
+
+// Снаряды из внешней графики: proj_<вид>.png (нос вправо). Трассеры пуль остаются линиями.
+const PROJ_LEN: Record<string, number> = { proj_shell: 2.2, proj_rocket: 3.2, proj_plasma: 1.8, proj_laser: 4, proj_bullet: 2.6 };
+function projKey(s: Shot): string | null {
+  let k: string | null = null;
+  if (s.team === 0) {
+    if (s.w === 'he' || s.w === 'volley' || s.w === 'airstrike') k = 'proj_shell';
+    else if (s.w === 'rockets' || s.dmgType === 'rocket') k = 'proj_rocket';
+  } else {
+    k = s.kind === 'shell' ? 'proj_shell' : s.kind === 'rocket' ? 'proj_rocket' : s.kind === 'plasma' || s.kind === 'ball' ? 'proj_plasma' : s.kind === 'laser' ? 'proj_laser' : s.kind === 'bullet' ? 'proj_bullet' : null;
+  }
+  return k && hasExt(k) ? k : null;
+}
+const projDefs = new Map<string, SpriteDef>();
+function projDef(key: string, size: number): SpriteDef {
+  const q = Math.max(0.25, Math.round(size * 4) / 4);
+  const id = key + ':' + q;
+  let d = projDefs.get(id);
+  if (!d) { d = { id, layers: [], ext: { key, w: q * (PROJ_LEN[key] ?? 2) } }; projDefs.set(id, d); }
+  return d;
 }
 
 function drawLob(ctx: CanvasRenderingContext2D, rc: RenderCtx, s: Shot, sx: number, sy: number): void {

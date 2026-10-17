@@ -1,12 +1,13 @@
 // Частицы и световые вспышки. Всё в мировых координатах ступени,
 // рисуется пиксельными дисками (без сглаживания) и пиксельным светом.
 
+import { extFrame } from '../gfx/ext';
 import { makeCanvas } from '../gfx/screen';
 import { RAMPS, type RampId } from '../gfx/palette';
 import type { Camera } from './camera';
 import { drawText } from '../gfx/font';
 
-export type PKind = 'fire' | 'smoke' | 'spark' | 'debris' | 'ring' | 'text' | 'dust' | 'shell' | 'ember' | 'bubble' | 'pixel';
+export type PKind = 'fire' | 'smoke' | 'spark' | 'debris' | 'ring' | 'text' | 'dust' | 'shell' | 'ember' | 'bubble' | 'pixel' | 'anim';
 
 export class Particle {
   kind: PKind = 'fire';
@@ -88,7 +89,11 @@ export class Fx {
   lights: Light[] = [];
   arcs: { pts: number[]; t: number; life: number; col: string; w: number }[] = [];
   lightCanvas: HTMLCanvasElement = makeCanvas(320, 180);
-  max = 3500;
+  max = 2200;
+  /** Сколько сейчас цифр урона (ограничиваем, чтобы не засорять экран и не тормозить). */
+  texts = 0;
+  /** Время отрисовки частиц, мс (накапливается, сбрасывает отладка). */
+  drawMs = 0;
   /** Масштаб «силы» эффектов (растёт с поколением танка). */
   power = 1;
 
@@ -114,10 +119,11 @@ export class Fx {
   }
 
   update(dt: number): void {
-    let n = 0;
+    let n = 0, texts = 0;
     for (const p of this.parts) {
       p.t += dt;
       if (p.t >= p.life) { this.pool.push(p); continue; }
+      if (p.kind === 'text') texts++;
       const k = Math.exp(-p.drag * dt);
       p.vx *= k; p.vy *= k;
       p.x += p.vx * dt; p.y += p.vy * dt;
@@ -126,10 +132,11 @@ export class Fx {
         p.z += p.vz * dt;
         if (p.z < 0) { p.z = 0; p.vz = -p.vz * 0.35; p.vx *= 0.6; p.vy *= 0.6; p.va *= 0.5; }
       }
-      p.a += p.va * dt;
+      if (p.kind !== 'anim') p.a += p.va * dt;
       this.parts[n++] = p;
     }
     this.parts.length = n;
+    this.texts = texts;
     let m = 0;
     for (const l of this.lights) { l.t += dt; if (l.t < l.life) this.lights[m++] = l; }
     this.lights.length = m;
@@ -138,12 +145,14 @@ export class Fx {
     this.arcs.length = q;
   }
 
-  /** Частицы под юнитами (дым на земле, искры) и над ними (огонь, текст). */
-  draw(ctx: CanvasRenderingContext2D, cam: Camera, layer: 0 | 1): void {
+  /** Частицы под юнитами (0: дым на земле, обломки), над ними (1: огонь, искры)
+   *  и текст (2: цифры урона — рисуются в слое интерфейса). */
+  draw(ctx: CanvasRenderingContext2D, cam: Camera, layer: 0 | 1 | 2): void {
     const z = cam.zoom;
     for (const p of this.parts) {
-      const top = p.kind === 'text' || p.kind === 'fire' || p.kind === 'spark' || p.kind === 'ember' || p.kind === 'ring' || p.kind === 'smoke' || p.kind === 'pixel';
-      if ((layer === 1) !== top) continue;
+      if ((p.kind === 'text') !== (layer === 2)) continue;
+      const top = p.kind === 'fire' || p.kind === 'anim' || p.kind === 'spark' || p.kind === 'ember' || p.kind === 'ring' || p.kind === 'smoke' || p.kind === 'pixel';
+      if (layer !== 2 && (layer === 1) !== top) continue;
       const u = p.t / p.life;
       const sx = cam.sxOf(p.x), sy = cam.syOf(p.y) - p.z * z;
       if (sx < -60 || sy < -60 || sx > cam.w + 60 || sy > cam.h + 60) continue;
@@ -196,6 +205,17 @@ export class Fx {
           ctx.globalAlpha = (1 - u) * p.alpha;
           ringPixels(ctx, sx, sy, r, p.col, u < 0.5 ? 2 : 1);
           ctx.globalAlpha = 1;
+          break;
+        }
+        case 'anim': {
+          // Раскадровка из внешней графики: p.text — префикс, p.va — число кадров.
+          const n = Math.max(1, p.va | 0);
+          const c = extFrame(`${p.text}_${Math.min(n, Math.floor(u * n) + 1)}`, p.r * 2 * z);
+          if (c) {
+            ctx.globalAlpha = p.alpha;
+            ctx.drawImage(c, Math.round(sx - c.width / 2), Math.round(sy - c.height / 2));
+            ctx.globalAlpha = 1;
+          }
           break;
         }
         case 'text': {

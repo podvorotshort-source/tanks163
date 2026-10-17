@@ -16,7 +16,7 @@ const prefix = get('prefix', 'shot');
 mkdirSync('e2e/out', { recursive: true });
 const url = pathToFileURL(resolve('dist/index.html')).href + (q ? '?' + q : '');
 
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required', ...(process.env.GPU ? ['--enable-gpu', '--use-angle=d3d11', '--ignore-gpu-blocklist'] : [])] });
 const page = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1 });
 const errors: string[] = [];
 const logs: string[] = [];
@@ -26,13 +26,15 @@ await page.goto(url);
 await page.waitForTimeout(300);
 
 for (const s of steps) {
-  const [cmd, a, b] = s.split(':');
+  const ci = s.indexOf(':');
+  const cmd = ci < 0 ? s : s.slice(0, ci), rest = ci < 0 ? '' : s.slice(ci + 1);
+  const [a, b] = rest.split(':');
   if (cmd === 'wait') await page.waitForTimeout(Number(a));
   else if (cmd === 'key') { await page.keyboard.down(a); await page.waitForTimeout(Number(b || 100)); await page.keyboard.up(a); }
   else if (cmd === 'keys') { for (const k of a.split('+')) await page.keyboard.down(k); await page.waitForTimeout(Number(b || 100)); for (const k of a.split('+')) await page.keyboard.up(k); }
   else if (cmd === 'press') await page.keyboard.press(a);
   else if (cmd === 'shot') { const p = `e2e/out/${prefix}-${a || 'shot'}.png`; await page.screenshot({ path: p }); console.log('shot', p); }
-  else if (cmd === 'eval') { const r = await page.evaluate(decodeURIComponent(a)); console.log('eval', JSON.stringify(r)?.slice(0, 2000)); }
+  else if (cmd === 'eval') { const r = await page.evaluate(decodeURIComponent(rest)); console.log('eval', JSON.stringify(r)?.slice(0, 2000)); }
 }
 
 for (const l of logs.slice(-15)) console.log(l);

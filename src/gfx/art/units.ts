@@ -2,7 +2,8 @@
 // (как в EnemyDef.size), смотрит вправо (+X). Цветовая рампа задаётся
 // параметром — так делаются мигающие «бонусные» и элитные варианты.
 
-import type { RampId } from '../palette';
+import { pickExt, extSizePx, extReady } from '../ext';
+import { RAMPS, type RampId } from '../palette';
 import { BOSS_ART } from './bosses';
 import { UNIT_ART2 } from './units2';
 import {
@@ -387,5 +388,39 @@ export const UNIT_ART: Record<string, UnitArt> = {
 };
 
 export function unitArt(id: string): UnitArt {
-  return UNIT_ART2[id] ?? UNIT_ART[id] ?? BOSS_ART[id] ?? UNIT_ART.toyTank;
+  const base = UNIT_ART2[id] ?? UNIT_ART[id] ?? BOSS_ART[id] ?? UNIT_ART.toyTank;
+  return extUnit(id, base);
+}
+
+// Внешняя графика: enemy_<art>.png (+ _turret, _rotor — если нарисованы отдельно).
+const extUnits = new Map<string, UnitArt>();
+function extUnit(id: string, base: UnitArt): UnitArt {
+  let u = extUnits.get(id);
+  if (u) return u;
+  const key = pickExt('enemy_' + id);
+  if (!key) {
+    if (extReady()) extUnits.set(id, base);
+    return base;
+  }
+  const [iw, ih] = extSizePx(key)!;
+  const W = (base.size * iw) / Math.max(iw, ih);
+  const defs = new Map<string, SpriteDef>();
+  const mk = (k: string, c: RampId, w: number): SpriteDef => {
+    const did = `ext:${k}:${c}`;
+    let d = defs.get(did);
+    if (!d) {
+      d = { id: did, layers: [], frames: 1, ext: { key: k, w, tint: c !== base.ramp ? [RAMPS[c][4], 0.5] : undefined } };
+      defs.set(did, d);
+    }
+    return d;
+  };
+  const part = (suffix: string) => {
+    const k = pickExt('enemy_' + id + suffix);
+    if (!k) return undefined;
+    const w = (W * extSizePx(k)![0]) / iw;
+    return (c: RampId) => mk(k, c, w);
+  };
+  u = { ...base, hull: c => mk(key, c, W), turret: part('_turret'), rotor: part('_rotor') };
+  extUnits.set(id, u);
+  return u;
 }

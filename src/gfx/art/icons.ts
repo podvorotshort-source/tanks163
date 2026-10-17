@@ -1,5 +1,6 @@
 // Иконки 16×16 (модель −8..8): бонусы, оружие, способности, улучшения.
 
+import { pickExt, extIcon } from '../ext';
 import { type Layer, type SpriteDef, rect, circ, ell, poly, cap, ring, sym, rasterize, texStripesY } from '../raster';
 import { star5 } from './props';
 import { makeCanvas } from '../screen';
@@ -86,6 +87,9 @@ export function iconCanvas(id: string, scale = 1): HTMLCanvasElement {
   const key = id + '@' + scale;
   let c = canvases.get(key);
   if (!c) {
+    const ek = pickExt('icon_' + id);
+    const ext = ek ? extIcon(ek, Math.round(18 * scale)) : null;
+    if (ext) { canvases.set(key, ext); return ext; }
     const img = rasterize(iconDef(id), scale, 0, 0, 0, Math.round(18 * scale));
     c = makeCanvas(img.w, img.h);
     const x = c.getContext('2d')!;

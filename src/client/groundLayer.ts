@@ -49,6 +49,8 @@ export class GroundLayer {
   lastZq = 1;
   /** Сколько кусков ещё не запечено (для отладки и прелоада). */
   pending = 0;
+  /** Детальность запекания (1 — пиксель поверхности = пиксель мира). */
+  detail = 1;
 
   reset(stage: number, relic: Relic | null): void {
     this.stage = stage;
@@ -101,7 +103,7 @@ export class GroundLayer {
 
   /** Запечь видимые куски синхронно (при старте ступени, под затемнением). */
   prewarm(cam: Camera, zoom: number): void {
-    const zq = this.quant(zoom);
+    const zq = this.quant(zoom * this.detail);
     const cw = CHUNK / zq;
     const hw = cam.w / 2 / zoom + cw, hh = cam.h / 2 / zoom + cw;
     for (let cy = Math.floor((cam.y - hh) / cw); cy <= Math.floor((cam.y + hh) / cw); cy++)
@@ -112,7 +114,7 @@ export class GroundLayer {
 
   /** Частичный прогрев (в пределах бюджета времени) — для кинематографичных пауз. */
   prewarmStep(cam: Camera, zoom: number, budgetMs: number): void {
-    const zq = this.quant(zoom);
+    const zq = this.quant(zoom * this.detail);
     const cw = CHUNK / zq;
     const hw = cam.w / 2 / zoom + cw, hh = cam.h / 2 / zoom + cw;
     const end = performance.now() + budgetMs;
@@ -125,7 +127,7 @@ export class GroundLayer {
 
   draw(ctx: CanvasRenderingContext2D, cam: Camera, budgetMs = 4, freeze = false): void {
     this.frame++;
-    const zq = freeze ? this.lastZq : this.quant(cam.zoom);
+    const zq = freeze ? this.lastZq : this.quant(cam.zoom * this.detail);
     const cw = CHUNK / zq;
     const scale = cam.zoom / zq;
     const [vx0, vy0, vx1, vy1] = cam.view();

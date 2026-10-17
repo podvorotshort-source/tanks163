@@ -2,6 +2,7 @@
 // дополнительных систем. Модель смотрит вправо (+X), единицы — «модельные»
 // (корпус штурмовика ≈ 28 ед.).
 
+import { pickExt, extSizePx, type ExtPart } from '../ext';
 import type { RampId } from '../palette';
 import {
   type Layer, type SpriteDef, rect, circ, ell, poly, cap, ring, sym, transformLayers,
@@ -253,6 +254,12 @@ export function hullDef(cls: HullClass, P: RampId, modules: GunKind[] = [], tier
   let d = hullCache.get(key);
   if (d) return d;
   const info = HULLS[cls];
+  const ek = pickExt(`hull_${cls}_${tier + 1}`);
+  if (ek) {
+    d = { id: key + ':ext', layers: [], frames: 1, ext: { key: ek, w: extHullLen(cls, tier), recolor: P === 'gold' ? null : 'p2', parts: extModules(cls, P, modules) } };
+    hullCache.set(key, d);
+    return d;
+  }
   const raw = cls === 'scout' ? scoutHull(P) : cls === 'assault' ? assaultHull(P) : heavyHull(P);
   const base = [...material(raw, P, tier), ...tierHull(info, P, tier)];
   const extra: Layer[] = [];
@@ -362,6 +369,16 @@ export function turretDef(cls: HullClass, gun: GunKind, P: RampId, tier = 0): Sp
   let d = turretCache.get(key);
   if (d) return d;
   const k = HULLS[cls].turretK * (1 + Math.max(0, tier - 3) * 0.04);
+  const group = Math.min(4, (tier >> 1) + 1);
+  const ek = pickExt(`turret_${gun}_${group}`);
+  const px = ek ? extSizePx(ek) : null;
+  if (ek && px) {
+    // Диаметр основания башни ≈ 0.56 ширины корпуса.
+    const body = HULLS[cls].wid * 0.56 * (1 + Math.max(0, tier - 3) * 0.04);
+    d = { id: key + ':ext', layers: [], ext: { key: ek, w: (body * px[0]) / px[2], recolor: P === 'gold' ? null : 'p2' } };
+    turretCache.set(key, d);
+    return d;
+  }
   const layers = [...material(turretLayers(gun, P), P, tier, true), ...tierTurret(gun, P, tier)];
   d = { id: key, layers: transformLayers(layers, 0, 0, k), castDist: 1.5 };
   turretCache.set(key, d);
@@ -369,10 +386,16 @@ export function turretDef(cls: HullClass, gun: GunKind, P: RampId, tier = 0): Sp
 }
 
 /** Обломки подбитого танка — тот же корпус, но выжженный. */
-export function wreckDef(cls: HullClass): SpriteDef {
-  const key = `wreck:${cls}`;
+export function wreckDef(cls: HullClass, tier = 0): SpriteDef {
+  const ek = pickExt(`hull_${cls}_${tier + 1}`);
+  const key = ek ? `wreck:${cls}:${tier}` : `wreck:${cls}`;
   let d = hullCache.get(key);
   if (d) return d;
+  if (ek) {
+    d = { id: key, layers: [], ext: { key: ek, w: extHullLen(cls, tier), gray: true, dim: 0.45 } };
+    hullCache.set(key, d);
+    return d;
+  }
   const base = cls === 'scout' ? scoutHull('iron') : cls === 'assault' ? assaultHull('iron') : heavyHull('iron');
   const scorched = base.map(l => (l.glow ? { ...l, c: 'ink' as RampId, t: 1, glow: false } : {
     ...l,
@@ -384,3 +407,32 @@ export function wreckDef(cls: HullClass): SpriteDef {
 }
 
 export const TREADS = TREAD_FRAMES;
+
+// ---------------------------------------------------------------------------
+// Внешняя графика (assets/sprites): корпус-картинка + модули
+// ---------------------------------------------------------------------------
+
+/** Длина корпуса-картинки: растёт с поколением (поздние модели массивнее). */
+function extHullLen(cls: HullClass, tier: number): number {
+  return HULLS[cls].len * (1 + tier * 0.03);
+}
+
+function extModules(cls: HullClass, P: RampId, modules: GunKind[]): ExtPart[] {
+  const info = HULLS[cls];
+  const parts: ExtPart[] = [];
+  const k = cls === 'heavy' ? 1.1 : cls === 'scout' ? 0.85 : 1;
+  let mi = 0;
+  for (const m of modules) {
+    const mk = pickExt(`module_${m}`);
+    if (m === 'ram') {
+      // Отвал на всю ширину корпуса (картинка вытянута поперёк).
+      if (mk) { const [w, h] = extSizePx(mk)!; parts.push({ key: mk, x: info.len / 2 + 1.5, y: 0, w: (info.wid * 1.08 * w) / h }); }
+      else parts.push({ def: { id: `ram:${cls}`, layers: ramBlade(info) }, x: 0, y: 0 });
+      continue;
+    }
+    const [x, y, a] = info.mounts[mi++ % info.mounts.length];
+    if (mk) { const [w, h] = extSizePx(mk)!; parts.push({ key: mk, x, y, w: (8.5 * k * w) / Math.max(w, h), a }); }
+    else parts.push({ def: { id: `mod:${m}:${P}`, layers: moduleLayers(m, P) }, x, y, k, a });
+  }
+  return parts;
+}

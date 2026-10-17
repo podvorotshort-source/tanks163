@@ -9,7 +9,7 @@ import { GroundLayer, type Relic } from './groundLayer';
 import { Fx } from './fx';
 import { Hud } from './hud';
 import { LevelUpUI } from './levelup';
-import { drawWorld, type RenderCtx } from './render';
+import { drawWorld, drawWorldLabels, type RenderCtx } from './render';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
@@ -84,6 +84,8 @@ export class GameScene implements Scene {
   readonly id = 'game';
   sim: Sim;
   cam = new Camera();
+  /** Та же камера в пикселях интерфейса (для подписей, указателей). */
+  ucam = new Camera();
   ground = new GroundLayer();
   fx = new Fx();
   hud = new Hud();
@@ -98,6 +100,8 @@ export class GameScene implements Scene {
   /** Колбэк по окончании забега (результаты). */
   onEnd: ((sim: Sim) => void) | null = null;
   private zoomSmooth = 1;
+  /** Время частей отрисовки мира, мс (отладка). */
+  readonly perf = { ground: 0, world: 0, lights: 0, fx: 0 };
   private pend: [boolean, boolean, boolean][] = [[false, false, false], [false, false, false]];
 
   constructor(cfg: RunConfig) {
@@ -110,7 +114,7 @@ export class GameScene implements Scene {
 
   enter(): void {
     const s = app.screen;
-    this.cam.setScreen(s.w, s.h);
+    this.cam.setScreen(s.ww, s.wh);
     this.syncCamera(1);
     this.ground.prewarm(this.cam, this.cam.zoom);
     this.hud.banner(STAGE_DEFS[this.sim.stageIdx].title + ' · ' + STAGE_DEFS[this.sim.stageIdx].subtitle.toUpperCase(), UI.gold, 3.5, 'Модель ' + TIER_ROMAN[this.sim.stageIdx] + ': ' + TIER_NAMES[this.sim.stageIdx], true);
@@ -132,7 +136,7 @@ export class GameScene implements Scene {
   }
 
   private gameplayZoom(): number {
-    return (app.screen.unit * TANK_BASE) / this.sim.size;
+    return (app.screen.wunit * TANK_BASE) / this.sim.size;
   }
 
   private syncCamera(k: number): void {
@@ -154,7 +158,7 @@ export class GameScene implements Scene {
   update(dt: number): void {
     const sim = this.sim;
     const s = app.screen;
-    this.cam.setScreen(s.w, s.h);
+    this.cam.setScreen(s.ww, s.wh);
     this.time += dt;
     this.hud.update(dt);
     if (this.pause.open) {
@@ -484,31 +488,60 @@ export class GameScene implements Scene {
   // Отрисовка
   // -------------------------------------------------------------------------
 
-  render(ctx: CanvasRenderingContext2D): void {
+  /** Мир — в холсте высокого разрешения. */
+  renderWorld(ctx: CanvasRenderingContext2D): void {
     const s = app.screen;
-    const W = s.w, H = s.h;
+    const W = s.ww, H = s.wh;
     ctx.fillStyle = '#07060b';
     ctx.fillRect(0, 0, W, H);
+    if (this.ending && this.endT > 2.5) return;
     const sim = this.sim;
     const tr = sim.transition;
     const T = this.trans;
     const cinematic = !!(tr && T && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
     if (cinematic && T) this.drawTransitionBackdrop(ctx, T);
     const groundAlpha = cinematic && T ? this.chunkAlpha(T) : 1;
+    const t0 = performance.now();
     if (groundAlpha > 0) {
       ctx.globalAlpha = groundAlpha;
       this.ground.draw(ctx, this.cam, cinematic ? 2 : 4, cinematic && !(tr?.switched));
       ctx.globalAlpha = 1;
     }
+    const t1 = performance.now();
     const rc: RenderCtx = { sim, cam: this.cam, fx: this.fx, alpha: this.alpha, time: this.time, hideProps: cinematic && groundAlpha < 0.5 };
     drawWorld(ctx, rc);
+    const t2 = performance.now();
     this.fx.drawLights(ctx, this.cam, add => {
       for (const p of sim.players) if (p.state === 'alive' && (sim.helmetT > 0 || p.fortressT > 0)) add(p.x, p.y, sim.size * 2, '#68a6f0', 0.25);
       for (const pu of sim.pickups) add(pu.x, pu.y, sim.size * 1.6, '#fbcd4a', 0.25);
     });
-    // Виньетка.
     vignette(ctx, W, H);
-    this.hud.draw(ctx, sim, this.cam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
+    const t3 = performance.now(), pf = this.perf;
+    pf.ground += (t1 - t0 - pf.ground) * 0.05; pf.world += (t2 - t1 - pf.world) * 0.05; pf.lights += (t3 - t2 - pf.lights) * 0.05;
+  }
+
+  /** Камера мира в пикселях интерфейса. */
+  private syncUiCamera(): Camera {
+    const s = app.screen, k = s.w2u, c = this.ucam, w = this.cam;
+    c.setScreen(s.w, s.h);
+    c.x = w.x; c.y = w.y; c.zoom = w.zoom * k; c.sx = w.sx * k; c.sy = w.sy * k;
+    return c;
+  }
+
+  /** Интерфейс — прозрачный слой поверх мира. */
+  render(ctx: CanvasRenderingContext2D): void {
+    const s = app.screen;
+    const W = s.w, H = s.h;
+    const sim = this.sim;
+    const tr = sim.transition;
+    const ucam = this.syncUiCamera();
+    const cinematic = !!(tr && this.trans && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
+    if (!cinematic) {
+      const rc: RenderCtx = { sim, cam: ucam, fx: this.fx, alpha: this.alpha, time: this.time };
+      drawWorldLabels(ctx, rc);
+      this.fx.draw(ctx, ucam, 2);
+    }
+    this.hud.draw(ctx, sim, ucam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
     if (sim.state === 'levelup') this.levelUI.draw(ctx, sim, W, H);
     if (this.pause.open) this.pause.draw(ctx, W, H, sim);
     if (sim.state === 'gameover' && this.endT > 1.5) {

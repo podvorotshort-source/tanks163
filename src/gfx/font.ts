@@ -160,6 +160,22 @@ function drawRaw(ctx: CanvasRenderingContext2D, s: string, x: number, y: number,
   }
 }
 
+const outlineCache = new Map<string, HTMLCanvasElement>();
+function outlined(s: string, font: FontId, sc: number, sp: number, color: string, outline: string, w: number): HTMLCanvasElement {
+  const key = s + '|' + font + '|' + sc + '|' + color + '|' + outline;
+  let c = outlineCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = w + sc * 2 + 1; c.height = lineH(font) * sc + sc * 2 + 1;
+  const x = c.getContext('2d')!;
+  x.imageSmoothingEnabled = false;
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) drawRaw(x, s, sc + dx * sc, sc + dy * sc, outline, font, sc, sp);
+  drawRaw(x, s, sc, sc, color, font, sc, sp);
+  if (outlineCache.size > 800) outlineCache.clear();
+  outlineCache.set(key, c);
+  return c;
+}
+
 /** Рисует строку пиксельным шрифтом; возвращает ширину. */
 export function drawText(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, o: TextOpts = {}): number {
   const font = o.font ?? 'main', sc = o.scale ?? 1, sp = o.spacing ?? 1;
@@ -168,6 +184,12 @@ export function drawText(ctx: CanvasRenderingContext2D, s: string, x: number, y:
   else if (o.align === 'right') x = Math.round(x - w);
   x = Math.round(x); y = Math.round(y);
   if (o.outline) {
+    // Обводка — 6 проходов по каждому символу: короткие строки (цифры урона, подписи) кешируем целиком.
+    if (s.length <= 12) {
+      const c = outlined(s, font, sc, sp, o.color ?? '#ebe5e6', o.outline, w);
+      ctx.drawImage(c, x - sc, y - sc);
+      return w;
+    }
     for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) drawRaw(ctx, s, x + dx * sc, y + dy * sc, o.outline, font, sc, sp);
   } else if (o.shadow !== null) {
     drawRaw(ctx, s, x + sc, y + sc, o.shadow ?? '#07060b', font, sc, sp);

@@ -17,6 +17,8 @@ function toCanvas(img: PixelImage): HTMLCanvasElement {
 }
 
 let deadline = 0;
+/** Сколько растеризовано (для отладки производительности). */
+export const rasterStats = { ms: 0, n: 0 };
 let frameNo = 0;
 
 export class SpriteSet {
@@ -51,7 +53,10 @@ export class SpriteSet {
         if (c) return c;
       }
     }
+    const t0 = performance.now();
     c = toCanvas(rasterize(this.def, this.scale, (ai / this.angles) * TAU, f, mode, this.size));
+    rasterStats.ms += performance.now() - t0;
+    rasterStats.n++;
     st[this.idx(ai, f)] = c;
     return c;
   }

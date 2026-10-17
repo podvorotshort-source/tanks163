@@ -1,6 +1,7 @@
 // Процедурная поверхность миров: цвет пикселя по мировой точке.
 // ppu — пикселей на единицу (для уровня детализации).
 
+import { pickExt, extPixels, extReady } from '../ext';
 import { rampRgba, type RampId, packRgba } from '../palette';
 import { vnoise, hash2 } from '../../core/math';
 import { STAGE_DEFS } from '../../sim/content/stages';
@@ -167,7 +168,10 @@ const PAINTERS: GroundFn[] = [toyGround, carpetGround, roomGround, houseGround, 
 export function groundAt(n: number, x: number, y: number, ppu: number, depth = 0): number {
   const s = STAGE_DEFS[n];
   if (!s) return space(x, y, ppu);
-  if (x >= 0 && y >= 0 && x <= s.w && y <= s.h) return PAINTERS[n](x, y, ppu);
+  if (x >= 0 && y >= 0 && x <= s.w && y <= s.h) {
+    const t = groundTex(n);
+    return t ? texSample(t, x, y, ppu) : PAINTERS[n](x, y, ppu);
+  }
   const next = STAGE_DEFS[n + 1];
   if (!next || depth > 2) return n >= 7 ? space(x, y, ppu) : INK[1];
   const G = STAGE_GROWTH;
@@ -175,3 +179,56 @@ export function groundAt(n: number, x: number, y: number, ppu: number, depth = 0
 }
 
 export { PAINTERS };
+
+// ---------------------------------------------------------------------------
+// Внешняя текстура поверхности: ground_<1..8>.png (бесшовная), с мип-уровнями.
+// ---------------------------------------------------------------------------
+
+/** Сторона плитки текстуры в единицах ступени (танк в начале ступени — 28). */
+const TILE_UNITS = 224;
+
+interface Tex { levels: { w: number; h: number; d: Uint32Array }[] }
+const texCache = new Map<number, Tex | null>();
+
+function groundTex(n: number): Tex | null {
+  let t = texCache.get(n);
+  if (t !== undefined) return t;
+  const key = pickExt(`ground_${n + 1}`);
+  const px = key ? extPixels(key, 1024) : null;
+  if (!px) {
+    if (extReady()) texCache.set(n, null);
+    return null;
+  }
+  const levels = [px];
+  while (levels[levels.length - 1].w > 8) {
+    const p = levels[levels.length - 1];
+    const w = p.w >> 1, h = p.h >> 1, d = new Uint32Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0;
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+        const v = p.d[(y * 2 + dy) * p.w + x * 2 + dx];
+        r += v & 255; g += (v >>> 8) & 255; b += (v >>> 16) & 255;
+      }
+      d[y * w + x] = (0xff000000 | ((b >> 2) << 16) | ((g >> 2) << 8) | (r >> 2)) >>> 0;
+    }
+    levels.push({ w, h, d });
+  }
+  t = { levels };
+  texCache.set(n, t);
+  return t;
+}
+
+function texSample(t: Tex, x: number, y: number, ppu: number): number {
+  const base = t.levels[0];
+  // Текселей на пиксель экрана → уровень.
+  const tpp = base.w / TILE_UNITS / Math.max(1e-6, ppu);
+  let L = 0;
+  while (L < t.levels.length - 1 && tpp / Math.pow(2, L + 1) >= 0.85) L++;
+  const lv = t.levels[L];
+  const u = ((x / TILE_UNITS) % 1 + 1) % 1, v = ((y / TILE_UNITS) % 1 + 1) % 1;
+  const c = lv.d[Math.min(lv.h - 1, Math.floor(v * lv.h)) * lv.w + Math.min(lv.w - 1, Math.floor(u * lv.w))];
+  // Крупные пятна яркости — чтобы не было заметно повторение плитки.
+  const m = 0.93 + vnoise(x / (TILE_UNITS * 2.3), y / (TILE_UNITS * 2.3), 77) * 0.14;
+  const r = Math.min(255, (c & 255) * m), g = Math.min(255, ((c >>> 8) & 255) * m), b = Math.min(255, ((c >>> 16) & 255) * m);
+  return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+}

@@ -8,11 +8,15 @@
     <style>
       html, body { margin: 0; height: 100%; background: #07060b; overflow: hidden; }
       body { display: flex; align-items: center; justify-content: center; }
-      canvas#screen { image-rendering: pixelated; image-rendering: crisp-edges; display: block; outline: none; }
+      #wrap { position: relative; }
+      #wrap canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; display: block; outline: none; }
     </style>
   </head>
   <body>
-    <canvas id="screen" tabindex="0"></canvas>
+    <div id="wrap">
+      <canvas id="world"></canvas>
+      <canvas id="screen" tabindex="0"></canvas>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -8,6 +8,7 @@
 // слева, как у нарисованного вручную пиксель-арта, при любом повороте.
 // Потом добавляется контур. Модуль чистый (без DOM) — работает и в Node.
 
+import { rasterizeExt, extSize, type ExtSpec } from './ext';
 import { RAMPS, type RampId, rampRgba, hexToRgb, packRgba } from './palette';
 
 export type Shape =
@@ -57,6 +58,8 @@ export interface SpriteDef {
   rotates?: boolean;
   /** Сила теней от верхних слоёв в экранных пикселях (по умолчанию 1.5). */
   castDist?: number;
+  /** Внешняя картинка вместо слоёв (см. gfx/ext.ts). */
+  ext?: ExtSpec;
 }
 
 export type RasterMode = 0 | 1 | 2; // 0 — обычный, 1 — белая вспышка, 2 — силуэт (для теней)
@@ -226,6 +229,30 @@ const BLACK = packRgba(0, 0, 0);
  * @param fixedSize  принудительный размер стороны холста (для одинаковых кадров)
  */
 export function rasterize(def: SpriteDef, scale: number, angle: number, frame = 0, mode: RasterMode = 0, fixedSize = 0): PixelImage {
+  if (def.ext) {
+    const ang = def.rotates === false ? 0 : angle;
+    const img = rasterizeExt(def.ext, scale, ang, mode, fixedSize || rasterSize(def, scale));
+    if (img) {
+      // Процедурные детали поверх картинки (модули без своей картинки).
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      for (const p of def.ext.parts ?? []) {
+        if (!p.def) continue;
+        const pi = rasterize(p.def, scale * (p.k ?? 1), ang + (p.a ?? 0), 0, mode);
+        const cx = img.w / 2 + (p.x * ca - p.y * sa) * scale - pi.w / 2, cy = img.h / 2 + (p.x * sa + p.y * ca) * scale - pi.h / 2;
+        const ox = Math.round(cx), oy = Math.round(cy);
+        for (let j = 0; j < pi.h; j++) {
+          const ty = oy + j;
+          if (ty < 0 || ty >= img.h) continue;
+          for (let i = 0; i < pi.w; i++) {
+            const v = pi.data[j * pi.w + i];
+            const tx = ox + i;
+            if (v >>> 24 && tx >= 0 && tx < img.w) img.data[ty * img.w + tx] = v;
+          }
+        }
+      }
+      return img;
+    }
+  }
   const cd = compileDef(def);
   const N = fixedSize || Math.max(2, Math.ceil(cd.radius * scale * 2) + 3);
   const data = new Uint32Array(N * N);
@@ -323,6 +350,11 @@ export function rasterize(def: SpriteDef, scale: number, angle: number, frame = 
 
 /** Размер стороны холста для данного масштаба (одинаков для всех углов). */
 export function rasterSize(def: SpriteDef, scale: number): number {
+  if (def.ext) {
+    let n = extSize(def.ext, scale, def.rotates !== false);
+    for (const p of def.ext.parts ?? []) if (p.def) n = Math.max(n, Math.ceil((Math.hypot(p.x, p.y) + compileDef(p.def).radius * (p.k ?? 1)) * scale * 2) + 4);
+    return n;
+  }
   return Math.max(2, Math.ceil(compileDef(def).radius * scale * 2) + 3);
 }
 

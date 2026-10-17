@@ -1,6 +1,7 @@
 // Спрайты препятствий (вид сверху). Рисуются в локальных единицах ступени
 // по размерам препятствия (w × h), не поворачиваются.
 
+import { pickExt, type ExtSpec } from '../ext';
 import type { RampId } from '../palette';
 import { type Layer, type SpriteDef, rect, circ, ell, poly, ring, cap, sym, texSpeckle, texStripesX, texStripesY } from '../raster';
 import { hash2 } from '../../core/math';
@@ -169,12 +170,30 @@ function star5(cx: number, cy: number, R: number, r: number): number[] {
   return pts;
 }
 
+// Внешняя графика: prop_<kind>.png. Полосы стен мостятся плитками, вода растягивается,
+// игрушки разных вариантов перекрашиваются по тону.
+const TILED = new Set(['brick', 'steel', 'steelWall', 'block', 'houseWall']);
+const FILLED = new Set(['water']);
+const HUED = new Set(['block', 'toyCube', 'crayon', 'marble', 'book', 'pillow', 'slipper']);
+
 /** Определение спрайта препятствия. damaged — показать трещины. */
 export function propDef(kind: string, w: number, h: number, v: number, damaged = false): SpriteDef {
   const rw = Math.round(w * 2) / 2, rh = Math.round(h * 2) / 2;
   const key = `prop:${kind}:${rw}:${rh}:${v}:${damaged ? 1 : 0}`;
   let d = cache.get(key);
   if (!d) {
+    const ek = pickExt(`prop_${kind}`);
+    if (ek) {
+      let ext: ExtSpec;
+      if (TILED.has(kind)) { const cell = Math.min(rw, rh); ext = { key: ek, w: cell, tile: cell, foot: [rw, rh] }; }
+      else if (FILLED.has(kind)) ext = { key: ek, w: rw, foot: [rw, rh], fill: true };
+      else ext = { key: ek, w: rw, foot: [rw, rh] };
+      if (HUED.has(kind) && v) ext.hue = (v * 83) % 360;
+      if (damaged) ext.dim = 0.3;
+      d = { id: key + ':ext', layers: [], rotates: false, ext };
+      cache.set(key, d);
+      return d;
+    }
     let layers = build(kind, rw, rh, v);
     if (damaged) layers = layers.map((l, i) => (i === 0 || i === 1 ? { ...l, tex: crackTex(v + i) } : l));
     d = { id: key, layers, rotates: false, frames: kind === 'water' ? 4 : 1, castDist: Math.min(2.5, Math.max(1, Math.min(w, h) * 0.05)) };

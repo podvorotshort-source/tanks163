@@ -1,5 +1,6 @@
 // Отладочный API в window.__tk — для автотестов (Playwright) и ручной проверки.
 
+import { rasterStats } from '../gfx/sprites';
 import type { App } from '../app';
 import { GameScene } from '../client/game';
 import { input } from '../input/input';
@@ -28,11 +29,13 @@ export function installDebug(app: App): void {
         boss: s.boss ? { hp: s.boss.hp, maxHp: s.boss.maxHp } : null,
       };
     },
+    /** Время фаз кадра (мс) и число частиц. */
+    perf() { const g = game(); const r = { ...app.perf, fps: app.fps, parts: g?.fx.parts.length ?? 0, lights: g?.fx.lights.length ?? 0, rasterMs: rasterStats.ms, rasterN: rasterStats.n, ...(g ? g.perf : {}), fxMs: g?.fx.drawMs ?? 0 }; rasterStats.ms = 0; rasterStats.n = 0; if (g) g.fx.drawMs = 0; return r; },
     give(p: number, w: WeaponId) { const s = game()?.sim; if (s) s.addWeapon(s.players[p], w); },
     ability(p: number, a: AbilityId) { const s = game()?.sim; if (s) s.players[p].abilities.push({ id: a, level: 1, t: 0, active: 0, charges: 1 }); },
     power(id: PowerupId) { const s = game()?.sim; if (s) applyPowerup(s, id, 0); },
     spawn(id: string, n = 1, mul = 1) { const s = game()?.sim; if (!s) return; for (let i = 0; i < n; i++) { const [x, y] = s.director.spawnPoint(1.05); spawnEnemy(s, id, x, y, mul); } },
-    xp(levels = 1) { const s = game()?.sim; if (s) for (let i = 0; i < levels; i++) s.gainXp(s.xpNeed() - s.xp + 0.01); },
+    xp(levels = 1) { const s = game()?.sim; if (s) for (let i = 0; i < levels; i++) s.gainXp((s.xpNeed() - s.xp + 0.01) * s.director.playersFactor()); },
     skipStage() { game()?.sim.debugSkipStage(); },
     boss() { const s = game()?.sim; if (s) s.stageTime = s.stage.bossAt - 0.1; },
     hurt(p: number, k = 0.5) { const s = game()?.sim; if (s) { const pl = s.players[p]; pl.hp -= pl.maxHp * k; } },

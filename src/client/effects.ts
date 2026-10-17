@@ -1,5 +1,6 @@
 // Генерация визуальных эффектов из событий симуляции.
 
+import { extFrames } from '../gfx/ext';
 import type { Sim } from '../sim/sim';
 import type { SimEvent } from '../sim/types';
 import type { Camera } from './camera';
@@ -65,8 +66,14 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
   const k = e.kind === 'boss' || e.kind === 'big' ? 1.5 : 1;
   // Вспышка света
   fx.light(e.x, e.y, r * 2.6 * k, plasma ? '#bb70cc' : '#fbc63e', 1, 0.22 + r * cam.zoom * 0.002);
+  // Раскадровка взрыва из внешней графики (если есть) — вместо части частиц.
+  const frames = plasma ? 0 : extFrames('fx_explosion');
+  if (frames) {
+    const p = fx.spawn('anim', e.x, e.y);
+    p.text = 'fx_explosion'; p.va = frames; p.r = r * 1.3 * k; p.life = 0.5 + Math.min(0.3, r * cam.zoom * 0.004); p.drag = 0;
+  }
   // Огненный шар
-  const nf = Math.min(26, Math.round(6 + r * cam.zoom * 0.25)) * k;
+  const nf = Math.round(Math.min(26, Math.round(6 + r * cam.zoom * 0.25)) * k * (frames ? 0.4 : 1));
   for (let i = 0; i < nf; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.6;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d * 0.3, e.y + Math.sin(a) * d * 0.3);
@@ -105,7 +112,8 @@ export function emitHit(fx: Fx, sim: Sim, e: Ev<'hit'>, cam: Camera, numbers: bo
     const a = Math.random() * Math.PI * 2, sp = sim.size * (2 + Math.random() * 4);
     p.vx = Math.cos(a) * sp; p.vy = Math.sin(a) * sp; p.life = 0.15 + Math.random() * 0.15; p.drag = 6;
   }
-  if (numbers && e.dmg > 0 && e.tgt === 'enemy') {
+  if (numbers && e.dmg > 0 && e.tgt === 'enemy' && (e.crit || fx.texts < 45)) {
+    fx.texts++;
     const p = fx.spawn('text', e.x + (Math.random() - 0.5) * sim.size * 0.5, e.y - sim.size * 0.3);
     p.text = fmtDmg(e.dmg / sim.tankPower());
     p.col = e.crit ? '#fbcd4a' : e.w === 'fire' ? '#f08a1c' : e.w === 'tesla' ? '#bdf3dc' : '#ebe5e6';

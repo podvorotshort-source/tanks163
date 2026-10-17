@@ -52,6 +52,8 @@ export type SimEvent =
   | { t: 'kill'; x: number; y: number; size: number; kind: string; by: number; xp: number; crushed: boolean; air: boolean }
   | { t: 'propBreak'; x: number; y: number; w: number; h: number; mat: string; kind: string }
   | { t: 'crush'; x: number; y: number; size: number }
+  /** Танки игроков столкнулись (сила — скорость сближения в длинах танка/с). */
+  | { t: 'bump'; x: number; y: number; force: number }
   | { t: 'arc'; pts: number[] }
   | { t: 'flame'; x: number; y: number; a: number; spread: number; range: number; p: number }
   | { t: 'mineDrop'; x: number; y: number }

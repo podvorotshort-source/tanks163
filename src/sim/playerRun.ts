@@ -43,6 +43,80 @@ export function updatePlayers(sim: Sim, cmds: PlayerCmd[], dt: number): void {
         break;
     }
   }
+  if (sim.players.length > 1) collidePlayers(sim, dt);
+}
+
+// ---------------------------------------------------------------------------
+// Столкновения танков игроков: тяжёлый толкает лёгкого
+// ---------------------------------------------------------------------------
+
+/** Масса танка при толчке: класс × рывок / несокрушимость / отвал / форсаж; подбитый — тяжёлые обломки. */
+export function playerMass(p: Player): number {
+  let m = p.cls.mass;
+  if (p.state === 'down') m *= 1.5;
+  if (p.fortressT > 0) m = Math.max(m * 6, 40); // несокрушимость — якорь
+  if (p.dashT > 0) m *= 4;
+  if (p.hasWeapon('ram')) m *= 1.35;
+  if (p.overdriveT > 0) m *= 1.25;
+  return m;
+}
+
+/** Радиус «тела» при столкновении игроков: корпус тяжёлого длиннее круга коллизии. */
+const BODY_K: Record<string, number> = { scout: 0.95, assault: 1.05, heavy: 1.18 };
+const bodyR = (p: Player) => p.r * (BODY_K[p.classId] ?? 1);
+
+function collidePlayers(sim: Sim, dt: number): void {
+  const ps = sim.players.filter(p => p.state === 'alive' || p.state === 'down');
+  for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
+    const a = ps[i], b = ps[j];
+    if (a.state === 'down' && b.state === 'down') continue;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const d = Math.hypot(dx, dy) || 0.001, ov = bodyR(a) + bodyR(b) - d;
+    if (ov <= 0) continue;
+    const nx = dx / d, ny = dy / d;
+    const ma = playerMass(a), mb = playerMass(b);
+    let ka = mb / (ma + mb), kb = ma / (ma + mb);
+    // Скорость сближения: тяжёлый передаёт лёгкому часть хода (толчок ощущается, а не только «упор»).
+    const rel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+    a.x -= nx * ov * ka; a.y -= ny * ov * ka;
+    b.x += nx * ov * kb; b.y += ny * ov * kb;
+    // Прижатый к стене не проходит сквозь неё: второй проход, прижатый — неподвижен.
+    const wa = unstick(sim, a), wb = unstick(sim, b);
+    if (wa || wb) {
+      const d2 = Math.hypot(b.x - a.x, b.y - a.y) || 0.001, ov2 = bodyR(a) + bodyR(b) - d2;
+      if (ov2 > 0) {
+        ka = wa && !wb ? 0 : wb && !wa ? 1 : 0.5; kb = 1 - ka;
+        const mx = (b.x - a.x) / d2, my = (b.y - a.y) / d2;
+        a.x -= mx * ov2 * ka; a.y -= my * ov2 * ka;
+        b.x += mx * ov2 * kb; b.y += my * ov2 * kb;
+      }
+    }
+    if (rel > 0) {
+      if (b.state === 'alive') { b.vx += nx * rel * kb * 0.6; b.vy += ny * rel * kb * 0.6; }
+      if (a.state === 'alive') { a.vx -= nx * rel * ka * 0.6; a.vy -= ny * rel * ka * 0.6; }
+      const force = rel / sim.size;
+      if (force > 1.2 && a.bumpT <= 0 && b.bumpT <= 0) {
+        a.bumpT = b.bumpT = 0.35;
+        sim.emit({ t: 'bump', x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, force });
+      }
+    }
+    const s = sim.stage;
+    for (const p of [a, b]) { p.x = clamp(p.x, p.r, s.w - p.r); p.y = clamp(p.y, p.r, s.h - p.r); }
+  }
+  for (const p of ps) if (p.bumpT > 0) p.bumpT -= dt;
+}
+
+/** Выталкивает танк из твёрдых препятствий; true — если упёрся. */
+function unstick(sim: Sim, p: Player): boolean {
+  let hit = false;
+  sim.props.queryCircle(p.x, p.y, p.r, tmpP);
+  for (const pr of tmpP) {
+    if (pr.dead || !MATS[pr.mat].move) continue;
+    if (pr.friendly && pr.ttl !== undefined) continue;
+    const po = pushOut(p.x, p.y, p.r, pr);
+    if (po) { p.x += po[0]; p.y += po[1]; hit = true; }
+  }
+  return hit;
 }
 
 // ---------------------------------------------------------------------------

@@ -100,6 +100,8 @@ export class Player {
   slowAmt = 0;
   /** Рывок. */
   dashT = 0;
+  /** Пауза между событиями толчка танков игроков. */
+  bumpT = 0;
   dashVx = 0; dashVy = 0;
   fortressT = 0;
   overdriveT = 0;

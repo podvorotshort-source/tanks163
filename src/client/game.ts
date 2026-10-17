@@ -260,6 +260,13 @@ export class GameScene implements Scene {
         case 'kill': emitKill(fx, sim, e, cam, this.ground); if (cam.visible(e.x, e.y, 0)) audio.play(e.crushed ? 'crush' : 'kill', { pan: this.pan(e.x), vol: Math.min(1, 0.3 + (e.size * cam.zoom) / 40), gap: 30 }); break;
         case 'propBreak': emitPropBreak(fx, sim, e, cam, this.ground); if (cam.visible(e.x, e.y, 0)) audio.play(e.mat === 'glass' ? 'glass' : 'break', { pan: this.pan(e.x), vol: 0.6, gap: 50 }); break;
         case 'crush': for (let i = 0; i < 5; i++) { const p = fx.spawn('dust', e.x, e.y); p.vx = (Math.random() - 0.5) * sim.size * 3; p.vy = (Math.random() - 0.5) * sim.size * 3; p.r = e.size * 0.3; p.r1 = e.size * 0.7; p.life = 0.5; p.col = '#9c7547'; p.alpha = 0.6; } break;
+        case 'bump': {
+          for (let i = 0; i < 6; i++) { const p = fx.spawn('dust', e.x, e.y); p.vx = (Math.random() - 0.5) * sim.size * 2; p.vy = (Math.random() - 0.5) * sim.size * 2; p.r = sim.size * 0.12; p.r1 = sim.size * 0.4; p.life = 0.45; p.col = '#8a7a66'; p.alpha = 0.55; }
+          audio.play('hitArmor', { pan: this.pan(e.x), vol: Math.min(1, 0.35 + e.force * 0.12), gap: 120 });
+          cam.addShake(Math.min(4, e.force));
+          input.rumble(0, 0.3, 0.2, 90); input.rumble(1, 0.3, 0.2, 90);
+          break;
+        }
         case 'arc': fx.arc(e.pts.length === 5 ? e.pts.slice(0, 4) : e.pts, e.pts.length === 5 ? '#ea6a3f' : '#bdf3dc', e.pts.length === 5 ? 2 : 1, e.pts.length === 5 ? 0.3 : 0.14); if (e.pts.length !== 5) audio.play('tesla', { gap: 70, vol: 0.6 }); else { audio.play('elaser', { vol: 0.9 }); cam.addShake(3); } break;
         case 'flame': audio.play('flame', { pan: this.pan(e.x), gap: 140 }); break;
         case 'mineDrop': audio.play('mine', { pan: this.pan(e.x), gap: 120, vol: 0.5 }); break;

@@ -15,6 +15,9 @@ describe('переход между масштабами', () => {
     sim.sizeTarget = sim.size = TANK_BASE * Math.pow(STAGE_GROWTH, sim.growE);
     const absBefore = sim.size * stageUnit(sim.stageIdx);
     const p = sim.players[0];
+    // Напарник подальше: вплотную танки расталкиваются, и позиция сместилась бы.
+    const q = sim.players[1];
+    q.x = q.px = p.x + sim.size * 3;
     const relBefore = { x: p.x - sim.stage.w / 2, y: p.y - sim.stage.h / 2 };
     sim.onBossKilled(sim.players[0] as never);
     expect(sim.state).toBe('transition');

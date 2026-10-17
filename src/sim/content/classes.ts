@@ -19,6 +19,8 @@ export interface ClassDef {
   crush: number;
   /** Скорость поворота корпуса, рад/с. */
   turn: number;
+  /** Масса при столкновении танков игроков: тяжёлый толкает лёгкого. */
+  mass: number;
   /** Множитель дальности. */
   range: number;
   /** Шанс крита. */
@@ -30,19 +32,19 @@ export const CLASSES: Record<ClassId, ClassDef> = {
   scout: {
     id: 'scout', name: 'Разведчик',
     desc: 'Быстрый и манёвренный. Бьёт издалека и точно, уклоняется рывком.',
-    speed: 3.5, hp: 80, armor: 0, main: 'ap', ability: 'dash', auxSlots: 3, crush: 0.42, turn: 11, range: 1.08, crit: 0.12,
+    speed: 3.5, hp: 80, armor: 0, main: 'ap', ability: 'dash', auxSlots: 3, crush: 0.42, turn: 11, mass: 1, range: 1.08, crit: 0.12,
     perks: ['Скорость +30%', 'Дальность +8%', 'Шанс крита 12%'],
   },
   assault: {
     id: 'assault', name: 'Штурмовик',
     desc: 'Универсал. Лишний слот для систем — лучший для комбинированных билдов. Залп отбрасывает толпу.',
-    speed: 2.75, hp: 115, armor: 0.15, main: 'he', ability: 'volley', auxSlots: 4, crush: 0.45, turn: 8, range: 1, crit: 0.05,
+    speed: 2.75, hp: 115, armor: 0.15, main: 'he', ability: 'volley', auxSlots: 4, crush: 0.45, turn: 8, mass: 2, range: 1, crit: 0.05,
     perks: ['4 слота доп. систем', 'Броня 15%', 'Сбалансирован'],
   },
   heavy: {
     id: 'heavy', name: 'Тяжёлый',
     desc: 'Медленная крепость. Держит позицию, давит крупных врагов, огнемёт и мины — его стихия.',
-    speed: 2.15, hp: 205, armor: 0.38, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, range: 1, crit: 0.05,
+    speed: 2.15, hp: 205, armor: 0.38, main: 'flame', ability: 'fortress', auxSlots: 3, crush: 0.58, turn: 5.5, mass: 4.5, range: 1, crit: 0.05,
     perks: ['Броня 38%', 'Прочность +80%', 'Давит врагов до 58% своего размера'],
   },
 };

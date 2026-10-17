@@ -7,6 +7,7 @@ import { save, sanitize, defaultSave, SAVE_KEY } from '../src/meta/save';
 import { storage } from '../src/meta/storage';
 import { WORKSHOP } from '../src/meta/meta';
 import { baseStats } from '../src/sim/entities';
+import { PROP_CRUSH } from '../src/sim/playerRun';
 
 describe('переход между масштабами', () => {
   it('танк не меняет абсолютный размер, мир становится крупнее', () => {
@@ -33,7 +34,7 @@ describe('переход между масштабами', () => {
     // Старые препятствия переехали уменьшенными и давятся танком.
     expect(sim.props.props.some(pr => pr.kind === 'brick')).toBe(true);
     const brick = sim.props.props.find(pr => pr.kind === 'brick')!;
-    expect(brick.size).toBeLessThan(sim.size * 0.22);
+    expect(brick.size).toBeLessThan(sim.size * PROP_CRUSH);
   });
 
   it('после последнего босса — победа', () => {

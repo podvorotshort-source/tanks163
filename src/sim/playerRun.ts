@@ -14,7 +14,7 @@ const tmpE: Enemy[] = [];
 const tmpP: Prop[] = [];
 
 /** Порог давки препятствий (доля размера танка). */
-export const PROP_CRUSH = 0.22;
+export const PROP_CRUSH = 0.27;
 
 export function updatePlayers(sim: Sim, cmds: PlayerCmd[], dt: number): void {
   for (const p of sim.players) {

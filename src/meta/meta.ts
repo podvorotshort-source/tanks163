@@ -16,20 +16,24 @@ export interface WorkshopDef {
   icon: string;
 }
 
+// Мастерская — главный путь к победе: свежий танк до финала не доходит, полностью
+// прокачанный (+ удачная синергия) — может. Цены растут, полная прокачка — десятки забегов.
+const ramp = (base: number, n: number, k = 1.32) => Array.from({ length: n }, (_, i) => Math.round((base * Math.pow(k, i)) / 5) * 5);
+
 export const WORKSHOP: WorkshopDef[] = [
-  { id: 'hp', name: 'Бронекорпус', icon: 's_hull', per: 0.06, costs: [40, 70, 110, 160, 230], desc: r => `Прочность +${r * 6}%` },
-  { id: 'dmg', name: 'Калибровка орудий', icon: 's_caliber', per: 0.05, costs: [50, 85, 130, 190, 270], desc: r => `Урон +${r * 5}%` },
-  { id: 'armor', name: 'Броневые листы', icon: 's_armor', per: 0.02, costs: [60, 110, 170, 250], desc: r => `Получаемый урон −${r * 2}%` },
-  { id: 'speed', name: 'Трансмиссия', icon: 's_engine', per: 0.03, costs: [40, 80, 130, 190], desc: r => `Скорость +${r * 3}%` },
-  { id: 'xp', name: 'Боевой опыт', icon: 's_tutor', per: 0.05, costs: [60, 110, 170, 250], desc: r => `Опыт +${r * 5}%` },
-  { id: 'regen', name: 'Ремонтная бригада', icon: 's_regen', per: 0.0012, costs: [80, 150, 240], desc: r => `Ремонт ${(r * 0.12).toFixed(2)}% прочности/с` },
-  { id: 'crit', name: 'Прицелы', icon: 's_crit', per: 0.02, costs: [60, 120, 200], desc: r => `Шанс крита +${r * 2}%` },
-  { id: 'ability', name: 'Тактика', icon: 's_tactics', per: 0.05, costs: [70, 130, 210], desc: r => `Перезарядка способностей −${r * 5}%` },
+  { id: 'hp', name: 'Бронекорпус', icon: 's_hull', per: 0.06, costs: ramp(40, 10), desc: r => `Прочность +${r * 6}%` },
+  { id: 'dmg', name: 'Калибровка орудий', icon: 's_caliber', per: 0.06, costs: ramp(50, 10), desc: r => `Урон +${r * 6}%` },
+  { id: 'armor', name: 'Броневые листы', icon: 's_armor', per: 0.025, costs: ramp(60, 6, 1.45), desc: r => `Получаемый урон −${(r * 2.5).toFixed(1).replace('.0', '')}%` },
+  { id: 'speed', name: 'Трансмиссия', icon: 's_engine', per: 0.03, costs: ramp(40, 4, 1.6), desc: r => `Скорость +${r * 3}%` },
+  { id: 'xp', name: 'Боевой опыт', icon: 's_tutor', per: 0.05, costs: ramp(60, 5, 1.5), desc: r => `Опыт +${r * 5}%` },
+  { id: 'regen', name: 'Ремонтная бригада', icon: 's_regen', per: 0.0012, costs: ramp(80, 5, 1.55), desc: r => `Ремонт ${(r * 0.12).toFixed(2)}% прочности/с` },
+  { id: 'crit', name: 'Прицелы', icon: 's_crit', per: 0.02, costs: ramp(60, 5, 1.55), desc: r => `Шанс крита +${r * 2}%` },
+  { id: 'ability', name: 'Тактика', icon: 's_tactics', per: 0.04, costs: ramp(70, 5, 1.5), desc: r => `Перезарядка способностей −${r * 4}%` },
   { id: 'luck', name: 'Талисман', icon: 's_luck', per: 0.5, costs: [70, 140, 230], desc: r => `Удача +${r * 0.5}` },
   { id: 'revive', name: 'Спасательный трос', icon: 'a_repair', per: 0.1, costs: [60, 120, 200], desc: r => `Спасение напарника быстрее на ${r * 10}%` },
   { id: 'rerolls', name: 'Штабная связь', icon: 'f_scrap', per: 1, costs: [80, 160, 260], desc: r => `+${r} переброс карт за забег` },
   { id: 'banishes', name: 'Цензор', icon: 'skull', per: 1, costs: [90, 170, 280], desc: r => `+${r} исключение карт за забег` },
-  { id: 'lives', name: 'Запасной экипаж', icon: 'p_tank', per: 1, costs: [220, 480], desc: r => `+${r} жизнь в начале забега` },
+  { id: 'lives', name: 'Запасной экипаж', icon: 'p_tank', per: 1, costs: [220, 480, 900], desc: r => `+${r} жизнь в начале забега` },
   { id: 'cards', name: 'Расширенный выбор', icon: 'syn', per: 1, costs: [520], desc: r => (r ? '4 карты при уровне' : '+1 карта при выборе улучшений') },
 ];
 
@@ -87,7 +91,7 @@ export const VARIANTS: VariantDef[] = [
 export const GARAGE: UnlockDef[] = VARIANTS.filter(v => v.cost > 0).map(v => ({ id: 'v:' + v.id, name: v.name, desc: v.desc, cost: v.cost, icon: 'c_' + v.cls, group: 'garage' as const }));
 
 export const THREATS = [
-  { name: 'Базовая', desc: 'Честная сложность для знакомства с игрой.' },
+  { name: 'Базовая', desc: 'Суровая. Победа — после прокачки в мастерской и с удачной синергией.' },
   { name: 'Угроза I', desc: 'Враги крепче, их больше. Детали +25%.' },
   { name: 'Угроза II', desc: 'Ещё крепче и опаснее. Детали +50%.' },
   { name: 'Угроза III', desc: 'Для опытных экипажей. Детали +75%.' },

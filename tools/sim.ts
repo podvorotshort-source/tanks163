@@ -1,8 +1,11 @@
-// Балансный прогон без графики: npx tsx tools/sim.ts --runs 3 --classes assault,heavy --skill 0.7 --max 4200
+// Балансный прогон без графики: npx tsx tools/sim.ts --runs 3 --classes assault,heavy --skill 0.7 --max 4200 --meta 0.5
+// --meta F — доля прокачки мастерской (0 — новый игрок, 1 — всё вкачано); при F ≥ 0.5 открыт весь арсенал и исследования.
 import { Sim, type RunConfig } from '../src/sim/sim';
 import { botCommand, botChoose } from '../src/sim/bot';
 import type { ClassId } from '../src/sim/types';
 import { WEAPONS } from '../src/sim/content/weapons';
+import { NO_META, type MetaBonus } from '../src/sim/sim';
+import { WORKSHOP, START_UNLOCKS } from '../src/meta/meta';
 
 const args = process.argv.slice(2);
 const get = (k: string, d: string) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -13,13 +16,18 @@ const maxSec = Number(get('max', '4200'));
 const seed0 = Number(get('seed', '1'));
 const verbose = args.includes('-v');
 const startStage = Number(get('stage', '0'));
+const metaF = Number(get('meta', '0'));
+const threat = Number(get('threat', '0'));
+const meta: MetaBonus = { ...NO_META };
+for (const w of WORKSHOP) meta[w.id] = Math.round(w.costs.length * metaF) * w.per;
+const unlocks = metaF >= 0.5 ? undefined : { has: (id: string) => START_UNLOCKS.includes(id) };
 
 interface Result { seed: number; stage: number; time: number; level: number; kills: number; win: boolean; deaths: number; stages: string[]; build: string[] }
 const results: Result[] = [];
 
 for (let r = 0; r < runs; r++) {
   const seed = seed0 + r;
-  const cfg: RunConfig = { seed, players: classes.map(c => ({ cls: c })), startStage };
+  const cfg: RunConfig = { seed, players: classes.map(c => ({ cls: c })), startStage, meta, unlocks, threat };
   const sim = new Sim(cfg);
   sim.dmgLog = new Map();
   sim.bossLog = new Map();

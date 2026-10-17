@@ -1,5 +1,6 @@
 // Отладочный API в window.__tk — для автотестов (Playwright) и ручной проверки.
 
+import { damagePlayer } from '../sim/combat';
 import { rasterStats } from '../gfx/sprites';
 import type { App } from '../app';
 import { GameScene } from '../client/game';
@@ -34,6 +35,8 @@ export function installDebug(app: App): void {
     give(p: number, w: WeaponId) { const s = game()?.sim; if (s) s.addWeapon(s.players[p], w); },
     ability(p: number, a: AbilityId) { const s = game()?.sim; if (s) s.players[p].abilities.push({ id: a, level: 1, t: 0, active: 0, charges: 1 }); },
     power(id: PowerupId) { const s = game()?.sim; if (s) applyPowerup(s, id, 0); },
+    /** Уничтожить танк игрока без запасных жизней (проверка экрана поражения). */
+    die(p = 0) { const s = game()?.sim; if (!s) return; const pl = s.players[p]; pl.lives = 0; pl.invulnT = 0; damagePlayer(s, pl, 1e12, 'debug'); },
     /** Положить бонус рядом с игроком (подбор — как в игре). */
     drop(id: PowerupId, p = 0) { const s = game()?.sim; if (s) dropPowerup(s, s.players[p].x, s.players[p].y, id); },
     spawn(id: string, n = 1, mul = 1) { const s = game()?.sim; if (!s) return; for (let i = 0; i < n; i++) { const [x, y] = s.director.spawnPoint(1.05); spawnEnemy(s, id, x, y, mul); } },

@@ -8,7 +8,7 @@ import { UI } from '../gfx/palette';
 import { panel, VMenu, menuBackground } from './widgets';
 import { save } from '../meta/save';
 import type { VariantDef } from '../meta/meta';
-import { THREATS } from '../meta/meta';
+import { THREATS, WORKSHOP } from '../meta/meta';
 import { WEAPONS } from '../sim/content/weapons';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { BOSSES } from '../sim/bosses';
@@ -30,6 +30,9 @@ export class ResultsScene implements Scene {
   newTrophies: string[] = [];
   menu: VMenu;
   private shown = 0;
+  /** Сколько рангов мастерской можно купить на имеющиеся детали (по самым дешёвым). */
+  private affordable = 0;
+  private tip = '';
 
   constructor(private sim: Sim, vs: VariantDef[], threat: number) {
     this.win = sim.state === 'victory';
@@ -50,6 +53,10 @@ export class ResultsScene implements Scene {
     }
     if (this.win && threat >= d.threatUnlocked && d.threatUnlocked < 5) { d.threatUnlocked++; this.newThreat = true; }
     save.save();
+    const costs = WORKSHOP.map(w => w.costs[save.rank(w.id)]).filter((c): c is number => c !== undefined).sort((x, y) => x - y);
+    let left = d.scrap;
+    for (const c of costs) { if (c > left) break; left -= c; this.affordable++; }
+    this.tip = TIPS[(d.stats.runs + sim.maxStage) % TIPS.length];
     this.menu = new VMenu([
       { label: 'В БАЗУ', sub: `Потратить детали: ${d.scrap}`, act: () => app.set(new BaseScene()) },
       { label: 'ЕЩЁ РАЗ', sub: 'Тот же состав и уровень угрозы', act: () => startRun(vs, threat) },
@@ -114,9 +121,23 @@ export class ResultsScene implements Scene {
     if (this.newTrophies.length) { drawText(ctx, 'НОВЫЕ ТРОФЕИ: ' + this.newTrophies.map(b => BOSSES[b]?.name ?? b).join(', '), W / 2, ly, { align: 'center', color: UI.purple }); ly += 11; }
     if (this.newThreat) { drawText(ctx, `ОТКРЫТ НОВЫЙ УРОВЕНЬ УГРОЗЫ: ${THREATS[save.data.threatUnlocked].name.toUpperCase()}`, W / 2, ly, { align: 'center', color: UI.red }); ly += 11; }
     if (this.newRecord) { drawText(ctx, 'НОВЫЙ РЕКОРД: ДАЛЬШЕ ВСЕГО!', W / 2, ly, { align: 'center', color: UI.green }); ly += 11; }
-    this.menu.draw(ctx, W / 2, Math.max(ly + 8, H - 66), 200, 20, this.t);
+    if (!this.win) {
+      // Поражение — часть пути: подсказываем, что прокачать.
+      if (this.affordable > 0) { drawText(ctx, `В МАСТЕРСКОЙ ДОСТУПНО УЛУЧШЕНИЙ: ${this.affordable}`, W / 2, ly, { align: 'center', color: UI.gold }); ly += 11; }
+      drawText(ctx, this.tip, W / 2, ly, { align: 'center', color: UI.dim }); ly += 11;
+    }
+    this.menu.draw(ctx, W / 2, Math.max(ly + 8, H - 80), 200, 20, this.t);
   }
 }
+
+const TIPS = [
+  'Совет: прочность и калибровка в мастерской — основа победы',
+  'Совет: победа над боссом открывает исследования синергий',
+  'Совет: синергия двух систем сильнее, чем прокачка одной',
+  'Совет: «Запасной экипаж» в мастерской — лишняя жизнь в каждом забеге',
+  'Совет: переброс и исключение карт помогают собрать нужный билд',
+  'Совет: в гараже есть варианты танков с другим стартовым оружием',
+];
 
 function fmtBig(v: number): string {
   if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';

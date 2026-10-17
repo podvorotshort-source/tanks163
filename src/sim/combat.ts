@@ -10,7 +10,7 @@ import { bossHitMult } from './bosses';
 const tmpE: Enemy[] = [];
 
 /** Поправки урона по боссам: бронебойная иначе решает бой в одиночку, фугас и огонь — наоборот. */
-const BOSS_TYPE_K: Partial<Record<DmgType, number>> = { ap: 0.62, he: 2.1, fire: 2.3, mg: 1.2 };
+const BOSS_TYPE_K: Partial<Record<DmgType, number>> = { ap: 0.62, he: 2.1, fire: 2.8, mg: 1.2 };
 const tmpP: Prop[] = [];
 
 export interface DmgOpts {

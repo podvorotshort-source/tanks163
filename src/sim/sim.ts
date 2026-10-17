@@ -29,6 +29,14 @@ export interface PlayerCmd {
   a: [boolean, boolean, boolean];
 }
 
+/**
+ * Нарастание сложности по ступеням (поверх роста врагов в описаниях): к финалу враги ~×1.85 крепче
+ * и ~×1.6 больнее. Это ровно то, что даёт полная мастерская (+60% прочности, +60% урона, −15% урона
+ * по себе), — без прокачки поздние ступени — стена (решение пользователя: игра не проходится с первого раза).
+ */
+export const STAGE_HP_K = [1, 1.04, 1.12, 1.22, 1.34, 1.48, 1.64, 1.85];
+export const STAGE_DMG_K = [1, 1.03, 1.08, 1.15, 1.24, 1.34, 1.46, 1.62];
+
 export const NO_CMD: PlayerCmd = { mx: 0, my: 0, a: [false, false, false] };
 
 export interface MetaBonus {
@@ -262,14 +270,14 @@ export class Sim {
     return powerOf(this.size * this.unit);
   }
 
-  /** Множитель получаемого игроками урона от уровня угрозы. */
+  /** Множитель получаемого игроками урона: угроза × нарастание по ступеням. */
   threatTaken(): number {
-    return 1 + 0.18 * this.threat;
+    return (1 + 0.18 * this.threat) * STAGE_DMG_K[Math.min(7, this.stageIdx)];
   }
 
-  /** Множитель урона игроков от уровня угрозы. */
+  /** Множитель урона игроков (враги «крепче»): угроза × нарастание по ступеням. */
   threatDealt(): number {
-    return 1 / (1 + 0.22 * this.threat);
+    return 1 / ((1 + 0.22 * this.threat) * STAGE_HP_K[Math.min(7, this.stageIdx)]);
   }
 
   /** Половина видимой области (игровая, 16:9). */

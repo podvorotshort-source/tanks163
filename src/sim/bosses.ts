@@ -72,7 +72,7 @@ export function spawnBoss(sim: Sim, id: string, x: number, y: number): Enemy | n
   const e = new Enemy(sim.newId(), edef, def.size, pw);
   const n = sim.players.length;
   // Игрок копит улучшения от ступени к ступени — боссы крепнут так же, как обычные враги (~×1.55 за ступень).
-  e.maxHp = e.hp = e.hp * BOSS_HP_K * Math.pow(1.55, sim.stageIdx) * (1 + 0.75 * (n - 1)) * (1 + 0.25 * sim.threat);
+  e.maxHp = e.hp = e.hp * BOSS_HP_K * Math.pow(1.55, sim.stageIdx) * (1 + 0.6 * (n - 1)) * (1 + 0.25 * sim.threat);
   e.x = e.px = x; e.y = e.py = y;
   e.noCrush = true;
   e.spawnT = 0;

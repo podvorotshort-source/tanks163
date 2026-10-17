@@ -19,7 +19,8 @@ export class Camera {
   update(dt: number, shakeScale = 1): void {
     this.t += dt;
     if (this.shake > 0) {
-      const s = Math.min(this.shake, 14) * shakeScale;
+      // Сила тряски задана в «базовых» пикселях (экран высотой 360) — масштабируем под разрешение мира.
+      const s = Math.min(this.shake, 14) * shakeScale * (this.h / 360);
       this.sx = Math.round((Math.sin(this.t * 71) + Math.sin(this.t * 37)) * 0.5 * s);
       this.sy = Math.round((Math.cos(this.t * 63) + Math.sin(this.t * 29)) * 0.5 * s);
       this.shake = Math.max(0, this.shake - dt * (8 + this.shake * 6));

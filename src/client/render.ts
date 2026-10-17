@@ -1,6 +1,6 @@
 // Отрисовка мира симуляции.
 
-import { hasExt } from '../gfx/ext';
+import { hasExt, extFrame } from '../gfx/ext';
 import type { SpriteDef } from '../gfx/raster';
 import type { Sim } from '../sim/sim';
 import type { Enemy, Player, Shot } from '../sim/entities';
@@ -456,8 +456,9 @@ function drawPickups(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     if (pu.dead) continue;
     if (pu.life - pu.t < 5 && Math.floor(rc.time * 8) % 2) continue;
     const sx = cam.sxOf(pu.x), sy = cam.syOf(pu.y) + Math.sin(rc.time * 4) * 2 - 2;
-    const icon = iconCanvas('p_' + pu.id);
-    const s = Math.max(10, Math.round(Math.min(26, pu.r * 2.2 * cam.zoom)));
+    const u = cam.h / 360;
+    const s = Math.max(Math.round(10 * u), Math.round(Math.min(26 * u, pu.r * 2.2 * cam.zoom)));
+    const icon = (hasExt('icon_p_' + pu.id) ? extFrame('icon_p_' + pu.id, s) : null) ?? iconCanvas('p_' + pu.id);
     ctx.globalAlpha = 0.3;
     ctx.drawImage(disc(s * 0.45, '#07060b'), Math.round(sx - s * 0.45 + 2), Math.round(cam.syOf(pu.y) + s * 0.25));
     ctx.globalAlpha = 1;

@@ -4,3 +4,8 @@ e2e/out/
 tools/out/
 *.log
 .vite/
+
+# 3D: .blend пересобираются скриптами build.py
+*.blend
+*.blend1
+__pycache__/

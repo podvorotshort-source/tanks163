@@ -1,0 +1,93 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>lowpoly-3d viewer</title>
+<style>html,body{margin:0;background:#1f2128;overflow:hidden}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+// Просмотр .glb так, как он будет выглядеть в игре (Three.js).
+// ?model=путь.glb&layout=styles|turn|single&style=soft|toon|outline&w=1600&h=900
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const q = new URLSearchParams(location.search);
+const W = +(q.get('w') || 1600), H = +(q.get('h') || 900);
+const layout = q.get('layout') || 'styles';
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+r.setSize(W, H); r.setPixelRatio(1);
+r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+r.toneMapping = THREE.NeutralToneMapping; r.toneMappingExposure = 1.12;
+r.setScissorTest(true);
+
+const grad = new THREE.DataTexture(new Uint8Array([70, 150, 255]), 3, 1, THREE.RedFormat);
+grad.minFilter = grad.magFilter = THREE.NearestFilter; grad.needsUpdate = true;
+
+function makeScene(style, model) {
+  const s = new THREE.Scene();
+  const grass = q.get('bg') === 'grass';
+  s.background = new THREE.Color(grass ? '#9fd4ef' : '#23252c');
+  s.add(new THREE.HemisphereLight('#e6eeff', '#4a3f3a', style === 'soft' ? 1.05 : 0.9));
+  const sun = new THREE.DirectionalLight('#fff3df', style === 'soft' ? 3.4 : 2.8);
+  sun.position.set(-4, 9, 5); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.02;
+  Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 1, far: 30 });
+  s.add(sun);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(grass ? 40 : 5.5, 48), grass ? new THREE.MeshLambertMaterial({ color: '#7cc14a' }) : new THREE.ShadowMaterial({ opacity: 0.35 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+  const m = model.clone(true);
+  const meshes = [];
+  m.traverse(o => { if (o.isMesh) meshes.push(o); });
+  meshes.forEach(o => {
+    o.castShadow = o.receiveShadow = true;
+    const src = o.material;
+    if (style !== 'soft' && !(src.emissive && src.emissive.getHex() > 0)) {
+      o.material = new THREE.MeshToonMaterial({ map: src.map, color: src.color, gradientMap: grad });
+    }
+    if (style === 'outline') {
+      const ol = new THREE.Mesh(o.geometry, new THREE.MeshBasicMaterial({ color: '#15121c', side: THREE.BackSide }));
+      ol.material.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', 'vec3 transformed = position + normal * 0.022;'); };
+      ol.castShadow = false;
+      o.add(ol);
+    }
+  });
+  s.add(m);
+  return s;
+}
+
+const cam = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
+function shoot(scene, x, y, w, h, az, el = 0.62, dist = 13) {
+  cam.aspect = w / h; cam.updateProjectionMatrix();
+  const t = new THREE.Vector3(0, 1.1, 0);
+  cam.position.set(t.x + Math.cos(az) * Math.cos(el) * dist, t.y + Math.sin(el) * dist, t.z + Math.sin(az) * Math.cos(el) * dist);
+  cam.lookAt(t);
+  r.setViewport(x, H - y - h, w, h); r.setScissor(x, H - y - h, w, h);
+  r.render(scene, cam);
+}
+
+const loader = new GLTFLoader();
+const load = url => new Promise((res, rej) => loader.load(url, g => res(g.scene), undefined, rej));
+Promise.all([load(q.get('model')), q.get('model2') ? load(q.get('model2')) : null]).then(([model0, model2]) => {
+  let model = model0;
+  if (model2) {                          // пара: модель слева, вторая справа (по оси «вправо» камеры)
+    const g = new THREE.Group(), rx = Math.SQRT1_2, sep = +(q.get('sep') || 2.6);
+    model0.position.set(-rx * sep, 0, rx * sep); model2.position.set(rx * sep, 0, -rx * sep);
+    g.add(model0); g.add(model2); model = g;
+  }
+  const AZ = Math.PI / 4;               // спереди-справа, как на референсе
+  if (layout === 'styles') {
+    const st = ['soft', 'toon', 'outline'];
+    st.forEach((s, i) => shoot(makeScene(s, model), i * W / 3, 0, W / 3, H, AZ));
+  } else if (layout === 'turn') {
+    const sc = makeScene(q.get('style') || 'soft', model);
+    [AZ, AZ + Math.PI / 2, AZ + Math.PI, AZ - Math.PI / 2].forEach((a, i) => shoot(sc, (i % 2) * W / 2, Math.floor(i / 2) * H / 2, W / 2, H / 2, a));
+  } else {
+    shoot(makeScene(q.get('style') || 'soft', model), 0, 0, W, H, AZ, +(q.get('el') || 0.62), +(q.get('dist') || 13));
+  }
+  document.title = 'READY';
+}).catch(e => { document.title = 'ERROR ' + e.message; });
+</script>

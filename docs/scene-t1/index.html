@@ -1,0 +1,517 @@
+<title>Танкорост: Игрушечный полигон</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ground: #13141c;
+    --panel: #1d1f2a;
+    --line: #30334a;
+    --text: #eef0f8;
+    --dim: #a2a6bd;
+    --tank: #ffc21a;
+    --focus: #8cc4ff;
+    --display: "Russo One", "Arial Black", system-ui, sans-serif;
+    --body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  }
+  [hidden] { display: none !important; }
+  body { background: var(--ground); color: var(--text); font: 15px/1.5 var(--body); padding-inline: 16px; padding-block: 18px 32px; }
+  .wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 14px; }
+  header { display: grid; gap: 4px; }
+  h1 { margin: 0; font: 26px/1.15 var(--display); letter-spacing: .01em; text-wrap: balance; }
+  h1 span { color: var(--tank); }
+  .lead { margin: 0; color: var(--dim); max-width: 80ch; }
+  .view { position: relative; background: #0b0c12; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; aspect-ratio: 16 / 9; max-width: 100%; touch-action: none; }
+  .view canvas { display: block; width: 100%; height: 100%; }
+  .zoomtag { position: absolute; right: 10px; top: 10px; padding: 5px 10px; background: rgb(19 20 28 / .78); border: 1px solid var(--line); border-radius: 6px; font: 13px var(--mono); font-variant-numeric: tabular-nums; pointer-events: none; }
+  .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font: 14px var(--mono); background: #0b0c12; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  button { font: 600 14px var(--body); color: #1d1503; background: var(--tank); border: 0; border-radius: 7px; padding: 9px 14px; cursor: pointer; }
+  button.ghost { color: var(--text); background: transparent; border: 1px solid var(--line); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .zoom { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; flex: 1 1 340px; min-width: 0; }
+  .zoom label { color: var(--dim); font-size: 13px; }
+  .zoom input { width: 100%; accent-color: var(--tank); }
+  .zoom output { font: 14px var(--mono); font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
+  .ticks { grid-column: 2; position: relative; height: 30px; font-size: 11.5px; color: var(--dim); }
+  .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; text-align: center; line-height: 1.25; }
+  .ticks span:first-child { transform: none; text-align: left; }
+  .ticks span:last-child { transform: translateX(-100%); text-align: right; }
+  .hint { margin: 0; color: var(--dim); font-size: 13.5px; }
+  kbd { font: 12px var(--mono); padding: 1px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--text); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Ступень I «Игрушечный полигон» — <span>в стиле Clash Royale</span></h1>
+    <p class="lead">Живая сцена на утверждение. Поле разложено по тем же правилам, что в игре: модули с кирпичными и стальными блоками, кусты и пруды. Ваш танк воюет с заводными танками. «Показать отъезд»: ×4 — вся ступень, ×24 — полигон оказывается песочницей на ковре в детской (это мир следующей ступени).</p>
+  </header>
+
+  <section class="view" id="v" aria-label="Сцена первого уровня">
+    <canvas id="c"></canvas>
+    <div class="zoomtag" id="zt">×1.0</div>
+    <div class="loading" id="ld">Загружаю модели…</div>
+  </section>
+
+  <div class="controls">
+    <button id="play" type="button">Показать отъезд</button>
+    <div class="zoom">
+      <label for="zoom">Камера</label>
+      <input id="zoom" type="range" min="0" max="1" step="0.001" value="0">
+      <output id="zoomOut" for="zoom">×1.0</output>
+      <div class="ticks" aria-hidden="true">
+        <span style="left:0%">×1<br>бой</span>
+        <span style="left:43.6%">×4<br>вся ступень</span>
+        <span style="left:100%">×24<br>детская</span>
+      </div>
+    </div>
+    <button id="pause" class="ghost" type="button">Пауза</button>
+  </div>
+  <p class="hint">Управление: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> или стрелки, на телефоне — проведите пальцем по картинке. Без управления танк ездит сам; пушка стреляет сама, как в игре.</p>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// ---------------------------------------------------------------- случайность
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const hash2 = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+
+// ---------------------------------------------------------------- раскладка как в игре (src/sim/content/stages.ts)
+const K = 4 / 28;                       // метров в пикселе игры (танк 28 px ≈ 4 м)
+const CELL = 144 * K, STEP = 34 * K, BLK = 26 * K;
+const COLS = 11, ROWS = 7;
+const AW = COLS * CELL + 6, AH = ROWS * CELL + 6;      // арена, м
+const HW = AW / 2, HH = AH / 2;
+const MODULES = [
+  [0.36, []],
+  [0.12, [['brick', -STEP, 0], ['brick', 0, 0], ['brick', STEP, 0]]],
+  [0.12, [['brick', 0, -STEP], ['brick', 0, 0], ['brick', 0, STEP]]],
+  [0.10, [['brick', -STEP / 2, -STEP / 2], ['brick', STEP / 2, -STEP / 2], ['brick', -STEP / 2, STEP / 2]]],
+  [0.09, [['steel', -STEP, 0], ['brick', 0, 0], ['steel', STEP, 0]]],
+  [0.08, [['steel', -STEP / 2, 0], ['steel', STEP / 2, 0]]],
+  [0.05, [['steel', 0, 0]]],
+  [0.05, [['brick', 0, 0]]],
+  [0.05, [['bush', -22 * K, 0], ['bush', 22 * K, 6 * K]]],
+  [0.03, [['pond', 0, 0]]],
+];
+function layout() {
+  const out = [];
+  for (let gy = 0; gy < ROWS; gy++) for (let gx = 0; gx < COLS; gx++) {
+    const qx = Math.min(gx, COLS - 1 - gx), qy = Math.min(gy, ROWS - 1 - gy);
+    const cx = -HW + 3 + gx * CELL + CELL / 2, cz = -HH + 3 + gy * CELL + CELL / 2;
+    if (Math.abs(cx) < CELL && Math.abs(cz) < CELL) continue;
+    let r = hash2(qx, qy, 77), mod = MODULES[0][1];
+    for (const [p, parts] of MODULES) { if (r < p) { mod = parts; break; } r -= p; }
+    // для показа: в паре четвертей — кусты и пруд (в игре они редкие, 5% и 3% модулей)
+    const show = { '1,1': 8, '3,0': 9, '4,2': 8, '0,2': 9, '2,0': 8 }[qx + ',' + qy];
+    if (show !== undefined) mod = MODULES[show][1];
+    const fx = gx > COLS - 1 - gx ? -1 : 1, fz = gy > ROWS - 1 - gy ? -1 : 1;
+    mod.forEach(([k, x, z], i) => out.push({ k, x: cx + x * fx, z: cz + z * fz, rot: (hash2(gx, gy, i) * 4 | 0) * Math.PI / 2 }));
+  }
+  // укрытия у старта: по паре блоков с каждой стороны
+  for (const [dx, dz, vert] of [[-150 * K, 0, 1], [150 * K, 0, 1], [0, -118 * K, 0], [0, 118 * K, 0]])
+    for (const o of [-STEP / 2, STEP / 2]) out.push({ k: 'brick', x: dx + (vert ? 0 : o), z: dz + (vert ? o : 0), rot: 0 });
+  return out;
+}
+const PROPS = layout();
+const OBST = PROPS.filter(p => p.k === 'brick' || p.k === 'steel').map(p => ({ x: p.x, z: p.z, h: BLK / 2 }));
+const PONDS = PROPS.filter(p => p.k === 'pond').map(p => ({ x: p.x, z: p.z, hx: 5.4, hz: 4.1 }));
+
+// ---------------------------------------------------------------- бой
+const R = rng(5);
+const sim = { t: 0, player: { x: 0, z: 0, h: -Math.PI / 4, tur: -Math.PI / 4, cool: 0, flash: 0, speed: 0 }, enemies: [], shells: [], parts: [], marks: [], shake: 0 };
+for (let i = 0; i < 7; i++) sim.enemies.push({ alive: false, wait: 0.3 + i * 0.5, x: 0, z: 0, h: 0, tur: 0, hp: 3, cool: 2 + R() * 2 });
+function pushOut(e, r) {
+  for (const o of OBST) {
+    const dx = e.x - o.x, dz = e.z - o.z, px = o.h + r - Math.abs(dx), pz = o.h + r - Math.abs(dz);
+    if (px > 0 && pz > 0) { if (px < pz) e.x += Math.sign(dx) * px; else e.z += Math.sign(dz) * pz; }
+  }
+  for (const o of PONDS) {
+    const dx = e.x - o.x, dz = e.z - o.z, px = o.hx + r - Math.abs(dx), pz = o.hz + r - Math.abs(dz);
+    if (px > 0 && pz > 0) { if (px < pz) e.x += Math.sign(dx) * px; else e.z += Math.sign(dz) * pz; }
+  }
+  e.x = Math.max(-HW + 3, Math.min(HW - 3, e.x)); e.z = Math.max(-HH + 3, Math.min(HH - 3, e.z));
+}
+const blocked = (x, z) => OBST.some(o => Math.abs(x - o.x) < o.h && Math.abs(z - o.z) < o.h);
+const angTo = (a, b, m) => { const d = ((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI; return a + Math.max(-m, Math.min(m, d)); };
+const angDiff = (a, b) => Math.abs(((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+function spawn(e) {
+  const p = sim.player;
+  for (let k = 0; k < 30; k++) {
+    const a = R() * Math.PI * 2, r = 26 + R() * 14;
+    e.x = p.x + Math.cos(a) * r; e.z = p.z + Math.sin(a) * r;
+    if (Math.abs(e.x) < HW - 4 && Math.abs(e.z) < HH - 4 && !blocked(e.x, e.z)) break;
+  }
+  pushOut(e, 1.4);
+  e.h = Math.atan2(p.z - e.z, p.x - e.x); e.tur = e.h; e.hp = 3; e.alive = true; e.cool = 1.5 + R() * 2;
+}
+function burst(x, y, z, kind) {
+  const big = kind === 'big', n = big ? 1 : 0.35;
+  for (let i = 0; i < 12 * n; i++) { const a = R() * 6.283, s = 2 + R() * 5; sim.parts.push({ k: 'fire', x, y: y + R(), z, vx: Math.cos(a) * s, vy: 1.5 + R() * 4, vz: Math.sin(a) * s, life: 0, max: 0.4 + R() * 0.3, size: 0.6 + R() * 0.8 }); }
+  for (let i = 0; i < (big ? 8 : 3); i++) { const a = R() * 6.283, s = 0.6 + R() * 1.6; sim.parts.push({ k: 'smoke', x: x + Math.cos(a) * 0.6, y: y + 0.8, z: z + Math.sin(a) * 0.6, vx: Math.cos(a) * s, vy: 2 + R() * 1.6, vz: Math.sin(a) * s, life: 0, max: 1.1 + R() * 0.8, size: big ? 0.7 + R() * 0.6 : 0.4 }); }
+  for (let i = 0; i < (big ? 10 : 3); i++) { const a = R() * 6.283, s = 4 + R() * 7; sim.parts.push({ k: 'debris', x, y: y + 0.6, z, vx: Math.cos(a) * s, vy: 5 + R() * 7, vz: Math.sin(a) * s, life: 0, max: 1.6, size: 0.22 + R() * 0.22, rx: R() * 6, ry: R() * 6 }); }
+  if (big) { sim.shake = Math.min(1, sim.shake + 0.6); sim.marks.push({ x, z, r: 2.2 + R(), life: 0 }); if (sim.marks.length > 30) sim.marks.shift(); }
+}
+function dust(x, y, z) { for (let i = 0; i < 4; i++) { const a = R() * 6.283; sim.parts.push({ k: 'dust', x, y, z, vx: Math.cos(a) * 2, vy: 1 + R() * 2, vz: Math.sin(a) * 2, life: 0, max: 0.6 + R() * 0.3, size: 0.35 }); } }
+function shoot(from, ang, y, speed, team) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  sim.shells.push({ x: from.x + c * from.len, z: from.z + s * from.len, y, dx: c, dz: s, life: 1.4, speed, team });
+  for (let i = 0; i < 4; i++) sim.parts.push({ k: 'fire', x: from.x + c * (from.len + 0.3), y, z: from.z + s * (from.len + 0.3), vx: c * (6 + R() * 6), vy: R(), vz: s * (6 + R() * 6), life: 0, max: 0.1 + R() * 0.08, size: 0.35 });
+  for (let i = 0; i < 2; i++) sim.parts.push({ k: 'smoke', x: from.x + c * from.len, y, z: from.z + s * from.len, vx: c * 2, vy: 0.8, vz: s * 2, life: 0, max: 0.6, size: 0.3 });
+}
+const input = { x: 0, z: 0, active: false };
+function step(dt) {
+  sim.t += dt;
+  const p = sim.player;
+  let dx, dz, spd;
+  if (input.active) { dx = input.x; dz = input.z; spd = 9; }
+  else { const tx = 18 * Math.sin(sim.t * 0.19), tz = 9 * Math.sin(sim.t * 0.31); dx = tx - p.x; dz = tz - p.z; spd = Math.hypot(dx, dz) > 2 ? 6.5 : 2; }
+  if (Math.hypot(dx, dz) > 0.05) {
+    const want = Math.atan2(dz, dx);
+    p.h = angTo(p.h, want, 2.6 * dt);
+    p.speed += (spd * Math.max(0, Math.cos(angDiff(p.h, want))) - p.speed) * Math.min(1, dt * 4);
+  } else p.speed *= 0.9;
+  p.x += Math.cos(p.h) * p.speed * dt; p.z += Math.sin(p.h) * p.speed * dt;
+  pushOut(p, 1.9);
+  let best = null, bd = 30;
+  for (const e of sim.enemies) if (e.alive) { const d = Math.hypot(e.x - p.x, e.z - p.z); if (d < bd) { bd = d; best = e; } }
+  const aim = best ? Math.atan2(best.z - p.z, best.x - p.x) : p.h;
+  p.tur = angTo(p.tur, aim, 4.5 * dt);
+  p.cool -= dt; p.flash = Math.max(0, p.flash - dt);
+  if (best && p.cool <= 0 && angDiff(p.tur, aim) < 0.1) { p.cool = 0.55; p.flash = 0.06; shoot({ x: p.x - 0.2, z: p.z, len: 3.6 }, p.tur, 2.28, 32, 0); }
+  for (const e of sim.enemies) {
+    if (!e.alive) { e.wait -= dt; if (e.wait <= 0) spawn(e); continue; }
+    const d = Math.hypot(p.x - e.x, p.z - e.z), to = Math.atan2(p.z - e.z, p.x - e.x);
+    e.h = angTo(e.h, d > 13 ? to : to + Math.PI / 2, 1.7 * dt);
+    e.x += Math.cos(e.h) * 3.4 * dt; e.z += Math.sin(e.h) * 3.4 * dt;
+    pushOut(e, 1.4);
+    e.tur = angTo(e.tur, to, 3 * dt);
+    e.cool -= dt;
+    if (e.cool <= 0 && d < 26) { e.cool = 2.4 + R() * 2; shoot({ x: e.x - 0.12, z: e.z, len: 1.7 }, e.tur, 1.5, 17, 1); }
+  }
+  for (const b of sim.shells) {
+    b.x += b.dx * b.speed * dt; b.z += b.dz * b.speed * dt; b.life -= dt;
+    sim.parts.push({ k: 'trail', x: b.x - b.dx * 0.5, y: b.y, z: b.z - b.dz * 0.5, vx: 0, vy: 0.3, vz: 0, life: 0, max: 0.3, size: 0.16 });
+    if (blocked(b.x, b.z)) { b.life = 0; dust(b.x, b.y, b.z); continue; }
+    if (b.team === 0) {
+      for (const e of sim.enemies) if (e.alive && Math.hypot(e.x - b.x, e.z - b.z) < 1.8) {
+        b.life = 0; e.hp--; burst(b.x, 1.2, b.z, 'hit');
+        if (e.hp <= 0) { e.alive = false; e.wait = 1.4 + R(); burst(e.x, 0.6, e.z, 'big'); }
+        break;
+      }
+    } else if (Math.hypot(p.x - b.x, p.z - b.z) < 2) { b.life = 0; burst(b.x, 1.4, b.z, 'hit'); }
+  }
+  sim.shells = sim.shells.filter(b => b.life > 0);
+  for (const q of sim.parts) {
+    q.life += dt;
+    if (q.k === 'fire') { q.vx *= 0.9; q.vz *= 0.9; q.vy = q.vy * 0.92 + 1.5 * dt; }
+    else if (q.k === 'smoke' || q.k === 'trail' || q.k === 'dust') { q.vx *= 0.95; q.vz *= 0.95; q.vy *= 0.985; }
+    else { q.vy -= 22 * dt; if (q.y < 0.15 && q.vy < 0) { q.vy *= -0.35; q.vx *= 0.6; q.vz *= 0.6; q.y = 0.15; } }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
+  }
+  sim.parts = sim.parts.filter(q => q.life < q.max);
+  if (sim.parts.length > 500) sim.parts.splice(0, sim.parts.length - 500);
+  for (const m of sim.marks) m.life += dt;
+  sim.shake = Math.max(0, sim.shake - dt * 2.5);
+}
+
+// ---------------------------------------------------------------- текстуры
+function tex(w, h, draw, repeat = [1, 1]) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(...repeat); t.anisotropy = 8;
+  return t;
+}
+// трава клетками, как на арене Clash Royale: два зелёных, мягкие пятна
+const grassTex = () => tex(2048, Math.round(2048 * AH / AW), (g, w, h) => {
+  const cs = w / (AW / 6);                 // клетка 6 м
+  for (let y = 0; y * cs < h; y++) for (let x = 0; x * cs < w; x++) {
+    g.fillStyle = (x + y) % 2 ? '#7fc94c' : '#76c044'; g.fillRect(x * cs, y * cs, cs + 1, cs + 1);
+  }
+  const r = rng(12);
+  for (let i = 0; i < 380; i++) { g.fillStyle = `rgba(${r() < .5 ? '170,220,90' : '70,150,50'},${0.05 + r() * 0.07})`; g.beginPath(); g.ellipse(r() * w, r() * h, 20 + r() * 60, 14 + r() * 40, r() * 3, 0, 7); g.fill(); }
+  // тропинка-кольцо вокруг старта
+  g.strokeStyle = '#e3c48d'; g.lineCap = 'round'; g.lineWidth = w / AW * 4.2;
+  g.beginPath(); g.ellipse(w / 2, h / 2, w / AW * 30, w / AW * 22, 0, 0, 7); g.stroke();
+  g.strokeStyle = '#efd6a6'; g.lineWidth = w / AW * 2.6; g.stroke();
+  for (let i = 0; i < 600; i++) { g.fillStyle = r() < .5 ? '#b6e070' : '#5aa63a'; const x = r() * w, y = r() * h; g.fillRect(x, y, 3, 3); }
+});
+const plankTex = () => tex(512, 512, (g, w) => {
+  const r = rng(9);
+  for (let row = 0; row < 8; row++) {
+    let x = -r() * 200;
+    while (x < w) {
+      const len = 180 + r() * 220, tone = r();
+      g.fillStyle = tone < .33 ? '#d4955a' : tone < .66 ? '#c98a50' : '#dca066'; g.fillRect(x, row * 64, len, 64);
+      g.fillStyle = 'rgba(120,70,30,.18)'; for (let k = 0; k < 5; k++) g.fillRect(x + r() * 40, row * 64 + 8 + r() * 48, len * (.4 + r() * .5), 3);
+      g.fillStyle = '#9a5a2e'; g.fillRect(x, row * 64, 3, 64); x += len;
+    }
+    g.fillStyle = '#8a4e28'; g.fillRect(0, row * 64 + 61, w, 3);
+  }
+}, [36, 36]);
+const carpetTex = () => tex(1024, 1024, (g, w) => {
+  const cols = ['#e8584f', '#fff1d6', '#4a8be6', '#fff1d6', '#ffc33a', '#fff1d6', '#4a8be6', '#fff1d6', '#e8584f'];
+  cols.forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.arc(512, 512, 512 - i * 52, 0, 7); g.fill(); });
+});
+const waterTex = () => tex(256, 256, (g, w) => {
+  const grd = g.createLinearGradient(0, 0, 0, w); grd.addColorStop(0, '#5cc2f0'); grd.addColorStop(1, '#2f8fd8');
+  g.fillStyle = grd; g.fillRect(0, 0, w, w);
+  const r = rng(3); g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 4; g.lineCap = 'round';
+  for (let i = 0; i < 14; i++) { const x = r() * w, y = r() * w, l = 20 + r() * 40; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y); g.stroke(); }
+}, [2, 2]);
+
+// ---------------------------------------------------------------- сцена
+const $ = id => document.getElementById(id);
+const vEl = $('v');
+const renderer = new THREE.WebGLRenderer({ canvas: $('c'), antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.12;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#d8b98a');
+scene.fog = new THREE.Fog('#d8b98a', 1400, 3200);
+scene.add(new THREE.HemisphereLight('#e6eeff', '#4a3f3a', 1.1));
+const sun = new THREE.DirectionalLight('#fff3df', 3.3);
+sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
+scene.add(sun); scene.add(sun.target);
+const cam = new THREE.PerspectiveCamera(30, 16 / 9, 1, 6000);
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, cam));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(512, 288), 0.45, 0.35, 4.0));   // светится только огонь
+composer.addPass(new OutputPass());
+
+const loader = new GLTFLoader();
+// Модель лежит рядом как glTF-JSON со встроенным буфером. Страница не может читать data:-ссылки,
+// поэтому буфер раскодируем сами и собираем GLB в памяти (картинки GLTFLoader берёт через blob: — это разрешено).
+async function load(n) {
+  const json = await (await fetch('models/' + n + '.json')).json();
+  const b64 = json.buffers[0].uri.slice(json.buffers[0].uri.indexOf(',') + 1);
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  delete json.buffers[0].uri;
+  const pad4 = x => (x + 3) & ~3;
+  let js = new TextEncoder().encode(JSON.stringify(json));
+  const jl = pad4(js.length), bl = pad4(bin.length);
+  const glb = new Uint8Array(12 + 8 + jl + 8 + bl);
+  const dv = new DataView(glb.buffer);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, glb.length, true);
+  dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true);
+  glb.fill(0x20, 20, 20 + jl); glb.set(js, 20);
+  dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true);
+  glb.set(bin, 28 + jl);
+  return new Promise((res, rej) => loader.parse(glb.buffer, '', g => res(g.scene), rej));
+}
+const lam = c => new THREE.MeshLambertMaterial({ color: c });
+const std = (c, r = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+const glow = (c, k = 6) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k) });
+
+function instanced(model, list, scale = 1) {
+  // каждый кусок модели (краска, огни) — свой InstancedMesh с общими матрицами расстановки
+  const g = new THREE.Group();
+  model.updateMatrixWorld(true);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(scale, scale, scale);
+  model.traverse(src => {
+    if (!src.isMesh) return;
+    const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
+    list.forEach((p, i) => { q.setFromEuler(new THREE.Euler(0, p.rot || 0, 0)); m4.compose(new THREE.Vector3(p.x, p.y || 0, p.z), q, s); im.setMatrixAt(i, m4.multiply(src.matrixWorld)); });
+    im.castShadow = im.receiveShadow = true;
+    g.add(im);
+  });
+  return g;
+}
+function shadows(o, cast = true) { o.traverse(m => { if (m.isMesh) { m.castShadow = cast; m.receiveShadow = true; } }); return o; }
+
+async function build() {
+  const names = ['tank_t1', 'enemy_toytank', 'prop_brick', 'prop_steel', 'prop_bush', 'prop_pond', 'toy_block_red', 'toy_block_blue', 'toy_block_green',
+    'toy_crayon_red', 'toy_crayon_blue', 'toy_crayon_green', 'toy_ball', 'toy_book_blue', 'toy_book_purple'];
+  const M = {};
+  let done = 0;
+  // текстуры — через <img> (blob:), а не fetch: так разрешает политика безопасности страницы
+  const cib = window.createImageBitmap; window.createImageBitmap = undefined;
+  try {
+    await Promise.all(names.map(async n => { M[n] = await load(n); $('ld').textContent = `Загружаю модели… ${++done}/${names.length}`; }));
+  } finally { window.createImageBitmap = cib; }
+
+  // земля арены
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(AW, AH), new THREE.MeshLambertMaterial({ map: grassTex() }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  // песочница: деревянный бортик
+  const FY = -3, wood = std('#e2a35e', 0.55), woodTop = std('#f3c07e', 0.5);
+  for (const [w, d, x, z] of [[AW + 6, 3, 0, -HH - 1.5], [AW + 6, 3, 0, HH + 1.5], [3, AH, -HW - 1.5, 0], [3, AH, HW + 1.5, 0]]) {
+    const b = new THREE.Mesh(new RoundedBoxGeometry(w, 4.6, d, 2, 0.5), wood); b.position.set(x, FY + 2.3, z); scene.add(shadows(b));
+    const t = new THREE.Mesh(new RoundedBoxGeometry(w, 0.5, d + 0.2, 2, 0.2), woodTop); t.position.set(x, FY + 4.65, z); scene.add(shadows(t));
+  }
+  const base = new THREE.Mesh(new THREE.BoxGeometry(AW, 3, AH), std('#b07a45')); base.position.y = FY + 1.45; scene.add(base);
+  // пол и ковёр детской
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ map: plankTex() }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = FY - 0.05; floor.receiveShadow = true; scene.add(floor);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(420, 96), new THREE.MeshLambertMaterial({ map: carpetTex() }));
+  rug.rotation.x = -Math.PI / 2; rug.position.y = FY; rug.receiveShadow = true; scene.add(rug);
+  // игрушки следующей ступени (масштаб ×4 мира: кубик ≈ 23 м, карандаш ≈ 70 м)
+  const toys = [
+    ['toy_block_red', 230, 130, 0.4, 24], ['toy_block_blue', 262, 150, 1.1, 24], ['toy_block_green', 244, 128, 0.2, 24, 24],
+    ['toy_block_blue', -260, -150, 0.7, 26], ['toy_block_red', -300, 40, 0.3, 22],
+    ['toy_crayon_red', -210, 170, 0.5, 12], ['toy_crayon_blue', -170, 200, 0.9, 12], ['toy_crayon_green', 230, -170, 2.5, 12],
+    ['toy_ball', 320, -60, 0, 22], ['toy_ball', -330, -210, 1, 16],
+    ['toy_book_blue', 150, -230, 0.3, 11], ['toy_book_purple', -120, 250, 2.8, 10],
+  ];
+  for (const [n, x, z, ry, s, lift = 0] of toys) {
+    const o = M[n].clone(true); o.scale.setScalar(s); o.position.set(x, FY + lift, z); o.rotation.y = ry; scene.add(shadows(o));
+  }
+  // препятствия полигона
+  const by = k => PROPS.filter(p => p.k === k);
+  scene.add(instanced(M.prop_brick, by('brick')));
+  scene.add(instanced(M.prop_steel, by('steel')));
+  scene.add(instanced(M.prop_bush, by('bush').map(p => ({ ...p, rot: hash2(p.x | 0, p.z | 0, 3) * 6 }))));
+  scene.add(instanced(M.prop_pond, by('pond').map(p => ({ ...p, rot: 0, y: 0 }))));
+  const wt = waterTex();
+  for (const p of by('pond')) {
+    const w = new THREE.Mesh(new RoundedBoxGeometry(10.6, 0.2, 7.8, 2, 0.1), new THREE.MeshStandardMaterial({ map: wt, roughness: 0.15, metalness: 0.05 }));
+    w.position.set(p.x, 0.05, p.z); w.receiveShadow = true; scene.add(w);
+    // ямка: срез травы под водой
+  }
+  // травяные кустики-пучки
+  const tufts = [], r = rng(31);
+  while (tufts.length < 900) {
+    const x = (r() - .5) * (AW - 6), z = (r() - .5) * (AH - 6);
+    if (blocked(x, z) || PONDS.some(o => Math.abs(x - o.x) < 6.5 && Math.abs(z - o.z) < 5.2)) continue;
+    tufts.push({ x, z, rot: r() * 6 });
+  }
+  const tg = new THREE.ConeGeometry(0.22, 0.75, 4); tg.translate(0, 0.37, 0);
+  const tuftMesh = new THREE.InstancedMesh(tg, new THREE.MeshLambertMaterial({ color: '#9ad85a' }), tufts.length * 3);
+  const m4 = new THREE.Matrix4();
+  tufts.forEach((t, i) => { for (let k = 0; k < 3; k++) { m4.compose(new THREE.Vector3(t.x + (k - 1) * 0.22, 0, t.z + (k % 2) * 0.15), new THREE.Quaternion().setFromEuler(new THREE.Euler((k - 1) * 0.3, t.rot, (k - 1) * 0.25)), new THREE.Vector3(1, 0.7 + k * 0.2, 1)); tuftMesh.setMatrixAt(i * 3 + k, m4); } });
+  tuftMesh.receiveShadow = true; scene.add(tuftMesh);
+
+  // подвижные
+  const player = shadows(M.tank_t1.clone(true)); scene.add(player);
+  const enemies = sim.enemies.map(() => { const o = shadows(M.enemy_toytank.clone(true)); scene.add(o); return o; });
+  const pool = (fn, n) => Array.from({ length: n }, () => { const m = fn(); m.visible = false; scene.add(m); return m; });
+  const shellGeo = new THREE.CapsuleGeometry(0.2, 0.5, 3, 8).rotateZ(Math.PI / 2);
+  const tipGeo = new THREE.SphereGeometry(0.16, 8, 6);
+  const shell = () => { const g = new THREE.Group(); g.add(new THREE.Mesh(shellGeo, std('#c9d2e4', 0.3))); const t = new THREE.Mesh(tipGeo, std('#ffcf3a', 0.35)); t.position.x = 0.42; g.add(t); return g; };
+  const ico = new THREE.IcosahedronGeometry(1, 1), cube = new THREE.BoxGeometry(1, 1, 1);
+  const fireM = [glow('#fff3b0', 1.6), glow('#ffc12a', 1.5), glow('#ff7a1a', 1.4), std('#d8582a')];
+  const pools = {
+    shell: pool(shell, 40),
+    fire: pool(() => new THREE.Mesh(ico, fireM[1]), 160),
+    smoke: pool(() => new THREE.Mesh(ico, std('#f2eee8', 0.9)), 120),
+    dust: pool(() => new THREE.Mesh(ico, std('#e7d3a8', 0.9)), 80),
+    trail: pool(() => new THREE.Mesh(ico, std('#ffffff', 0.9)), 200),
+    debris: pool(() => shadows(new THREE.Mesh(cube, std('#e8403a', 0.5))), 120),
+  };
+  const markGeo = new THREE.CircleGeometry(1, 20); markGeo.rotateX(-Math.PI / 2);
+  const marks = pool(() => new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: '#4d6a2c', transparent: true, opacity: 0.25, depthWrite: false })), 30);
+  const flash = new THREE.Mesh(ico, glow('#ffd23a', 7)); scene.add(flash);
+  return { player, enemies, pools, marks, flash, fireM };
+}
+
+// ---------------------------------------------------------------- кадр
+let W = null, zoom = 1, paused = false, auto = null;
+function resize() {
+  const w = vEl.clientWidth, h = vEl.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); composer.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix();
+}
+const tur = o => o.getObjectByName('turret');
+function render() {
+  const p = sim.player;
+  W.player.position.set(p.x, 0, p.z); W.player.rotation.y = -p.h; tur(W.player).rotation.y = -(p.tur - p.h);
+  sim.enemies.forEach((e, i) => { const o = W.enemies[i]; o.visible = e.alive; if (e.alive) { o.position.set(e.x, 0, e.z); o.rotation.y = -e.h; tur(o).rotation.y = -(e.tur - e.h); } });
+  const c = Math.cos(p.tur), s = Math.sin(p.tur);
+  W.flash.visible = p.flash > 0; W.flash.position.set(p.x - 0.2 + c * 3.9, 2.28, p.z + s * 3.9); W.flash.scale.setScalar(0.3 + p.flash * 9);
+  const fill = (pool, arr, fn) => { for (let i = 0; i < pool.length; i++) { const m = pool[i], q = arr[i]; m.visible = !!q; if (q) fn(m, q); } };
+  fill(W.pools.shell, sim.shells, (m, b) => { m.position.set(b.x, b.y, b.z); m.rotation.y = -Math.atan2(b.dz, b.dx); });
+  const by = { fire: [], smoke: [], dust: [], trail: [], debris: [] };
+  for (const q of sim.parts) by[q.k].push(q);
+  fill(W.pools.fire, by.fire, (m, q) => { const t = q.life / q.max; m.scale.setScalar(q.size * (t < .3 ? .6 + t * 2 : 1.2 * (1 - t) + .2)); m.position.set(q.x, q.y, q.z); m.material = W.fireM[Math.min(3, t * 4 | 0)]; });
+  const puff = (m, q, k = 1.6) => { const t = q.life / q.max; m.scale.setScalar(q.size * (.5 + t * k) * (t > .7 ? (1 - t) / .3 : 1)); m.position.set(q.x, q.y, q.z); };
+  fill(W.pools.smoke, by.smoke, (m, q) => puff(m, q));
+  fill(W.pools.dust, by.dust, (m, q) => puff(m, q, 1));
+  fill(W.pools.trail, by.trail, (m, q) => puff(m, q, 0.6));
+  fill(W.pools.debris, by.debris, (m, q) => { m.scale.setScalar(q.size); m.position.set(q.x, q.y, q.z); m.rotation.set(q.rx + q.life * 8, q.ry + q.life * 6, 0); });
+  fill(W.marks, sim.marks, (m, q) => { m.position.set(q.x, 0.03, q.z); m.scale.setScalar(q.r * 0.8); m.material.opacity = Math.max(0, 0.25 - q.life * 0.015); });
+
+  const k = Math.min(1, Math.max(0, (zoom - 2.5) / 10)), ks = k * k * (3 - 2 * k);
+  const tx = p.x * (1 - ks), tz = p.z * (1 - ks), ty = -3 * ks;
+  const dist = 50 * zoom, el = THREE.MathUtils.degToRad(55), az = THREE.MathUtils.degToRad(45);
+  const shk = sim.shake * 0.4 * (zoom < 2 ? 1 : 0);
+  cam.position.set(tx + Math.cos(el) * Math.sin(az) * dist + (Math.random() - .5) * shk, ty + Math.sin(el) * dist, tz + Math.cos(el) * Math.cos(az) * dist + (Math.random() - .5) * shk);
+  cam.lookAt(tx, ty, tz);
+  cam.near = Math.max(1, dist * 0.2); cam.far = dist * 5 + 800; cam.updateProjectionMatrix();
+  const span = 22 * zoom + 12, sc = sun.shadow.camera;
+  sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = span * 6 + 300; sc.updateProjectionMatrix();
+  sun.position.set(tx - span * 1.1, span * 2.2 + 60, tz + span * 0.6); sun.target.position.set(tx, ty, tz);
+  scene.fog.near = dist * 1.6; scene.fog.far = dist * 4 + 600;
+  composer.render();
+}
+
+// ---------------------------------------------------------------- управление
+const zoomFromSlider = v => Math.pow(24, v), sliderFromZoom = z => Math.log(z) / Math.log(24);
+function setZoom(z) { zoom = Math.max(1, Math.min(24, z)); $('zoom').value = sliderFromZoom(zoom); const t = '×' + (zoom < 10 ? zoom.toFixed(1) : Math.round(zoom)); $('zoomOut').value = t; $('zt').textContent = t; }
+$('zoom').addEventListener('input', e => { auto = null; setZoom(zoomFromSlider(+e.target.value)); });
+$('pause').addEventListener('click', () => { paused = !paused; $('pause').textContent = paused ? 'Продолжить' : 'Пауза'; });
+const SCRIPT = [[0, 1], [2.8, 4], [4.2, 4], [8.2, 24], [11.4, 24], [14.6, 1]];
+$('play').addEventListener('click', () => { auto = { t: 0, from: zoom }; });
+function autoZoom(dt) {
+  if (!auto) return;
+  auto.t += dt;
+  const sc = SCRIPT.map(([t, z], i) => [t, i ? z : auto.from]);
+  let i = 0; while (i < sc.length - 1 && auto.t > sc[i + 1][0]) i++;
+  if (i >= sc.length - 1) { setZoom(1); auto = null; return; }
+  const [t0, z0] = sc[i], [t1, z1] = sc[i + 1];
+  let u = Math.min(1, (auto.t - t0) / (t1 - t0)); u = u * u * (3 - 2 * u);
+  setZoom(Math.exp(Math.log(z0) + (Math.log(z1) - Math.log(z0)) * u));
+}
+const keys = new Set();
+addEventListener('keydown', e => { if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) { keys.add(e.code); if (e.code.startsWith('Arrow')) e.preventDefault(); } });
+addEventListener('keyup', e => keys.delete(e.code));
+let touch = null;
+vEl.addEventListener('pointerdown', e => { touch = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY }; vEl.setPointerCapture(e.pointerId); });
+vEl.addEventListener('pointermove', e => { if (touch) { touch.x = e.clientX; touch.y = e.clientY; } });
+vEl.addEventListener('pointerup', () => { touch = null; });
+vEl.addEventListener('pointercancel', () => { touch = null; });
+function readInput() {
+  let sx = 0, sy = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) sy -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) sy += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) sx -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) sx += 1;
+  if (touch) { const dx = touch.x - touch.x0, dy = touch.y - touch.y0; if (Math.hypot(dx, dy) > 12) { sx = dx; sy = dy; } }
+  if (!sx && !sy) { input.active = false; return; }
+  const l = Math.hypot(sx, sy); sx /= l; sy /= l;
+  input.x = (sx + sy) * Math.SQRT1_2; input.z = (sy - sx) * Math.SQRT1_2; input.active = true;
+}
+
+setZoom(1);
+build().then(w => {
+  W = w; $('ld').hidden = true; resize();
+  new ResizeObserver(resize).observe(vEl);
+  for (let i = 0; i < 150; i++) step(1 / 60);
+  let last = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    try { readInput(); if (!paused) step(dt); autoZoom(dt); render(); } catch (e) { console.error(e); }
+  }
+  requestAnimationFrame(frame);
+}).catch(e => { $('ld').textContent = 'Не удалось загрузить модели: ' + e.message; console.error(e); });
+window.__scene = { sim, setZoom };
+</script>

@@ -29,6 +29,7 @@ import { PauseMenu } from './pause';
 import { settings } from '../meta/settings';
 import { emitExplosion, emitKill, emitPropBreak, emitShot, emitHit, emitAbility } from './effects';
 import { Ending } from './ending';
+import { extFrames } from '../gfx/ext';
 
 /** Постепенная отрисовка картинки поверхности (чтобы не было подвисаний). */
 class Painter {
@@ -318,17 +319,32 @@ export class GameScene implements Scene {
   private ambientFx(dt: number): void {
     const sim = this.sim, fx = this.fx;
     if (sim.state === 'levelup') return;
+    // Огонь — раскадровкой fx_fire_1..N из внешней графики (если есть), иначе частицами.
+    const fireN = extFrames('fx_fire');
+    const fireAnim = (x: number, y: number, r: number, life: number) => {
+      const p = fx.spawn('anim', x, y);
+      p.text = 'fx_fire'; p.va = fireN; p.r = r; p.life = life;
+      return p;
+    };
     // Пламя огнемётов (снаряды «flame» — частицами).
     for (const s of sim.shots) {
       if (s.kind !== 'flame' || s.dead) continue;
-      if (Math.random() < 0.6) {
+      if (fireN) {
+        if (Math.random() < 0.2) {
+          const p = fireAnim(s.x, s.y, sim.size * (0.13 + Math.random() * 0.06), 0.26 + Math.random() * 0.1);
+          p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.drag = 4; p.grow = 1;
+        }
+      } else if (Math.random() < 0.6) {
         const p = fx.spawn('fire', s.x, s.y);
         p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.r = sim.size * 0.12; p.r1 = sim.size * 0.3; p.life = 0.25 + Math.random() * 0.15; p.drag = 4;
       }
     }
     // Горящие враги.
     for (const e of sim.enemies) {
-      if (e.burnT > 0 && Math.random() < dt * 14) {
+      if (e.burnT > 0 && fireN && Math.random() < dt * 4) {
+        const p = fireAnim(e.x + (Math.random() - 0.5) * e.size * 0.5, e.y + (Math.random() - 0.5) * e.size * 0.5, e.size * (0.18 + Math.random() * 0.08), 0.45 + Math.random() * 0.2);
+        p.vy = -e.size * 0.35; p.drag = 1;
+      } else if (e.burnT > 0 && !fireN && Math.random() < dt * 14) {
         const p = fx.spawn('fire', e.x + (Math.random() - 0.5) * e.size * 0.6, e.y + (Math.random() - 0.5) * e.size * 0.6);
         p.vy = -e.size * 0.6; p.r = e.size * 0.12; p.r1 = e.size * 0.04; p.life = 0.4; p.drag = 1;
       }
@@ -341,7 +357,12 @@ export class GameScene implements Scene {
       now.add(i);
       const [x, y] = fire.centerOf(i);
       if (x < vx0 || y < vy0 || x > vx1 || y > vy1) continue;
-      if (Math.random() < dt * 9) {
+      if (fireN) {
+        if (Math.random() < dt * 2.5) {
+          const p = fireAnim(x + (Math.random() - 0.5) * fire.cell * 0.7, y + (Math.random() - 0.5) * fire.cell * 0.7, fire.cell * (0.42 + Math.random() * 0.18), 0.6 + Math.random() * 0.35);
+          p.vy = -fire.cell * 0.35; p.drag = 1;
+        }
+      } else if (Math.random() < dt * 9) {
         const p = fx.spawn('fire', x + (Math.random() - 0.5) * fire.cell, y + (Math.random() - 0.5) * fire.cell);
         p.vy = -fire.cell * 1.2; p.r = fire.cell * 0.32; p.r1 = fire.cell * 0.08; p.life = 0.45 + Math.random() * 0.3; p.drag = 1;
       }
@@ -361,7 +382,8 @@ export class GameScene implements Scene {
       if (p.state !== 'down' || Math.random() > dt * 10) continue;
       const s = fx.spawn('smoke', p.x, p.y);
       s.vy = -sim.size * 0.8; s.vx = (Math.random() - 0.5) * sim.size * 0.3; s.r = sim.size * 0.15; s.r1 = sim.size * 0.5; s.life = 1.6; s.col = '#272336'; s.alpha = 0.7; s.drag = 0.5;
-      if (Math.random() < 0.4) { const f = fx.spawn('fire', p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y); f.vy = -sim.size * 0.6; f.r = sim.size * 0.1; f.r1 = 0.5; f.life = 0.4; }
+      if (fireN && Math.random() < 0.25) { const f = fireAnim(p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y, sim.size * 0.22, 0.5); f.vy = -sim.size * 0.4; f.drag = 1; }
+      else if (!fireN && Math.random() < 0.4) { const f = fx.spawn('fire', p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y); f.vy = -sim.size * 0.6; f.r = sim.size * 0.1; f.r1 = 0.5; f.life = 0.4; }
     }
     // Выхлоп танков на ходу, следы.
     for (const p of sim.players) {

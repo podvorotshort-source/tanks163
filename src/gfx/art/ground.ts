@@ -2,6 +2,7 @@
 // ppu — пикселей на единицу (для уровня детализации).
 
 import { pickExt, extPixels, extReady } from '../ext';
+import { artK } from '../artScale';
 import { rampRgba, type RampId, packRgba } from '../palette';
 import { vnoise, hash2 } from '../../core/math';
 import { STAGE_DEFS } from '../../sim/content/stages';
@@ -170,7 +171,7 @@ export function groundAt(n: number, x: number, y: number, ppu: number, depth = 0
   if (!s) return space(x, y, ppu);
   if (x >= 0 && y >= 0 && x <= s.w && y <= s.h) {
     const t = groundTex(n);
-    return t ? texSample(t, x, y, ppu) : PAINTERS[n](x, y, ppu);
+    return t ? texSample(t, x, y, ppu, TILE_UNITS * artK(`ground_${n + 1}`)) : PAINTERS[n](x, y, ppu);
   }
   const next = STAGE_DEFS[n + 1];
   if (!next || depth > 2) return n >= 7 ? space(x, y, ppu) : INK[1];
@@ -185,7 +186,7 @@ export { PAINTERS };
 // ---------------------------------------------------------------------------
 
 /** Сторона плитки текстуры в единицах ступени (танк в начале ступени — 28). */
-const TILE_UNITS = 448;
+const TILE_UNITS = 448;  // × множитель из настроек масштаба (?dev=tune)
 
 interface Tex { levels: { w: number; h: number; d: Uint32Array }[] }
 const texCache = new Map<number, Tex | null>();
@@ -218,7 +219,7 @@ function groundTex(n: number): Tex | null {
   return t;
 }
 
-function texSample(t: Tex, x: number, y: number, ppu: number): number {
+function texSample(t: Tex, x: number, y: number, ppu: number, TILE_UNITS: number): number {
   const base = t.levels[0];
   // Текселей на пиксель экрана → уровень.
   const tpp = base.w / TILE_UNITS / Math.max(1e-6, ppu);

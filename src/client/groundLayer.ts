@@ -60,6 +60,11 @@ export class GroundLayer {
     this.relic = relic;
   }
 
+  /** Перезапечь поверхность (после смены масштаба текстуры); декали сохраняются. */
+  rebake(): void {
+    this.chunks.clear();
+  }
+
   quant(zoom: number): number {
     return Math.exp(Math.round(Math.log(zoom) / ZSTEP) * ZSTEP);
   }

@@ -12,6 +12,10 @@ import { TitleScene } from './ui/title';
 import { ResultsScene } from './ui/results';
 import { VARIANTS } from './meta/meta';
 import { loadExt } from './gfx/ext';
+import { mountTunePanel, startTune } from './debug/tune';
+
+// Инструмент настройки масштабов графики: панель слева, игра справа.
+const tunePanel = new URLSearchParams(location.search).get('dev') === 'tune' ? mountTunePanel() : null;
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const worldCanvas = document.getElementById('world') as HTMLCanvasElement;
@@ -33,6 +37,8 @@ function boot(): void {
     app.set(new GalleryScene());
   } else if (dev === 'art') {
     app.set(new ArtViewScene());
+  } else if (dev === 'tune' && tunePanel) {
+    startTune(app, tunePanel, params);
   } else if (dev === 'play') {
     // Прямой запуск боя (для тестов): ?dev=play&cls=assault,heavy&stage=0&seed=7
     const cls = (params.get('cls') ?? 'assault').split(',') as ClassId[];

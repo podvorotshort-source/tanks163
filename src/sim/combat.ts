@@ -60,7 +60,8 @@ export function damageEnemy(sim: Sim, e: Enemy, base: number, type: DmgType, own
   dmg *= sim.threatDealt();
   if (e === sim.boss && sim.bossLog) { const k = `${type}:${w || '-'}${weak ? '*' : ''}`; sim.bossLog.set(k, (sim.bossLog.get(k) ?? 0) + Math.min(dmg, Math.max(0, e.hp)) / e.maxHp); }
   e.hp -= dmg;
-  e.flash = 0.08;
+  // Белая вспышка попадания; огонь бьёт непрерывно — без вспышки (иначе враг всё время белый).
+  if (type !== 'fire') e.flash = 0.08;
   if (owner >= 0) { e.lastHit = owner; e.lastHitW = w; }
   if (p) {
     p.damageDealt += dmg;

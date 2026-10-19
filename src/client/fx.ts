@@ -27,6 +27,8 @@ export class Particle {
   add = false;
   alpha = 1;
   scaleText = 1;
+  /** Рост раскадровки за жизнь (anim): размер ×(1 + grow·u). */
+  grow = 0;
 }
 
 /** Кеш пиксельных дисков: радиус в пикселях × цвет. */
@@ -137,7 +139,7 @@ export class Fx {
     }
     const p = this.pool.pop() ?? new Particle();
     p.kind = kind; p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.z = 0; p.vz = 0; p.r = 1; p.r1 = 1; p.life = 1; p.t = 0;
-    p.col = '#fff'; p.ramp = null; p.drag = 2; p.a = 0; p.va = 0; p.text = ''; p.add = false; p.alpha = 1; p.scaleText = 1;
+    p.col = '#fff'; p.ramp = null; p.drag = 2; p.a = 0; p.va = 0; p.text = ''; p.add = false; p.alpha = 1; p.scaleText = 1; p.grow = 0;
     this.parts.push(p);
     return p;
   }
@@ -241,7 +243,7 @@ export class Fx {
         case 'anim': {
           // Раскадровка из внешней графики: p.text — префикс, p.va — число кадров.
           const n = Math.max(1, p.va | 0);
-          const c = extFrame(`${p.text}_${Math.min(n, Math.floor(u * n) + 1)}`, p.r * 2 * z);
+          const c = extFrame(`${p.text}_${Math.min(n, Math.floor(u * n) + 1)}`, p.r * 2 * z * (1 + p.grow * u));
           if (c) {
             ctx.globalAlpha = p.alpha;
             ctx.drawImage(c, Math.round(sx - c.width / 2), Math.round(sy - c.height / 2));
@@ -277,7 +279,9 @@ export class Fx {
       lc.drawImage(glowTinted(col), sx - rr, sy - rr, rr * 2, rr * 2);
     };
     for (const l of this.lights) add(l.x, l.y, l.r, l.col, l.a * (1 - l.t / l.life));
-    for (const p of this.parts) if (p.kind === 'fire' && p.t < p.life * 0.6) add(p.x, p.y, p.r * 3, '#f08a1c', 0.12);
+    for (const p of this.parts) {
+      if (p.kind === 'fire' && p.t < p.life * 0.6) add(p.x, p.y, p.r * 3, '#f08a1c', 0.12);
+    }
     extra(add);
     lc.globalAlpha = 1;
     ctx.save();

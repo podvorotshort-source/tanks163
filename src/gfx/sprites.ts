@@ -106,6 +106,11 @@ export function purge(maxAge: number): void {
   for (const [k, s] of sets) if (frameNo - s.lastUsed > maxAge) sets.delete(k);
 }
 
+/** Сбросить все растеризованные спрайты (после смены масштабов графики). */
+export function clearSprites(): void {
+  sets.clear();
+}
+
 export function spriteStats(): { sets: number } {
   return { sets: sets.size };
 }

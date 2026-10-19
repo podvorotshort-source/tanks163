@@ -7,6 +7,7 @@
 // получается пиксельный спрайт той же детальности, что и экран мира.
 
 import type { PixelImage, RasterMode, SpriteDef } from './raster';
+import { artK } from './artScale';
 
 /** Деталь составного спрайта: картинка (key) или процедурный спрайт (def), в модельных единицах. */
 export interface ExtPart {
@@ -48,6 +49,8 @@ export interface ExtSpec {
   fill?: boolean;
   /** Детали поверх (модули на корпусе). */
   parts?: ExtPart[];
+  /** Без множителя масштаба из настроек (иконки, кадры эффектов — масштаб уже учтён). */
+  raw?: boolean;
 }
 
 interface ExtImage {
@@ -251,7 +254,12 @@ function hexRgb(hex: string): [number, number, number] {
 
 /** Масштаб картинки: пикселей экрана на пиксель картинки. */
 function imgScale(spec: ExtSpec, e: ExtImage, scale: number): number {
-  return (spec.w * scale) / e.w;
+  return (spec.w * scale * specK(spec)) / e.w;
+}
+
+/** Множитель размера из настроек (?dev=tune). Полосы стен и растянутые пятна — по своей области. */
+function specK(spec: ExtSpec): number {
+  return spec.raw ? 1 : artK(spec.key);
 }
 
 /** Опорная точка в пикселях картинки. */
@@ -278,7 +286,8 @@ export function extSize(spec: ExtSpec, scale: number, rotates: boolean): number 
   const [ax, ay] = anchor(spec, e);
   const dx = Math.max(ax, e.w - ax), dy = Math.max(ay, e.h - ay);
   let r = (rotates ? Math.hypot(dx, dy) : Math.max(dx, dy)) * k;
-  for (const p of spec.parts ?? []) if (p.key && p.w) r = Math.max(r, (Math.hypot(p.x, p.y) + p.w * 0.75) * scale);
+  const pk = specK(spec);
+  for (const p of spec.parts ?? []) if (p.key && p.w) r = Math.max(r, (Math.hypot(p.x, p.y) + p.w * 0.75) * scale * pk);
   return Math.ceil(r * 2) + 4;
 }
 
@@ -326,17 +335,18 @@ export function rasterizeExt(spec: ExtSpec, scale: number, angle: number, mode: 
     x.drawImage(src, -ax / lk, -ay / lk);
     x.setTransform(1, 0, 0, 1, 0, 0);
   }
-  // Детали-картинки (модули): в системе координат спрайта.
+  // Детали-картинки (модули): в системе координат спрайта (масштаб — как у основы).
+  const hk = specK(spec);
   for (const p of spec.parts ?? []) {
     if (!p.key || !p.w) continue;
     const pe = source({ key: p.key, w: p.w, recolor: spec.recolor });
     if (!pe) continue;
-    const pk = (p.w * scale) / pe.w;
+    const pk = (p.w * scale * hk) / pe.w;
     let pl = 0;
     while (pk * Math.pow(2, pl + 1) <= 1 && pl < 6) pl++;
     x.translate(S / 2, S / 2);
     if (angle) x.rotate(angle);
-    x.scale(scale, scale);
+    x.scale(scale * hk, scale * hk);
     x.translate(p.x, p.y);
     if (p.a) x.rotate(p.a);
     const ph = (p.w * pe.h) / pe.w;
@@ -394,7 +404,7 @@ export function extIcon(key: string, size: number): HTMLCanvasElement | null {
   const e = images.get(key);
   if (!e) return null;
   const k = Math.min(size / e.w, size / e.h);
-  const spec: ExtSpec = { key, w: e.w * k, noOutline: true };
+  const spec: ExtSpec = { key, w: e.w * k, noOutline: true, raw: true };
   const img = rasterizeExt(spec, 1, 0, 0, size);
   if (!img) return null;
   const c = canvas(size, size);
@@ -430,13 +440,18 @@ export function extFrames(prefix: string): number {
 }
 
 const frameCache = new Map<string, HTMLCanvasElement | null>();
+/** Сбросить кеш кадров (после смены масштабов). */
+export function clearExtFrames(): void {
+  frameCache.clear();
+}
 /** Кадр/картинка, уменьшенная до ширины px (квантуется), с чётким силуэтом, без контура. */
 export function extFrame(key: string, px: number): HTMLCanvasElement | null {
+  px *= artK(key);
   const q = Math.max(2, Math.round(Math.exp(Math.round(Math.log(Math.max(2, px)) / 0.1) * 0.1)));
   const ck = key + '@' + q;
   let c = frameCache.get(ck);
   if (c !== undefined) return c;
-  const spec: ExtSpec = { key, w: q, noOutline: true };
+  const spec: ExtSpec = { key, w: q, noOutline: true, raw: true };
   const S = extSize(spec, 1, false);
   const img = rasterizeExt(spec, 1, 0, 0, S);
   c = null;

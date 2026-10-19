@@ -56,7 +56,9 @@ export class Screen {
 
   resize(): void {
     const dpr = window.devicePixelRatio || 1;
-    const sw = Math.max(320, Math.round(window.innerWidth * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
+    // Панель инструмента настройки (?dev=tune) занимает место слева.
+    const panel = document.getElementById('tune')?.offsetWidth ?? 0;
+    const sw = Math.max(320, Math.round((window.innerWidth - panel) * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
     // Интерфейс: целый коэффициент, высота 330..~495.
     const k = Math.max(1, Math.floor(sh / 330));
     this.pixel = k;

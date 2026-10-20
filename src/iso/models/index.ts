@@ -24,7 +24,7 @@ export const ENEMIES: Record<string, Builder> = {
   windMouse: s1.windMouse, top: s1.top, rcCar: s1.rcCar, toyRobot: s1.toyRobot, plane: s1.plane, blockGolem: s1.blockGolem, jackBox: s1.jackBox, rcTank: s1.rcTank,
   dustBunny: s2.dustBunny, quad: s2.quad, vacBot: s2.vacBot, tinTank: s2.tinTank, deskLamp: s2.deskLamp, toyTrain: s2.toyTrain, bookMortar: s2.bookMortar, robotDog: s2.robotDog,
   cockroachBot: s3.cockroachBot, toaster: s3.toaster, secDrone: s3.secDrone, mixerBot: s3.mixerBot, kettle: s3.kettle, washer: s3.washer, tv: s3.tv, vacGiant: s3.vacGiant,
-  infantry: s4.infantry, apc: s4.apc, mbt: s4.mbt, attackHeli: s4.attackHeli, spg: s4.spg, armoredCar: s4.armoredCar, heavyTank: s4.heavyTank, mlrs: s4.mlrs,
+  infantry: fresh.infantryM, apc: fresh.apcM, mbt: fresh.mbtM, attackHeli: fresh.attackHeliM, spg: fresh.spgM, armoredCar: fresh.armoredCarM, heavyTank: fresh.heavyTankM, mlrs: fresh.mlrsM,
   carsSwarm: s5.carsSwarm, walker: s5.walker, superTank: s5.superTank, gunship: s5.gunship, armoredTrain: s5.armoredTrain, droneCarrier: s5.droneCarrier, kamikazeDrone: s5.kamikazeDrone, mechTitan: s5.mechTitan,
   cityBlock: s6.cityBlock, crawler: s6.crawler, dropPod: s6.dropPod, stratoBomber: s6.stratoBomber, mobileFort: s6.mobileFort, silo: s6.silo, megaWalker: s6.megaWalker,
   loader: fresh.loader, bulldozer: fresh.bulldozer, craneTruck: fresh.craneTruck, mixerTruck: fresh.mixerTruck, inspectDrone: fresh.inspectDrone, demoTruck: fresh.demoTruck, dumpTruck: fresh.dumpTruck, towerCrane: fresh.towerCrane,

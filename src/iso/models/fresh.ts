@@ -312,3 +312,147 @@ export function asteroid(v: number): ModelDef {
   if (v % 2) for (const [x, z] of [[c + 4, c + 6], [c - 5, c - 6]]) b.seg([x, 24, z], [x + 1, 32, z], 1.4, 'crystal');
   return one(b, n, [n, n]);
 }
+
+// ============================================================================ V. Улицы: армия (переделка — плотность ~1 воксель/пиксель)
+/** Красная звезда на плоскости (по x-z), центр (cx, cz), высота y. */
+function star(v: Vox, cx: number, y: number, cz: number, r: number, col = 'red'): void {
+  for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + (k / 5) * Math.PI * 2; v.seg([cx, y, cz], [cx + Math.cos(a) * r, y, cz + Math.sin(a) * r], 0.55, col); }
+}
+
+/** Пехотное отделение: трое солдат в касках с красными повязками, у одного — гранатомёт. */
+export function infantryM(): ModelDef {
+  const v = new Vox(20, 14, 20);
+  for (const [x, z, rpg] of [[5, 5, false], [12, 13, true], [15, 4, false]] as [number, number, boolean][]) {
+    v.box(x - 1, x + 1, 0, 4, z - 1.6, z - 0.2, 'army_d'); v.box(x - 1, x + 1, 0, 4, z + 0.2, z + 1.6, 'army_d');
+    v.box(x - 1.4, x + 1.4, 4, 8, z - 1.8, z + 1.8, 'army'); v.box(x - 1.5, x + 1.5, 6, 7, z + 1.6, z + 2, 'red');
+    v.box(x - 1, x + 1, 8, 10, z - 1, z + 1, 'flesh'); v.ell(x, 10.4, z, 1.6, 0.9, 1.6, 'army_d');
+    v.box(x + 1, x + 5, 6, 7, z + 0.6, z + 1.4, 'gun_d');
+    if (rpg) { v.cylX(8.5, z - 1, 0.7, x - 3, x + 4, 'army_d'); v.cylX(8.5, z - 1, 1.1, x + 4, x + 6, 'red_d'); }
+  }
+  return one(v, 14);
+}
+
+/** БТР: восемь колёс, клиновидный нос, люки, башенка с КПВТ, красная полоса и огни. */
+export function apcM(): ModelDef {
+  const v = new Vox(46, 22, 28), zc = 14;
+  for (const x of [8, 16, 28, 36]) for (const [a, b] of [[1, 5], [23, 27]]) { v.cylZ(x, 4, 4, a, b, 'rubber'); v.cylZ(x, 4, 1.8, a - 0.1, b + 0.1, 'army_d'); }
+  cbox(v, 3, 43, 4, 13, 4, 24, 'army', 1, 2);
+  v.cut(1, 1.2, 0, 43 + 1.2 * 7, 36, 44, 4, 14); v.cut(-1, 1.5, 0, -3 + 1.5 * 9, 2, 8, 4, 14);
+  v.box(3, 43, 9, 10, 3.6, 24.4, 'red');
+  for (const x of [12, 20, 28]) for (const z of [6, 18]) v.box(x, x + 4, 13, 13.6, z, z + 4, 'army_d');
+  for (const z of [6, 21]) v.box(42, 43.5, 8, 10, z - 1, z + 1, 'glow_r');
+  for (const z of [3.9, 24.1]) v.paint((x, y) => (Math.hypot(x - 32, y - 8.5) < 2 ? 'red' : undefined), 30, 34.5, 6, 11, z - 0.2, z + 0.2);
+  const t = new Vox(28, 10, 12), tc = 6;
+  t.cylY(6, tc, 4.4, 0, 4, 'army_l', 3.4); t.box(5, 9, 4, 4.6, tc - 1, tc + 1, 'glow_r');
+  barrel(t, 9, 26, 2.2, tc, 0.9, 'gun', 'gun_d');
+  void zc;
+  return { size: 42, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [6, 0, tc], at: [1, 13, 0] }] };
+}
+
+/** Основной боевой танк: блоки ДЗ на лбу, экраны, башня с длинной пушкой и пулемётом, красная звезда. */
+export function mbtM(): ModelDef {
+  const L = 44, TW = 9, TH = 8, W = 30, NX = L + 6, NZ = W + 2, zc = NZ / 2, x0 = 3, x1 = x0 + L;
+  const v = new Vox(NX, 24, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 5, 'gun', 'army_d');
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 5, 'gun', 'army_d');
+  const yb = TH - 1, yt = TH + 5;
+  cbox(v, x0 + 1, x1 - 1, yb, yt, 1, NZ - 1, 'army', 1, 2);
+  v.cut(0.6, 1, 0, 0.6 * (x1 - 11) + yt, x1 - 12, x1, yb, yt);
+  for (let z = 4; z < NZ - 4; z += 4) v.box(x1 - 9, x1 - 6, yt - 3, yt - 1, z, z + 3, 'army_d');
+  for (const [zo, zi] of [[0, 1], [NZ - 1, NZ]]) { v.box(x0 + 3, x1 - 5, TH * 0.4, yb + 1, zo, zi, 'army_d'); v.box(x0 + 3, x1 - 5, TH * 0.4 + 1, TH * 0.4 + 2, zo, zi, 'red'); }
+  for (const z of [4, NZ - 6]) v.box(x1 - 2, x1, yb + 1, yb + 3, z, z + 2, 'glow_r');
+  for (let i = 0; i < 4; i++) v.box(x0 + 3 + i * 2, x0 + 4 + i * 2, yt - 0.6, yt, zc - 5, zc + 5, 'gun_d');
+  const t = new Vox(56, 14, 26), tc = 13, tcx = 12;
+  t.fill((x, y, z) => { const dx = x - tcx, dz = Math.abs(z - tc); if (dx > 9 || dx < -10 || dz > 9) return undefined; if (Math.abs(dx) * 0.6 + dz > 11) return undefined; if (dx > 4 && y > 6 - (dx - 4) * 0.6) return undefined; return 'army'; }, 0, 56, 0, 6, 0, 26);
+  for (const s of [-1, 1]) for (let i = 0; i < 3; i++) t.box(tcx + 2 + i * 2, tcx + 4 + i * 2, 1, 5, tc + s * (6 - i * 1.5) - 1, tc + s * (6 - i * 1.5) + 1, 'army_d');
+  star(t, tcx - 3, 6.1, tc, 2.6);
+  barrel(t, tcx + 8, tcx + 40, 3, tc, 1.3, 'gun', 'gun_d');
+  t.cylY(tcx - 3, tc + 5, 1.8, 6, 8, 'army_d'); t.cylX(7.5, tc + 5, 0.4, tcx - 3, tcx + 4, 'gun');
+  t.box(tcx - 12, tcx - 9, 1, 5, tc - 6, tc + 6, 'army_d');
+  return { size: L, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [tcx, 0, tc], at: [x0 + L * 0.48 - NX / 2, yt, 0] }] };
+}
+
+/** Ударный вертолёт: кабина-тандем, крылья с блоками НУРС, хвостовая балка, красные звёзды и огни. */
+export function attackHeliM(): ModelDef {
+  const v = new Vox(64, 22, 34), zc = 17;
+  v.ell(36, 10, zc, 15, 6.5, 6, 'army');
+  v.ell(46, 11, zc, 7, 4.6, 4.4, 'glass'); v.ell(39, 13, zc, 4, 3.6, 3.6, 'glass_d');
+  v.seg([22, 11, zc], [2, 14, zc], 2, 'army'); v.box(0, 5, 12, 21, zc - 0.7, zc + 0.7, 'army_d'); v.cylZ(3, 18, 4, zc + 1, zc + 2, 'gun_d');
+  for (const s of [-1, 1]) { v.box(30, 38, 8, 9.5, zc + s * 6, zc + s * 15, 'army_d'); for (const dz of [10, 14]) { v.cylX(6.5, zc + s * dz, 1.6, 29, 39, 'gun'); v.set(39, 6.5, zc + s * dz, 'glow_r'); } }
+  v.cylX(5, zc, 1, 48, 56, 'gun_d');
+  v.paint((x, y, z) => (Math.abs(z - zc) > 4.5 && Math.hypot(x - 30, y - 10) < 2.2 ? 'red' : undefined));
+  v.box(50, 52, 6, 8, zc - 1, zc + 1, 'glow_r');
+  for (const s of [-1, 1]) v.seg([30, 3, zc + s * 3], [42, 3, zc + s * 3], 0.6, 'gun_d');
+  v.cylY(36, zc, 1.6, 16, 19, 'gun_d');
+  return { size: 58, parts: [{ name: 'body', vox: v }, { name: 'rotor', vox: rotor(26, 'gun_d', 2), at: [4, 19, 0] }] };
+}
+
+/** САУ: гусеничное шасси, большая рубка-башня, длинный ствол с дульным тормозом, ящики, красная полоса. */
+export function spgM(): ModelDef {
+  const L = 46, TW = 9, TH = 8, W = 32, NX = L + 6, NZ = W + 2, x0 = 3, x1 = x0 + L;
+  const v = new Vox(NX, 22, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 6, 'gun', 'sand_d');
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 6, 'gun', 'sand_d');
+  cbox(v, x0 + 1, x1 - 1, TH - 1, TH + 4, 1, NZ - 1, 'khaki', 1, 1);
+  v.box(x0 + 1, x1 - 1, TH + 2, TH + 3, 0.6, NZ - 0.6, 'red');
+  for (const z of [3, NZ - 5]) v.box(x1 - 2, x1, TH, TH + 2, z, z + 2, 'glow_r');
+  const t = new Vox(76, 18, 30), tc = 15, tcx = 16;
+  cbox(t, tcx - 14, tcx + 10, 0, 11, tc - 12, tc + 12, 'khaki', 1, 2);
+  t.cut(1, 1, 0, tcx + 10 + 6, tcx + 4, tcx + 11, 0, 11);
+  t.box(tcx - 16, tcx - 14, 2, 9, tc - 9, tc + 9, 'khaki_d');
+  for (let i = 0; i < 3; i++) t.box(tcx - 12 + i * 6, tcx - 8 + i * 6, 11, 13, tc + 4, tc + 9, 'army_d');
+  barrel(t, tcx + 8, tcx + 58, 6, tc, 1.8, 'gun', 'gun_d');
+  star(t, tcx - 4, 11.1, tc - 5, 2.6);
+  return { size: L, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [tcx, 0, tc], at: [x0 + L * 0.45 - NX / 2, TH + 4, 0] }] };
+}
+
+/** Бронеавтомобиль: угловатый корпус, решётка радиатора, модуль пулемёта, красные огни. */
+export function armoredCarM(): ModelDef {
+  const v = new Vox(36, 20, 24), zc = 12;
+  for (const x of [8, 27]) for (const [a, b] of [[1, 5], [19, 23]]) { v.cylZ(x, 4, 4, a, b, 'rubber'); v.cylZ(x, 4, 1.8, a - 0.1, b + 0.1, 'army_d'); }
+  cbox(v, 2, 34, 4, 12, 4, 20, 'army', 1, 2);
+  cbox(v, 6, 24, 12, 17, 5, 19, 'army', 1, 1); v.box(23.6, 24.2, 13, 16, 6, 18, 'glass');
+  v.box(33.6, 34.4, 6, 10, 6, 18, 'gun_d'); for (let z = 7; z < 18; z += 2) v.box(34.2, 34.6, 6, 10, z, z + 0.6, 'army_l');
+  for (const z of [6, 17]) v.box(34, 35, 10, 11.5, z, z + 1.5, 'glow_r');
+  v.box(2, 34, 9, 10, 3.6, 20.4, 'red');
+  v.cylY(14, zc, 2.4, 17, 19, 'gun'); v.cylX(18.6, zc, 0.5, 14, 22, 'gun_d');
+  return one(v, 30);
+}
+
+/** Тяжёлый многобашенный танк: длинный корпус, главная башня и две малые, красные звёзды, огни. */
+export function heavyTankM(): ModelDef {
+  const L = 64, TW = 12, TH = 11, W = 44, NX = L + 8, NZ = W + 2, zc = NZ / 2, x0 = 4, x1 = x0 + L;
+  const v = new Vox(NX, 34, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 7, 'gun', 'army_d');
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 7, 'gun', 'army_d');
+  const yb = TH - 1, yt = TH + 8;
+  cbox(v, x0 + 1, x1 - 1, yb, yt, 1, NZ - 1, 'army_d', 1, 2);
+  v.cut(0.9, 1, 0, 0.9 * (x1 - 12) + yt, x1 - 13, x1, yb, yt);
+  for (const [zo, zi] of [[0, 1], [NZ - 1, NZ]]) { v.box(x0 + 3, x1 - 6, TH * 0.4, yb + 2, zo, zi, 'army'); v.box(x0 + 3, x1 - 6, yb, yb + 1, zo, zi, 'red'); for (let x = x0 + 6; x < x1 - 8; x += 5) v.set(x, TH * 0.4 + 2, zo, 'steel_l'); }
+  for (const z of [5, NZ - 8]) v.box(x1 - 3, x1, yb + 2, yb + 5, z, z + 3, 'glow_r');
+  for (const [mx, mz, dir] of [[x1 - 18, zc - 11, 1], [x0 + 12, zc + 11, -1]] as [number, number, number][]) {
+    v.cylY(mx, mz, 5, yt, yt + 4, 'army'); v.cylY(mx, mz, 5.2, yt + 1.5, yt + 2.5, 'red');
+    v.cylX(yt + 2, mz, 0.9, dir > 0 ? mx : mx - 12, dir > 0 ? mx + 12 : mx, 'gun');
+  }
+  const t = new Vox(76, 18, 34), tc = 17, tcx = 16;
+  t.cylY(tcx, tc, 12, 0, 9, 'army_d', 10);
+  t.cylY(tcx, tc, 12.2, 3, 4.6, 'red');
+  star(t, tcx - 4, 9.1, tc, 3.6);
+  for (const bz of [tc - 3.2, tc + 3.2]) barrel(t, tcx + 9, tcx + 50, 4.8, bz, 1.9, 'gun', 'gun_d');
+  t.cylY(tcx - 4, tc + 6, 2.6, 9, 11, 'army'); t.set(tcx - 4, 11, tc + 6, 'glow_r');
+  return { size: L, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [tcx, 0, tc], at: [x0 + L * 0.5 - NX / 2, yt, 0] }] };
+}
+
+/** Реактивная установка: трёхосный грузовик, пакет из 32 труб на поворотной установке, красные огни. */
+export function mlrsM(): ModelDef {
+  const v = new Vox(64, 22, 30);
+  for (const x of [10, 36, 46]) for (const [a, b] of [[1, 6], [24, 29]]) { v.cylZ(x, 4.6, 4.6, a, b, 'rubber'); v.cylZ(x, 4.6, 2, a - 0.1, b + 0.1, 'army_d'); }
+  v.box(4, 60, 5, 9, 5, 25, 'gun_d');
+  cbox(v, 48, 62, 9, 20, 5, 25, 'army', 1, 2); v.box(61.6, 62.2, 12, 18, 6, 24, 'glass'); v.box(48, 62, 13, 14, 4.6, 25.4, 'red');
+  for (const z of [6, 23]) v.box(62, 63, 10, 12, z, z + 1.5, 'glow_r');
+  const t = new Vox(46, 22, 24), tc = 12;
+  t.box(4, 14, 0, 4, 4, 20, 'army_d');
+  t.fill((x, y, z) => { const ya = 4 + (x - 2) * 0.3; return y >= ya && y < ya + 10 && z > 2 && z < 22 && x > 2 && x < 40 ? 'army' : undefined; }, 0, 46, 0, 22, 0, 24);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 8; c++) { const y = 5 + 11.4 + r * 2.4, z = 3.5 + c * 2.4; t.box(39.5, 40.2, y - 0.8, y + 0.4, z - 0.6, z + 0.6, 'black'); t.set(40, y, z, (r + c) % 3 ? 'gun' : 'glow_r'); }
+  return { size: 60, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [10, 0, tc], at: [-14, 9, 0] }] };
+}

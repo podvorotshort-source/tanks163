@@ -47,7 +47,9 @@ describe('толкание танков игроков', () => {
     const wallX = b.x + b.r + 20;
     sim.props.add(makeProp('steel', 'steel', wallX + 10, a.y, 20, 200, 1e12));
     step(sim, seconds(3), [RIGHT, IDLE]);
-    expect(b.x + b.r).toBeLessThanOrEqual(wallX + 1);
+    // корпус — повёрнутый прямоугольник: его край по x не заходит за стену
+    const ext = Math.abs(Math.cos(b.angle)) * b.hl + Math.abs(Math.sin(b.angle)) * b.hw;
+    expect(b.x + ext).toBeLessThanOrEqual(wallX + 1);
     expect(a.x + a.r).toBeLessThanOrEqual(b.x - b.r + (a.r + b.r) * 0.2);
   });
 

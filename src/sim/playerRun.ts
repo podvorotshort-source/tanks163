@@ -9,7 +9,7 @@ import { EFFECT, VIEW_W, VIEW_H, type DmgType } from './types';
 
 /** Проекция изометрии на экран (как у камеры): пикселей по горизонтали/вертикали на единицу x − y / x + y. */
 const ISO_X = Math.SQRT1_2, ISO_Y = Math.SQRT1_2 * 0.5;
-import { MATS, pushOut, type Prop } from './props';
+import { MATS, pushOutBox, type Prop } from './props';
 import { damageEnemy, killEnemy, breakProp, explode, chainLightning, loseLife, applyBurn } from './combat';
 import { useAbility, updateAbilities } from './abilities';
 
@@ -112,11 +112,11 @@ function collidePlayers(sim: Sim, dt: number): void {
 /** Выталкивает танк из твёрдых препятствий; true — если упёрся. */
 function unstick(sim: Sim, p: Player): boolean {
   let hit = false;
-  sim.props.queryCircle(p.x, p.y, p.r, tmpP);
+  sim.props.queryCircle(p.x, p.y, Math.hypot(p.hl, p.hw), tmpP);
   for (const pr of tmpP) {
     if (pr.dead || !MATS[pr.mat].move) continue;
     if (pr.friendly && pr.ttl !== undefined) continue;
-    const po = pushOut(p.x, p.y, p.r, pr);
+    const po = pushOutBox(p.x, p.y, p.angle, p.hl, p.hw, pr);
     if (po) { p.x += po[0]; p.y += po[1]; hit = true; }
   }
   return hit;
@@ -149,18 +149,23 @@ function movePlayer(sim: Sim, p: Player, cmd: PlayerCmd, dt: number): void {
   // Препятствия: давка мелких, выталкивание из крупных.
   const dozer = p.mods.has('rm_dozer') ? 2 : 1;
   const crushLimit = size * PROP_CRUSH * dozer * (p.hasWeapon('ram') ? 1.3 : 1);
-  sim.props.queryCircle(p.x, p.y, p.r, tmpP);
+  // Корпус — повёрнутый прямоугольник (как модель), а не круг: борта и углы не заезжают в стены.
+  // Несколько проходов — чтобы угол между двумя блоками не протолкнул корпус в соседний.
+  for (let pass = 0; pass < 2; pass++) {
+  sim.props.queryCircle(p.x, p.y, Math.hypot(p.hl, p.hw), tmpP);
   for (const pr of tmpP) {
     const mat = MATS[pr.mat];
     if (!mat.move || pr.dead) continue;
+    const po = pushOutBox(p.x, p.y, p.angle, p.hl, p.hw, pr);
+    if (!po) continue;
     if (!mat.solid && pr.size <= crushLimit) {
       breakProp(sim, pr);
       sim.emit({ t: 'crush', x: pr.x, y: pr.y, size: pr.size });
       continue;
     }
     if (pr.friendly && pr.ttl !== undefined) continue; // свои стены не мешают
-    const po = pushOut(p.x, p.y, p.r, pr);
-    if (po) { p.x += po[0]; p.y += po[1]; }
+    p.x += po[0]; p.y += po[1];
+  }
   }
 
   // Враги: давка и толкание.

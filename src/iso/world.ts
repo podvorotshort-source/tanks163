@@ -11,14 +11,14 @@ import type { Sim } from '../sim/sim';
 import type { Enemy, Player } from '../sim/entities';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { STAGE_GROWTH } from '../sim/types';
-import { MATS, type Prop } from '../sim/props';
+import { MATS, toyify, type Prop, type ToyPiece } from '../sim/props';
 import { Rng } from '../core/rng';
 import { IsoRenderer, ModelPool } from './renderer';
 import { FxLayer } from './fxgl';
 import { model } from './models/index';
 import { paintStage, paintNow, ART_Z, type PaintResult } from './paint';
 import { tierOf } from '../client/tiers';
-import { bossDropH } from '../client/render';
+import { bossDropH, airH } from '../client/render';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const G = STAGE_GROWTH;
@@ -39,6 +39,8 @@ export interface TransView {
   /** Непрозрачность старой земли и её полей (мира вокруг арены). */
   oldAlpha: number;
   marginAlpha: number;
+  /** Прозрение «это были игрушки» (0..1): стены волной от центра становятся ЛЕГО, кусты — деревцами. */
+  lego: number;
 }
 
 /** Неподвижные модели (не поворачиваются к цели). */
@@ -61,6 +63,10 @@ export class IsoWorld {
   private paints = new Map<string, PaintResult>();
   private jobs = new Map<string, Generator<void, PaintResult>>();
   private nextProps = new Map<number, Prop[]>();
+  /** Игрушки, в которые превращаются препятствия старой арены при отъезде камеры. */
+  private toys: { from: number; list: { piece: ToyPiece; prop: Prop; t: number; shown: boolean }[] } | null = null;
+  /** Кусок стены стал игрушкой (для облачка пыли): центр и размеры. */
+  onToySwap: ((x: number, y: number, w: number, h: number) => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.r = new IsoRenderer(canvas);
@@ -71,6 +77,23 @@ export class IsoWorld {
     this.r.scene.add(this.decals);
     this.fx = new FxLayer(this.r.gl);
     this.r.scene.add(this.fx.group);
+    // Контактная тень (затенение у основания): тёмный «коврик» со ступенчатым краем под каждым объектом —
+    // объекты «стоят» на земле, а не парят над ней.
+    const ag = new THREE.PlaneGeometry(1, 1); ag.rotateX(-Math.PI / 2);
+    this.ao = new THREE.InstancedMesh(ag, new THREE.MeshBasicMaterial({ color: '#120a24', map: aoTexture(), transparent: true, opacity: 0.62, depthWrite: false }), this.aoMax);
+    this.ao.count = 0; this.ao.frustumCulled = false; this.ao.renderOrder = 0;
+    this.ao.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.r.scene.add(this.ao);
+  }
+
+  private ao: THREE.InstancedMesh;
+  private aoN = 0;
+  private aoMax = 3000;
+  /** Контактная тень под объектом: центр, размеры (ед.), угол. */
+  private aoAdd(x: number, y: number, w: number, h: number, a: number): void {
+    if (this.aoN >= this.aoMax) return;
+    this.tmp.makeRotationY(-a).scale(new THREE.Vector3(w, 1, h)).setPosition(x, 0.03, y);
+    this.ao.setMatrixAt(this.aoN++, this.tmp);
   }
 
   // ------------------------------------------------------------ земля ступеней
@@ -164,7 +187,7 @@ export class IsoWorld {
     if (this.extra !== obj) {
       if (this.extra) this.r.scene.remove(this.extra);
       this.extra = obj; this.r.scene.add(obj);
-      this.units.visible = this.decals.visible = this.fx.group.visible = false;
+      this.units.visible = this.decals.visible = this.fx.group.visible = this.ao.visible = false;
     }
     this.r.resize(cam.w, cam.h);
     if (ground !== null) {
@@ -180,12 +203,26 @@ export class IsoWorld {
 
   // ------------------------------------------------------------ кадр
   render(sim: Sim, cam: Camera, alpha: number, time: number, tv: TransView | null = null): void {
-    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = this.fx.group.visible = true; }
+    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = this.fx.group.visible = this.ao.visible = true; }
     this.setSeed(sim.cfg.seed);
     this.r.resize(cam.w, cam.h);
     this.ground(sim, cam, tv);
     for (const p of this.pools.values()) p.begin();
-    this.syncProps(sim.props.props, time, cam, 1, null);
+    this.aoN = 0;
+    let hide: Set<number> | null = null;
+    if (tv && !tv.switched && tv.lego > 0) {
+      const toys = this.toyList(sim, tv.from, cam);
+      hide = new Set();
+      const shown: Prop[] = [];
+      for (const it of toys) {
+        if (tv.lego < it.t) continue;
+        for (const id of it.piece.ids) hide.add(id);
+        shown.push(it.prop);
+        if (!it.shown) { it.shown = true; this.onToySwap?.(it.piece.x, it.piece.y, it.piece.w, it.piece.h); }
+      }
+      this.syncProps(shown, time, cam, 1, null);
+    } else if (!tv) this.toys = null;
+    this.syncProps(hide ? sim.props.props.filter(p => !hide!.has(p.id)) : sim.props.props, time, cam, 1, null);
     if (tv && !tv.switched && tv.from < 7) {
       // мир следующей ступени вокруг (в старых координатах — вчетверо крупнее)
       const nd = STAGE_DEFS[tv.from + 1], od = STAGE_DEFS[tv.from];
@@ -193,6 +230,13 @@ export class IsoWorld {
     }
     for (const p of sim.players) this.syncPlayer(sim, p, alpha, time, tv);
     for (const e of sim.enemies) this.syncEnemy(sim, e, alpha, time);
+    // Мины — модели в сцене: танки и враги, наехавшие на мину, закрывают её как положено.
+    for (const m of sim.mines) {
+      if (m.dead || !cam.visible(m.x, m.y, m.r * 2)) continue;
+      const lit = m.armT > 0 ? Math.floor(time * 16) % 2 === 0 : Math.floor(time * 2.5 + m.x * 0.01) % 3 === 0;
+      const key = `mine:${m.owner}:${lit ? 1 : 0}`;
+      this.pool(key).add(this.root(m.x, 0, m.y, m.x * 0.37, (m.r * 2) / model(key).size));
+    }
     if (!tv) {
       for (const d of sim.drones) {
         const m = model('drone');
@@ -200,9 +244,23 @@ export class IsoWorld {
       }
     } else if (tv.wreck && tv.wreck.k > 0.02) this.syncWreck(tv.wreck, time);
     for (const p of this.pools.values()) p.end();
+    this.ao.count = this.aoN; this.ao.instanceMatrix.needsUpdate = true;
     this.r.setCamera(cam);
     this.fx.end(cam.w, cam.h, cam.zoom);
     this.r.render();
+  }
+
+  /** Игрушки старой арены (строятся один раз за переход): порог появления — волна от центра кадра. */
+  private toyList(sim: Sim, from: number, cam: Camera): { piece: ToyPiece; prop: Prop; t: number; shown: boolean }[] {
+    if (this.toys && this.toys.from === from) return this.toys.list;
+    const list = toyify(sim.props.props).map(piece => {
+      const d = Math.hypot(piece.x - cam.cx, piece.y - cam.cy) / 1500;
+      const j = ((piece.ids[0] * 2654435761) >>> 0) / 4294967296;
+      const prop: Prop = { id: -1, kind: piece.kind, x: piece.x, y: piece.y, w: piece.w, h: piece.h, round: piece.kind === 'toyTree', mat: piece.mat, hp: 1, maxHp: 1e12, size: Math.max(piece.w, piece.h), dead: false, v: piece.v, a: 0, _q: 0 };
+      return { piece, prop, t: 0.04 + Math.min(1, d) * 0.8 + j * 0.12, shown: false };
+    });
+    this.toys = { from, list };
+    return list;
   }
 
   /** Слои земли: в бою — картинка ступени 1:1; при переходе — старая поверх новой. */
@@ -245,6 +303,8 @@ export class IsoWorld {
       const sx = w / foot[0], sz = h / foot[1], sy = Math.min(sx, sz);
       const mat = MATS[p.mat];
       if (p.ttl !== undefined && p.ttl < 2 && Math.floor(time * 8) % 2) continue;
+      const k = p.kind === 'bush' || p.round ? 1.1 : 1.15, pad = 14 * scale;
+      if (!tiny) this.aoAdd(px, py, pw * k + pad, ph * k + pad, 0);
       this.tmp.makeRotationY(a).scale(new THREE.Vector3(sx, sy, sz)).setPosition(px, 0, py);
       const dmg = p.maxHp < 1e11 && p.hp < p.maxHp * 0.5 && !mat.solid;
       this.pool(key).add(this.tmp, undefined, dmg ? DMG : undefined);
@@ -261,6 +321,8 @@ export class IsoWorld {
     const m = model(key);
     const s = (sim.size / m.size) * (tv ? tv.tankScale : 1);
     const col = !tv && p.hurtT > 0.12 ? FLASH : undefined;
+    const ts = tv ? tv.tankScale : 1;
+    this.aoAdd(x, y, (p.hl * 2 + 18) * ts, (p.hw * 2 + 16) * ts, p.angle);
     this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col);
   }
 
@@ -280,9 +342,10 @@ export class IsoWorld {
     const m = model(key);
     let s = e.size / m.size;
     if (e.spawnT > 0) s *= Math.max(0.05, 1 - e.spawnT / 0.45);
-    const h = (e.air ? e.size * 0.9 + Math.sin(time * 3 + e.id) * e.size * 0.05 : 0) + (boss ? bossDropH(e) : 0);
+    const h = (e.air ? airH(sim, e) + Math.sin(time * 3 + e.id) * e.size * 0.05 : 0) + (boss ? bossDropH(e) : 0);
     const fixed = FIXED.has(art);
     const a = fixed ? 0 : e.angle;
+    if (!e.air && h < 1) this.aoAdd(x, y, e.size * 1.1 + 10, e.size * 0.9 + 10, a);
     let col: THREE.Color | undefined;
     if (e.flash > 0) col = FLASH;
     else if (e.bonus && Math.floor(time * 5) % 2 === 0) col = BONUS;
@@ -299,3 +362,20 @@ const BURN = new THREE.Color(0.75, 0.6, 0.55);
 const DMG = new THREE.Color(0.72, 0.68, 0.7);
 const WRECK = new THREE.Color(0.55, 0.5, 0.56);
 const WRECK_GLOW = new THREE.Color(0.8, 0.5, 0.45);
+
+/** Текстура контактной тени: прямоугольник со скруглёнными углами и ступенчатым (пиксельным) краем. */
+function aoTexture(): THREE.Texture {
+  const N = 32, c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d')!, img = g.createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const dx = Math.max(0, Math.abs(x + 0.5 - N / 2) - N / 2 + 9), dy = Math.max(0, Math.abs(y + 0.5 - N / 2) - N / 2 + 9);
+    const d = Math.sqrt(dx * dx + dy * dy);                                    // 0 внутри, растёт к краю
+    const a = d < 3 ? 1 : d < 5.5 ? 0.72 : d < 8 ? 0.42 : 0;                     // три ступени, без плавного размытия
+    img.data[(y * N + x) * 4 + 3] = Math.round(a * 255);
+    img.data[(y * N + x) * 4] = img.data[(y * N + x) * 4 + 1] = img.data[(y * N + x) * 4 + 2] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  return t;
+}

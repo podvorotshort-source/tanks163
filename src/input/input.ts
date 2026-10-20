@@ -1,6 +1,9 @@
 // Ввод: клавиатура (две раскладки на одной клавиатуре) и геймпады
 // (DualShock 4, DualSense, XInput; стандартная раскладка Chrome/Edge и
-// нестандартная Firefox). Мышь — только для удобства в меню.
+// нестандартная Firefox), сенсорный экран телефона (src/input/touch.ts — стик и кнопки 1P).
+// Мышь — только для удобства в меню.
+
+import { touch } from './touch';
 
 export type Action = 'up' | 'down' | 'left' | 'right' | 'a1' | 'a2' | 'a3' | 'pause' | 'back' | 'info';
 export const ACTIONS: Action[] = ['up', 'down', 'left', 'right', 'a1', 'a2', 'a3', 'pause', 'back', 'info'];
@@ -229,6 +232,14 @@ class InputManager {
       for (const p of pads) {
         for (const a of ACTIONS) if (p.down[a]) down[a] = true;
         if (p.x || p.y) { mx = p.x; my = p.y; }
+      }
+      if (s === 0 && touch.st.active) {
+        const t = touch.st;
+        if (t.x || t.y) { mx = t.x; my = t.y; this.lastDevice = 'pad'; }
+        if (t.down.a1) down.a1 = true;
+        if (t.down.a2) down.a2 = true;
+        if (t.down.a3) down.a3 = true;
+        if (t.down.pause) down.pause = true;
       }
       const m = Math.hypot(mx, my);
       if (m > 1) { mx /= m; my /= m; }

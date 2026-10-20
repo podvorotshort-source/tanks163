@@ -45,9 +45,21 @@ const CARPET: number[][] = [
   ramp('#9a2a30', '#bf3a3a', '#d8574a'),   // 3 красный
   ramp('#b07a1e', '#d9a232', '#f0c450'),   // 4 золотистый
 ];
+/** Детский игровой коврик (реликвия I ступени во II): напечатанные трава, дороги с разметкой, пруды, окантовка. */
+const PRINT: number[][] = [
+  ramp('#3d8a3c', '#4ea445', '#66bb55'),   // 0 трава
+  ramp('#58a64a', '#6cbd56', '#88d06c'),   // 1 трава светлая
+  ramp('#555a6c', '#6a7084', '#83899e'),   // 2 дорога
+  ramp('#d2d0c4', '#efede2', '#ffffff'),   // 3 разметка, обводка
+  ramp('#2a6cbc', '#3a88d4', '#58a4e4'),   // 4 вода
+  ramp('#78bce8', '#98d0f2', '#bce2fa'),   // 5 волны, кромка воды
+  ramp('#1e3274', '#2b438e', '#3c5cae'),   // 6 окантовка
+  ramp('#d6c9ab', '#efe3c6', '#fff6df'),   // 7 строчка
+  ramp('#c49a5a', '#d6ae72', '#e6c48c'),   // 8 песок
+];
 const FLOWERS = ['#e8484a', '#f6d24a', '#f4f2f8', '#ec74ae', '#9a72e0'].map(pack);
 
-const enum Mt { VOID = 0, GRASS, DIRT, TILE, WATER, RIM, WOOD, CARPET, GENERIC }
+const enum Mt { VOID = 0, GRASS, DIRT, TILE, WATER, RIM, WOOD, CARPET, GENERIC, PRINT }
 const RAMPS: Record<number, number[]> = { [Mt.GRASS]: GRASS, [Mt.DIRT]: DIRT, [Mt.TILE]: TILE, [Mt.WATER]: WATER, [Mt.RIM]: STONE, [Mt.WOOD]: WOOD };
 
 // ---------------------------------------------------------------- шум
@@ -135,8 +147,32 @@ function toy(x: number, y: number, ponds: Ponds, o: Smp): void {
   if (pd + (m - 0.5) * 46 < 34) { o.m = Mt.DIRT; o.t = m > 0.62 ? 4 : m < 0.38 ? 2 : 3; return; }
   const n = fbm(x / 190, y / 190, 3), n2 = vnoise(x / 34, y / 34, 21);
   o.m = Mt.GRASS;
-  o.t = n > 0.6 ? 4 : n < 0.37 ? 2 : 3;
-  if (n2 > 0.8 && o.t < 5) o.t++;
+  o.t = n > 0.68 ? 4 : n < 0.3 ? 2 : 3;                                     // пятна тона реже — без «камуфляжа»
+  if (n2 > 0.84 && o.t < 5) o.t++;
+}
+
+/** Реликвия I ступени во II: тот же полигон, но это напечатанный детский коврик (x, y — координаты ступени I). */
+function playmat(x: number, y: number, ponds: Ponds, o: Smp): void {
+  const w = 2880, h = 1620;
+  o.m = Mt.PRINT; o.t = 1;
+  const b = Math.min(x, w - x, y, h - y);
+  if (b < 72) { o.a = b > 28 && b < 40 && Math.floor((x + y) / 44) % 2 ? 7 : 6; o.t = b < 10 ? 0 : 1; return; }   // окантовка со строчкой
+  const d = ponds.sdf(x, y);
+  if (d < 0) {
+    const dp = -d;
+    o.a = dp < 10 ? 5 : Math.sin(x * 0.05 + Math.sin(y * 0.03) * 2) > 0.92 && dp > 24 ? 5 : 4;
+    return;
+  }
+  if (d < 14) { o.a = 3; return; }                                                  // белая обводка пруда
+  const pd = Math.min(segD(x, y, 0, h * 0.28, w, h * 0.44), segD(x, y, w * 0.3, 0, w * 0.48, h), segD(x, y, w * 0.72, 0, w * 0.84, h));
+  if (pd < 46) {
+    if (pd > 38) { o.a = 3; return; }                                              // кромка дороги
+    o.a = pd < 5 && Math.floor((x * 0.6 + y * 0.8) / 70) % 2 ? 3 : 2;              // прерывистая осевая
+    return;
+  }
+  const n = fbm(x / 260, y / 260, 3);
+  o.a = n > 0.62 ? 1 : n < 0.3 ? 8 : 0;
+  if (o.a === 8 && n > 0.26) o.a = 0;
 }
 
 /** Ступень II: детская — дощатый пол, большой ковёр с орнаментом, круглый коврик. */
@@ -199,7 +235,12 @@ function genericIdx(c: string): number {
 /** Материал точки ступени s (с реликвией прежней ступени внутри). */
 function sample(s: number, x: number, y: number, seed: number, o: Smp): void {
   const rr = relicRect(s);
-  if (rr && inRect(rr, x, y)) { sample(s - 1, (x - rr.x0) * G, (y - rr.y0) * G, seed, o); return; }
+  if (rr && inRect(rr, x, y)) {
+    // I ступень, увиденная из II, — детский коврик (прозрение: «это были игрушки»); глубже — как было
+    if (s === 1) playmat((x - rr.x0) * G, (y - rr.y0) * G, pondsOf(0, seed), o);
+    else sample(s - 1, (x - rr.x0) * G, (y - rr.y0) * G, seed, o);
+    return;
+  }
   o.a = 0;
   if (s === 0) toy(x, y, pondsOf(0, seed), o);
   else if (s === 1) nursery(x, y, o);
@@ -279,8 +320,8 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
     for (let i = 2; i < w - 2; i++) {
       const k = j * w + i, m = mat[k], r = hash(i, j, 77 + s);
       if (m === Mt.GRASS) {
-        if (r < 0.045) for (const [dx, dy, d] of TUFTS[Math.floor(hash(i, j, 5) * 4)]) put(i + dx, j + dy, d, Mt.GRASS);
-        else if (r < 0.0475) { const c = FLOWERS[Math.floor(hash(i, j, 6) * 5)]; paint(i, j, c, Mt.GRASS); if (hash(i, j, 8) < 0.5) paint(i + 1, j, c, Mt.GRASS); put(i, j + 1, -2, Mt.GRASS); }
+        if (r < 0.085) for (const [dx, dy, d] of TUFTS[Math.floor(hash(i, j, 5) * 4)]) put(i + dx, j + dy, d, Mt.GRASS);
+        else if (r < 0.088) { const c = FLOWERS[Math.floor(hash(i, j, 6) * 5)]; paint(i, j, c, Mt.GRASS); if (hash(i, j, 8) < 0.5) paint(i + 1, j, c, Mt.GRASS); put(i, j + 1, -2, Mt.GRASS); }
       } else if (m === Mt.DIRT) {
         if (r < 0.012) { paint(i, j, STONE[4], Mt.DIRT); paint(i + 1, j, STONE[3], Mt.DIRT); put(i, j + 1, -1, Mt.DIRT); put(i + 1, j + 1, -1, Mt.DIRT); }
         else if (r < 0.04) { put(i, j, -1, Mt.DIRT); put(i + 1, j, -1, Mt.DIRT); }
@@ -317,7 +358,7 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
   const raised: { r: Rect; side: number; top: number[]; edge: number[] }[] = [
     { r: { x0: 0, y0: 0, x1: W, y1: H }, side: 7, top: [GRASS[4], GRASS[2]], edge: [DIRT[3], DIRT[3], DIRT[2], DIRT[2], DIRT[1]] },
   ];
-  if (relic) raised.push({ r: relic, side: 3, top: [GRASS[5]], edge: [GRASS[2], GRASS[1]] });
+  if (relic) raised.push(s === 1 ? { r: relic, side: 2, top: [PRINT[6][2]], edge: [PRINT[6][0]] } : { r: relic, side: 3, top: [GRASS[5]], edge: [GRASS[2], GRASS[1]] });
   for (const R of raised) {
     const near = 2 + (R.side + 6) * KV;
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
@@ -350,7 +391,8 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
     if (ov[k]) c = ov[k];
     else {
       const m = mat[k];
-      if (m === Mt.CARPET) { const r = CARPET[aux[k]]; let t = tone[k]; if (((k % w) + 2 * Math.floor(k / w)) % 4 === 0) t = Math.max(0, t - 1); c = r[Math.max(0, Math.min(2, t))]; }
+      if (m === Mt.PRINT) { const r = PRINT[aux[k]]; let t = tone[k]; if (((k % w) + 2 * Math.floor(k / w)) % 5 === 0) t = Math.max(0, t - 1); c = r[Math.max(0, Math.min(2, t))]; }
+      else if (m === Mt.CARPET) { const r = CARPET[aux[k]]; let t = tone[k]; if (((k % w) + 2 * Math.floor(k / w)) % 4 === 0) t = Math.max(0, t - 1); c = r[Math.max(0, Math.min(2, t))]; }
       else if (m === Mt.GENERIC) c = genRamps[aux[k]][Math.max(0, Math.min(4, tone[k]))];
       else { const r = RAMPS[m] ?? GRASS; c = r[Math.max(0, Math.min(r.length - 1, tone[k]))]; }
     }

@@ -28,6 +28,8 @@ export const PAL: Record<string, string> = {
   asphalt: '#4a4a52', asphalt_d: '#38383f', asphalt_l: '#62626a', brick: '#b8523a', brick_d: '#8a3a2c', brick_l: '#d8724e', mortar: '#d8c8a8',
   brk: '#c4552f', brk_l: '#d96a3a', brk_ll: '#ec8f58', brk_d: '#97391f', brk_m: '#5c2620',
   stl: '#8692aa', stl_l: '#ccd5e3', stl_d: '#58627c', stl_s: '#363d55', stl_r: '#e6ecf5',
+  // ЛЕГО (реликвия I ступени): оранжевый и серый пластик
+  lego_o: '#f47d1e', lego_ol: '#ffad4a', lego_od: '#bf5513', lego_g: '#a2a8b4', lego_gl: '#d3d8e0', lego_gd: '#6c7384', shine: '#fff6e0',
   glass: '#7cc0e0', glass_d: '#4a86b0', roof: '#a8443a', roof_d: '#7a2e28', plastic: '#e0583a', toy_b: '#3a7ee0', toy_g: '#4ab84a', toy_y: '#f2c43a',
   bone: '#e8dcc0', bread: '#d89a50', flesh: '#c87a6a', alien: '#7a3ec0', alien_d: '#4a2280', alien_l: '#b07ae8', void: '#2a1840', crystal: '#9ae0f0', magma: '#e8401a',
   // светящееся (без света сцены)

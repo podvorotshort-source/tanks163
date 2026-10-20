@@ -218,6 +218,34 @@ export function pushOut(x: number, y: number, r: number, p: Prop): [number, numb
   return px < py ? [Math.sign(ox || 1) * px, 0] : [0, Math.sign(oy || 1) * py];
 }
 
+/** Выталкивание повёрнутого прямоугольника (корпус танка: центр, угол, половины длины hl и ширины hw) из препятствия:
+ *  разделяющие оси (SAT) для прямоугольных препятствий, ближайшая точка корпуса — для круглых. Вектор сдвига или null. */
+export function pushOutBox(x: number, y: number, ang: number, hl: number, hw: number, p: Prop): [number, number] | null {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  if (p.round) {
+    const R = p.w / 2, dx = p.x - x, dy = p.y - y;
+    const lx = dx * c + dy * s, ly = -dx * s + dy * c;                       // центр круга в осях танка
+    const qx = Math.max(-hl, Math.min(hl, lx)), qy = Math.max(-hw, Math.min(hw, ly));
+    let ex = lx - qx, ey = ly - qy, d = Math.sqrt(ex * ex + ey * ey), k: number;
+    if (d >= R) return null;
+    if (d < 1e-6) { const ox = hl - Math.abs(lx), oy = hw - Math.abs(ly); if (ox < oy) { ex = Math.sign(lx || 1); ey = 0; k = ox + R; } else { ex = 0; ey = Math.sign(ly || 1); k = oy + R; } }
+    else { ex /= d; ey /= d; k = R - d; }
+    // круг выталкивается по нормали — танк в обратную сторону
+    const wx = ex * c - ey * s, wy = ex * s + ey * c;
+    return [-wx * k, -wy * k];
+  }
+  const bx = p.w / 2, by = p.h / 2, dx = x - p.x, dy = y - p.y;
+  let best = Infinity, nx = 0, ny = 0;
+  for (const [ax, ay] of [[1, 0], [0, 1], [c, s], [-s, c]]) {
+    const ra = hl * Math.abs(c * ax + s * ay) + hw * Math.abs(-s * ax + c * ay);
+    const rb = bx * Math.abs(ax) + by * Math.abs(ay);
+    const d = dx * ax + dy * ay, ov = ra + rb - Math.abs(d);
+    if (ov <= 0) return null;
+    if (ov < best) { best = ov; const sg = d < 0 ? -1 : 1; nx = ax * sg; ny = ay * sg; }
+  }
+  return [nx * best, ny * best];
+}
+
 /** Пересечение отрезка (с толщиной rad) с препятствием — параметр t или -1. */
 function segVsProp(x1: number, y1: number, x2: number, y2: number, rad: number, p: Prop): number {
   if (p.round) {
@@ -249,4 +277,57 @@ function segVsProp(x1: number, y1: number, x2: number, y2: number, rad: number, 
     if (t0 > t1) return -1;
   }
   return t0;
+}
+
+// ---------------------------------------------------------------------------
+// «Это были игрушки»: при переходе со ступени I блоки стен становятся ЛЕГО-кирпичиками (кирпич — оранжевый,
+// сталь — серая; соседние блоки одного цвета склеиваются в длинные кирпичики 2×4…2×8), кусты — пластмассовыми
+// деревцами. Используется и симуляцией (что переезжает в новый мир), и выводом (подмена во время отъезда камеры).
+// ---------------------------------------------------------------------------
+
+export interface ToyPiece { kind: string; mat: Material; x: number; y: number; w: number; h: number; v: number; hp: number; ids: number[] }
+
+const WALL_KINDS: Record<string, number> = { brick: 0, steel: 1, steelWall: 1 };
+
+export function toyify(props: Prop[]): ToyPiece[] {
+  const out: ToyPiece[] = [];
+  const blocks = props.filter(p => !p.dead && WALL_KINDS[p.kind] !== undefined);
+  const at = new Map<string, Prop>();
+  const key = (x: number, y: number) => Math.round(x) + ':' + Math.round(y);
+  for (const p of blocks) at.set(key(p.x, p.y), p);
+  const used = new Set<number>();
+  const color = (p: Prop) => WALL_KINDS[p.kind];
+  const emit = (run: Prop[], horiz: boolean) => {
+    // длинные ряды — на кирпичики не длиннее четырёх блоков (2×8 шипов), поровну
+    const n = Math.ceil(run.length / 4);
+    let i = 0;
+    for (let c = 0; c < n; c++) {
+      const len = Math.floor(run.length / n) + (c < run.length % n ? 1 : 0), part = run.slice(i, i + len);
+      i += len;
+      const B = part[0].w;
+      const x = part.reduce((a, p) => a + p.x, 0) / len, y = part.reduce((a, p) => a + p.y, 0) / len;
+      out.push({ kind: 'lego', mat: 'plastic', x, y, w: horiz ? B * len : B, h: horiz ? B : B * len, v: len * 10 + color(part[0]), hp: part.reduce((a, p) => a + p.hp, 0), ids: part.map(p => p.id) });
+      for (const p of part) used.add(p.id);
+    }
+  };
+  for (const horiz of [true, false]) {
+    for (const p of blocks) {
+      if (used.has(p.id)) continue;
+      const B = p.w, run = [p];
+      for (;;) {
+        const l = run[run.length - 1], q = at.get(key(l.x + (horiz ? B : 0), l.y + (horiz ? 0 : B)));
+        if (!q || used.has(q.id) || color(q) !== color(p)) break;
+        run.push(q);
+      }
+      // начало ряда — самый левый/верхний свободный блок
+      for (;;) {
+        const f = run[0], q = at.get(key(f.x - (horiz ? B : 0), f.y - (horiz ? 0 : B)));
+        if (!q || used.has(q.id) || color(q) !== color(p)) break;
+        run.unshift(q);
+      }
+      if (run.length >= 2 || !horiz) emit(run, horiz);
+    }
+  }
+  for (const p of props) if (!p.dead && p.kind === 'bush') out.push({ kind: 'toyTree', mat: 'plastic', x: p.x, y: p.y, w: p.w, h: p.h, v: p.v, hp: p.hp, ids: [p.id] });
+  return out;
 }

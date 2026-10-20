@@ -2,6 +2,7 @@
 
 import { Screen } from './gfx/screen';
 import { input } from './input/input';
+import { touch } from './input/touch';
 import { beginSpriteFrame } from './gfx/sprites';
 
 export interface Scene {
@@ -90,7 +91,9 @@ export class App {
     input.update(real);
     const top = this.top;
     const t0 = performance.now();
+    touch.begin();
     if (top) top.update(dt);
+    touch.end();
     const t1 = performance.now();
     const ctx = this.screen.ctx, wctx = this.screen.wctx;
     // Рисуем снизу вверх начиная с последней непрозрачной сцены.

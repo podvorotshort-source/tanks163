@@ -9,7 +9,7 @@ import {
 import { Player, Enemy, Shot, Mine, Zone, Pickup, Drone, type WeaponInst } from './entities';
 import { CLASSES, ABILITIES, BOSS_ABILITY } from './content/classes';
 import { STAGE_DEFS, type StageDef } from './content/stages';
-import { PropWorld, MATS, makeProp, type Prop } from './props';
+import { PropWorld, MATS, makeProp, type Prop , toyify } from './props';
 import { NavGrid } from './nav';
 import { FireGrid } from './fire';
 import { SpatialHash } from './spatial';
@@ -213,6 +213,9 @@ export class Sim {
     p.hp = clamp(k * p.maxHp, 0, p.maxHp);
     p.weapons.forEach((w, i) => { w.s = computeWeaponStats(p, w.id, w.level, this.starTier, i === 0); });
     p.r = this.size * (p.classId === 'scout' ? 0.36 : p.classId === 'heavy' ? 0.47 : 0.42);
+    // корпус как у модели облика (гусеницы по длине, борта по ширине) — танк не заезжает частями в стены
+    p.hl = this.size * (p.classId === 'scout' ? 0.48 : p.classId === 'heavy' ? 0.56 : 0.5);
+    p.hw = this.size * (p.classId === 'scout' ? 0.32 : p.classId === 'heavy' ? 0.48 : 0.4);
   }
 
   setupStage(n: number, carry: TransitionState | null): void {
@@ -620,13 +623,21 @@ export class Sim {
       for (const p of this.players) { p.x = mbx + (p.x - tr.bx); p.y = mby + (p.y - tr.by); p.px = p.x; p.py = p.y; }
       [this.viewX, this.viewY] = map(this.viewX, this.viewY);
       // Препятствия прежней арены переезжают в новый мир уменьшенными — их можно давить.
-      const carry = this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
+      const alive = this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
+      // Стены и кусты оказываются игрушками: ЛЕГО-кирпичики и пластмассовые деревца (см. toyify).
+      const toys = toyify(alive), toyIds = new Set(toys.flatMap(t => t.ids));
+      const carry = [
+        ...alive.filter(p => !toyIds.has(p.id)).map(p => ({ kind: p.kind, mat: p.mat, x: p.x, y: p.y, w: p.w, h: p.h, hp: p.hp, round: p.round, v: p.v, a: p.a })),
+        ...toys.map(t => ({ kind: t.kind, mat: t.mat, x: t.x, y: t.y, w: t.w, h: t.h, hp: t.hp, round: t.kind === 'toyTree', v: t.v, a: 0 })),
+      ];
       this.setupStage(tr.from + 1, tr);
       for (const p of carry) {
         const [x, y] = map(p.x, p.y);
         // Под танками обломки не оставляем — танк стоит на месте поглощённого босса.
         if (this.players.some(q => Math.abs(q.x - x) < this.size * 0.9 + p.w / G / 2 && Math.abs(q.y - y) < this.size * 0.9 + p.h / G / 2)) continue;
-        this.props.add(makeProp(p.kind, p.mat, x, y, p.w / G, p.h / G, p.hp, { round: p.round, v: p.v, a: p.a }));
+        const pr = makeProp(p.kind, p.mat, x, y, p.w / G, p.h / G, p.hp, { round: p.round, v: p.v, a: p.a });
+        if (p.kind === 'lego') pr.size = Math.min(pr.w, pr.h);   // длинный кирпичик давится, как прежний блок
+        this.props.add(pr);
       }
       this.nav.rebuildBlocked(this.props);
       for (const p of this.players) { p.px = p.x; p.py = p.y; p.vx = p.vy = 0; }

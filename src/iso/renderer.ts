@@ -173,7 +173,7 @@ export class IsoRenderer {
     this.sun.shadow.bias = -0.0006;
     this.scene.add(this.sun); this.scene.add(this.sun.target);
     // Тени на нарисованной земле: прозрачная плоскость, принимающая тень (цвет — холодный фиолетовый).
-    this.shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ color: '#1c1238', opacity: 0.5, depthWrite: false }));
+    this.shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ color: '#150c2c', opacity: 0.68, depthWrite: false }));
     this.shadowPlane.receiveShadow = true; this.shadowPlane.renderOrder = -1;
     this.scene.add(this.shadowPlane);
     this.rt = this.makeTarget(2, 2);

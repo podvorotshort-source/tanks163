@@ -2,6 +2,7 @@ import { App, setApp } from './app';
 import { ModelsScene } from './debug/models';
 import { GameScene } from './client/game';
 import { input } from './input/input';
+import { touch } from './input/touch';
 import { audio } from './audio/audio';
 import { settings } from './meta/settings';
 import { save } from './meta/save';
@@ -20,6 +21,8 @@ setApp(app);
 settings.load();
 save.load();
 input.onAnyInput = () => audio.unlock();
+touch.install();
+touch.onAny = () => audio.unlock();
 addEventListener('keydown', e => {
   if (e.code === 'F11') { e.preventDefault(); try { if (document.fullscreenElement) void document.exitFullscreen(); else void document.documentElement.requestFullscreen(); } catch { /* ignore */ } }
 });

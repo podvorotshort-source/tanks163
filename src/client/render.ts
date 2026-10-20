@@ -1,4 +1,4 @@
-// 2D-слой поверх изометрического 3D-мира (то же низкое разрешение): снаряды, мины, бонусы,
+// 2D-слой поверх изометрического 3D-мира (то же низкое разрешение): снаряды, бонусы,
 // зоны, предупреждения, кольца щитов, вспышки появления, полосы здоровья. Юниты, препятствия
 // и земля рисуются в 3D (src/iso). Круги на земле — эллипсы 2:1 (изометрия).
 
@@ -45,7 +45,6 @@ export function ringIso(ctx: CanvasRenderingContext2D, cx: number, cy: number, r
 export function drawWorld(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { cam } = rc;
   drawZonesGround(ctx, rc);
-  drawMines(ctx, rc);
   drawTelegraphs(ctx, rc);
   rc.fx.draw(ctx, cam, 0);
   if (!rc.hideUnits) drawUnitMarks(ctx, rc);
@@ -84,7 +83,7 @@ function drawUnitMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   for (const e of sim.enemies) {
     const x = lerp(e.px, e.x, rc.alpha), y = lerp(e.py, e.y, rc.alpha);
     if (!cam.visible(x, y, e.size)) continue;
-    const h = e.air ? e.size * 0.9 : 0;
+    const h = e.air ? airH(sim, e) : 0;
     const sx = cam.sxOf(x, y), sy = cam.syOf(x, y, h);
     if (e.spawnT > 0) {
       const u = 1 - e.spawnT / 0.45;
@@ -104,6 +103,11 @@ function drawUnitMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       bar(ctx, sx - w / 2, sy - e.size * cam.zoom * 0.75 - 4, w, 2, e.hp / e.maxHp, e.elite ? '#bb70cc' : '#ea6a3f');
     }
   }
+}
+
+/** Высота полёта: выше стен и танков (иначе винтокрылые «прорезают» блоки и корпус танка). */
+export function airH(sim: Sim, e: Enemy): number {
+  return Math.max(e.size * 0.9, sim.size * 0.8 + e.size * 0.25);
 }
 
 /** Высота «падения» босса при появлении (визуально: сверху, с ударом о землю). */
@@ -130,7 +134,7 @@ function drawBossMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx, e: Enemy, x
   const b = e.brain as { def?: { weak: { dir: number } } } | undefined;
   if (!b?.def) return;
   const a = e.angle + b.def.weak.dir, R = e.size * 0.47;
-  const wx = x + Math.cos(a) * R, wy = y + Math.sin(a) * R, h = (e.air ? e.size * 0.9 : 0) + e.size * 0.22;
+  const wx = x + Math.cos(a) * R, wy = y + Math.sin(a) * R, h = (e.air ? airH(rc.sim, e) : 0) + e.size * 0.22;
   const sx = Math.round(cam.sxOf(wx, wy)), sy = Math.round(cam.syOf(wx, wy, h));
   const pulse = 0.5 + 0.5 * Math.sin(rc.time * 7);
   const r = Math.round(4 + pulse * 3 + e.size * cam.zoom * 0.03);
@@ -291,7 +295,7 @@ function drawTelegraphs(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
 }
 
 // ---------------------------------------------------------------------------
-// Зоны, мины, бонусы
+// Зоны, бонусы (мины — 3D-модели, src/iso/world.ts)
 // ---------------------------------------------------------------------------
 
 function drawZonesGround(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
@@ -311,18 +315,6 @@ function drawZonesGround(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
 }
 
-
-function drawMines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { sim, cam } = rc;
-  for (const m of sim.mines) {
-    if (m.dead || !cam.visible(m.x, m.y, m.r * 2)) continue;
-    const sx = cam.sxOf(m.x, m.y), sy = cam.syOf(m.x, m.y), r = Math.max(1.5, m.r * cam.zoom);
-    ground(ctx, sx, sy + 1, r + 0.5, '#24222a');
-    ground(ctx, sx, sy, r, '#57535f');
-    const lit = m.armT > 0 ? Math.floor(rc.time * 16) % 2 === 0 : Math.floor(rc.time * 3 + m.x) % 3 === 0;
-    if (lit) ctx.drawImage(disc(Math.max(0.5, r * 0.3), '#ea6a3f'), Math.round(sx - r * 0.3), Math.round(sy - r * 0.3 - 1));
-  }
-}
 
 function drawPickups(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { sim, cam } = rc;

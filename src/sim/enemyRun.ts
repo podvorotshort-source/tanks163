@@ -3,7 +3,7 @@
 import type { Sim } from './sim';
 import { Zone, type Enemy, type Player } from './entities';
 import { rotateTowards, clamp } from '../core/math';
-import { MATS, pushOut, type Prop } from './props';
+import { MATS, pushOut, pushOutBox, type Prop } from './props';
 import { damagePlayer, enemyExplode, breakProp, damageProp } from './combat';
 import { updateBoss } from './bosses';
 import { spawnEnemy } from './director';
@@ -79,12 +79,15 @@ export function moveGround(sim: Sim, e: Enemy, dx: number, dy: number, speed: nu
 
 function collide(sim: Sim, e: Enemy): void {
   if (!e.air) {
-    sim.props.queryCircle(e.x, e.y, e.r, tmpP);
+    // Техника — повёрнутый прямоугольник корпуса (как модель), круглые враги (radius в описании) — круг.
+    const box = e.def.radius === undefined, hl = e.size * 0.5, hw = e.size * 0.38;
+    sim.props.queryCircle(e.x, e.y, box ? Math.hypot(hl, hw) : e.r, tmpP);
     for (const pr of tmpP) {
       const m = MATS[pr.mat];
       if (!m.move || pr.dead) continue;
+      const po = box ? pushOutBox(e.x, e.y, e.angle, hl, hw, pr) : pushOut(e.x, e.y, e.r, pr);
+      if (!po) continue;
       if ((e.def.crusher || e === sim.boss) && !m.solid && pr.size <= e.size * 0.3) { breakProp(sim, pr); continue; }
-      const po = pushOut(e.x, e.y, e.r, pr);
       if (po) { e.x += po[0]; e.y += po[1]; }
     }
   }

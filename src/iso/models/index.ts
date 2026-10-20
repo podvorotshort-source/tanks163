@@ -12,6 +12,7 @@ import * as s4 from './stage4';
 import * as s5 from './stage5';
 import * as s6 from './stage6';
 import { DECO } from './deco';
+import * as items from './items';
 
 type Builder = () => ModelDef;
 type PropBuilder = (v: number) => ModelDef;
@@ -36,6 +37,7 @@ export const PROPS: Record<string, PropBuilder> = {
   clutter: s3.clutter, houseWall: () => s3.houseWall(), sofa: s3.sofa, table: () => s3.table(), fridge: () => s3.fridge(), tvStand: () => s3.tvStand(), plant: s3.plant, armchair: s3.armchair, stove: () => s3.stove(),
   car: s4.car, house: s4.house, tree: s4.tree, midrise: s5.midrise, tower: s5.tower,
   cityDot: s6.cityDot, mountain: s6.mountain, crystal: s6.crystal, volcano: s6.volcano,
+  lego: items.lego, toyTree: items.toyTree, barrel: s0.barrel, woodCrate: s0.woodCrate, dice: s0.dice,
 };
 
 /** Регистрация моделей других ступеней (модули добавляют себя сами). */
@@ -53,14 +55,13 @@ function fallback(col: string, n = 12): ModelDef {
 const MINI: Record<string, [string, string]> = {
   brick: ['brk', 'brk_l'], steel: ['stl', 'stl_l'], bush: ['leaf', 'leaf_l'], crate: ['wood', 'wood_l'], hq: ['army', 'army_l'],
   steelWall: ['stl', 'stl_l'], block: ['red', 'toy_y'], book: ['fabric_b', 'paper'], crayon: ['red', 'paper'], marble: ['water_l', 'white'],
-  furnitureLeg: ['wood_d', 'wood'], slipper: ['pink', 'cream'], pillow: ['white', 'fabric_y'],
+  furnitureLeg: ['wood_d', 'wood'], slipper: ['pink', 'cream'], pillow: ['white', 'fabric_y'], toyTree: ['toy_g', 'grass_ll'], barrel: ['red', 'red_l'], woodCrate: ['wood', 'wood_l'], dice: ['white', 'red'],
 };
 function mini(kind: string, v: number): ModelDef {
-  const [a, b] = MINI[kind] ?? ['concrete', 'concrete_l'];
+  const [a, b] = kind === 'lego' ? (v % 10 ? ['lego_g', 'lego_gl'] : ['lego_o', 'lego_ol']) : MINI[kind] ?? ['concrete', 'concrete_l'];
   const n = 6, x = new Vox(n, n, n);
-  if (kind === 'bush' || kind === 'marble') x.sphere(3, 2.6, 3, 2.7, a);
+  if (kind === 'bush' || kind === 'marble' || kind === 'toyTree') x.sphere(3, 2.6, 3, 2.7, a);
   else { x.box(0, n, 0, n - 1, 0, n, a); x.box(0, n, n - 1.6, n - 1, 0, n, b); }
-  void v;
   return { size: n, parts: [{ name: 'body', vox: x }], foot: [n, n] };
 }
 
@@ -74,7 +75,7 @@ function drone(): ModelDef {
 const cache = new Map<string, BuiltModel>();
 const defs: Record<string, () => ModelDef> = {};
 
-/** Ключи: tank:<класс>:<поколение>:<игрок>, wreck:<класс>:<поколение>, e:<art>, boss:<art>, prop:<вид>:<вариант>, drone. */
+/** Ключи: tank:<класс>:<поколение>:<игрок>, wreck:<класс>:<поколение>, e:<art>, boss:<art>, prop:<вид>:<вариант>, mine:<хозяин>:<огонёк>, drone. */
 export function model(key: string): BuiltModel {
   let m = cache.get(key);
   if (m) return m;
@@ -89,6 +90,7 @@ export function model(key: string): BuiltModel {
   else if (kind === 'deco') def = DECO[a] ? DECO[a](+b || 0) : fallback('grass', 4);
   else if (kind === 'mini') def = mini(a, +b || 0);
   else if (kind === 'drone') def = drone();
+  else if (kind === 'mine') def = items.mine(+a || 0, b === '1');
   else def = fallback('pink');
   m = buildModel(def);
   cache.set(key, m);

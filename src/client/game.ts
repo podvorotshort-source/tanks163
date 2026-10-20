@@ -13,6 +13,7 @@ import { Hud } from './hud';
 import { LevelUpUI } from './levelup';
 import { drawWorld, drawWorldLabels, type RenderCtx } from './render';
 import { input } from '../input/input';
+import { touch } from '../input/touch';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
 import { STAGE_DEFS } from '../sim/content/stages';
@@ -80,8 +81,18 @@ export class GameScene implements Scene {
   }
 
   enter(): void {
+    // Одному — камера ближе (крупный пиксель, как в референсе); вдвоём — шире, чтобы оба были в кадре.
+    app.screen.setRows(this.sim.players.length > 1 ? 540 : 360);
     const s = app.screen;
     this.iso.clearDecals();
+    // кусок стены «оборачивается» ЛЕГО — облачко пыли и пара искорок
+    this.iso.onToySwap = (x, y, w, h) => {
+      for (let i = 0; i < 3; i++) {
+        const p = this.fx.spawn('dust', x + (Math.random() - 0.5) * w * 0.8, y + (Math.random() - 0.5) * h * 0.8);
+        p.vx = (Math.random() - 0.5) * 60; p.vy = (Math.random() - 0.5) * 60; p.r = 12; p.r1 = 30; p.life = 0.55; p.col = '#f4ecdc'; p.alpha = 0.6;
+      }
+      const sp = this.fx.spawn('spark', x, y); sp.vx = 0; sp.vy = 0; sp.vz = 80; sp.life = 0.3; sp.col = '#fff6e0';
+    };
     this.cam.setScreen(s.ww, s.wh);
     this.syncCamera(1);
     this.hud.banner(STAGE_DEFS[this.sim.stageIdx].title + ' · ' + STAGE_DEFS[this.sim.stageIdx].subtitle.toUpperCase(), UI.gold, 3.5, 'Модель ' + TIER_ROMAN[this.sim.stageIdx] + ': ' + TIER_NAMES[this.sim.stageIdx], true);
@@ -89,6 +100,7 @@ export class GameScene implements Scene {
   }
 
   exit(): void {
+    app.screen.setRows(540);
     music.stop();
     audio.stopEngines();
   }
@@ -220,6 +232,8 @@ export class GameScene implements Scene {
       this.syncCamera(Math.min(1, dt * 5));
     }
     this.bossLanding();
+    // сенсорные стик и кнопки — только пока идёт бой (в выборе улучшений и паузе касания — как щелчки)
+    if (sim.state === 'play' || sim.state === 'transition') touch.show(sim.players[0].abilities.map(a => a.id));
     this.iso.pump(sim.state === 'transition' ? 6 : 3);
     this.cam.update(dt, settings.data.shake);
     this.engineSound();
@@ -338,13 +352,17 @@ export class GameScene implements Scene {
     // Пламя огнемётов: клубы огня летят за струёй и разрастаются.
     for (const s of sim.shots) {
       if (s.kind !== 'flame' || s.dead) continue;
+      // струя выходит из сопла на высоте башни и к концу оседает к земле
+      const own = sim.players[s.owner];
+      const fd = own ? Math.hypot(s.x - own.x, s.y - own.y) / (sim.size * 3) : 1;
+      const fz = sim.size * 0.5 * Math.max(0.25, 1 - Math.max(0, fd - 0.2) * 0.8);
       if (Math.random() < 0.55) {
         const p = fx.spawn('fire', s.x + (Math.random() - 0.5) * sim.size * 0.08, s.y + (Math.random() - 0.5) * sim.size * 0.08);
-        p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.r = sim.size * 0.07; p.r1 = sim.size * (0.17 + Math.random() * 0.07); p.life = 0.26 + Math.random() * 0.14; p.drag = 4;
+        p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.z = fz; p.r = sim.size * 0.07; p.r1 = sim.size * (0.17 + Math.random() * 0.07); p.life = 0.26 + Math.random() * 0.14; p.drag = 4;
       }
       if (Math.random() < 0.08) {
         const p = fx.spawn('ember', s.x, s.y);
-        p.vx = s.vx * 0.4 + (Math.random() - 0.5) * sim.size; p.vy = s.vy * 0.4; p.vz = sim.size * 0.6; p.r = 0.6; p.r1 = 0.5; p.life = 0.5; p.drag = 2;
+        p.vx = s.vx * 0.4 + (Math.random() - 0.5) * sim.size; p.vy = s.vy * 0.4; p.z = fz; p.vz = sim.size * 0.6; p.r = 0.6; p.r1 = 0.5; p.life = 0.5; p.drag = 2;
       }
     }
     // Горящие враги: языки пламени на корпусе.
@@ -410,7 +428,7 @@ export class GameScene implements Scene {
     const tr = this.sim.transition!;
     return {
       from: tr.from, evolved: false, titled: false, zoomed: false, switchedCam: false,
-      view: { from: tr.from, switched: false, tankScale: 1, evolved: false, wreck: { x: tr.bx, y: tr.by, size: tr.bsize, angle: tr.bangle, art: tr.bart, k: 1 }, oldAlpha: 1, marginAlpha: 1 },
+      view: { from: tr.from, switched: false, tankScale: 1, evolved: false, wreck: { x: tr.bx, y: tr.by, size: tr.bsize, angle: tr.bangle, art: tr.bart, k: 1 }, oldAlpha: 1, marginAlpha: 1, lego: 0 },
     };
   }
 
@@ -441,6 +459,8 @@ export class GameScene implements Scene {
       this.cam.zoom = ART_Z / Math.pow(G, easeInOutCubic(uz));
       v.marginAlpha = 1 - clamp((uz - 0.05) / 0.35, 0, 1);
       v.oldAlpha = 1 - clamp((uz - 0.7) / 0.3, 0, 1);
+      // на отъезде становится видно: стены были ЛЕГО-кирпичиками, кусты — пластмассовыми деревцами
+      v.lego = clamp((uz - 0.42) / 0.45, 0, 1);
       const fx = t < TR_DRIVE1 ? (lead.x + tr.bx) / 2 : tr.bx, fy = t < TR_DRIVE1 ? (lead.y + tr.by) / 2 : tr.by;
       this.cam.x += (fx - this.cam.x) * Math.min(1, dt * 3);
       this.cam.y += (fy - this.cam.y) * Math.min(1, dt * 3);

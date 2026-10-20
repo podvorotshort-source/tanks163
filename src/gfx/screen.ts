@@ -31,6 +31,9 @@ export class Screen {
   /** Пикселей мира на «базовый» пиксель (wh / BASE_H). */
   wunit = 1.5;
   private listeners: (() => void)[] = [];
+  /** Желаемая высота кадра мира в пикселях: 540 — двое в кадре; в одиночной игре ближе (~360, крупный пиксель). */
+  private rows = 540;
+  setRows(n: number): void { if (n !== this.rows) { this.rows = n; this.resize(); } }
 
   constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement, gl: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -62,10 +65,10 @@ export class Screen {
     // Панель инструмента настройки (?dev=tune) занимает место слева.
     const panel = document.getElementById('tune')?.offsetWidth ?? 0;
     const sw = Math.max(320, Math.round((window.innerWidth - panel) * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
-    // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, ~540 строк
-    // (1080p → 540, 1440p → 480, 4K → 540): камера отдалена, чтобы двое игроков помещались в один кадр.
+    // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, ~rows строк
+    // (вдвоём 540: 1080p → 540, 1440p → 480; одному 360: 1080p → 360, телефон → ~390).
     // Чётные размеры — центр кадра на границе пикселей.
-    const kw = Math.max(1, Math.round(sh / 540));
+    const kw = Math.max(1, Math.round(sh / this.rows));
     this.wpixel = kw;
     this.wh = Math.floor(sh / kw) & ~1;
     this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2)) & ~1;

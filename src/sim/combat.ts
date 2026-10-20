@@ -184,6 +184,8 @@ export function breakProp(sim: Sim, pr: Prop): void {
   sim.props.remove(pr);
   sim.emit({ t: 'propBreak', x: pr.x, y: pr.y, w: pr.w, h: pr.h, mat: pr.mat, kind: pr.kind });
   if (pr.kind === 'crate') { dropPowerup(sim, pr.x - pr.w * 0.3, pr.y); dropPowerup(sim, pr.x + pr.w * 0.3, pr.y); }
+  // Бочка со взрывчаткой: взрыв бьёт врагов и препятствия вокруг (игрокам — никогда), соседние бочки рвутся цепочкой.
+  if (pr.kind === 'barrel') explode(sim, pr.x, pr.y, sim.size * 1.6, 45 * sim.tankPower(), 'he', -1, '', { kind: 'big', props: 2 });
 }
 
 /** Урон игроку от врага. */

@@ -190,34 +190,41 @@ export function windupGeneral(): ModelDef {
 
 /** Сторона блока стены (ед. и воксели): кратна кирпичу (9) и плите стали — соседние блоки сливаются в сплошную стену. */
 export const WALL_BLK = 45;
-const WALL_H = 28;
+/** Высота блока: почти куб (6 рядов кирпича по 7) — как в референсе, а не плоская плитка. */
+const WALL_H = 42;
 
 export function brick(v: number): ModelDef {
-  // Блок кирпичной стены: кладка с перевязкой (кирпич 8×3 + шов 1), тёмный раствор, у каждого кирпича светлая
-  // верхняя кромка и тёмный правый торец, редкие светлые/тёмные кирпичи. Узор с периодом 45 — стыкуется с соседями.
+  // Блок кирпичной стены: крупная кладка с перевязкой (кирпич 14×6 + шов 1, три кирпича на блок, четыре ряда),
+  // тёмный раствор, у каждого кирпича светлая верхняя и левая кромки, тёмный правый торец и низ, редкие
+  // щербинки; тона кирпичей чуть разные. Узор с периодом 45 — стыкуется с соседями.
   // v & 1 — направление кладки на крыше (вдоль x или z), v >> 1 — вариант разброса тонов.
   const n = WALL_BLK, H = WALL_H, b = new Vox(n, H, n), along = v & 1, sd = v >> 1;
-  const tint = (k: number, row: number) => { const h = (k * 7 + row * 13 + sd * 5 + 3) % 11; return h === 0 ? 'brk_l' : h === 6 ? 'brk_d' : 'brk'; };
-  // кирпич в развёртке: u — вдоль ряда, y — высота ряда; вернёт цвет пикселя
-  const course = (u: number, y: number, row0: number) => {
-    const row = Math.floor(y / 4), fy = y - row * 4;
-    if (fy >= 3) return 'brk_m';                                                // шов между рядами (сверху ряда)
-    const off = ((row + row0) % 2) * 4.5, k = Math.floor((u + off) / 9), fx = u + off - k * 9;
-    if (fx >= 8) return 'brk_m';                                                // вертикальный шов
+  const tint = (k: number, row: number) => { const h = (k * 5 + row * 3 + sd * 7 + 2) % 7; return h === 0 ? 'brk_l' : h === 4 ? 'brk_d' : 'brk'; };
+  const lit = (c: string) => (c === 'brk_d' ? 'brk' : c === 'brk_l' ? 'brk_ll' : 'brk_l');
+  const dim = (c: string) => (c === 'brk_l' ? 'brk' : 'brk_d');
+  // кирпич в развёртке: u — вдоль ряда, y — поперёк (высота ряда), rp — шаг рядов; вернёт цвет пикселя
+  const course = (u: number, y: number, row0: number, rp: number) => {
+    const row = Math.floor(y / rp), fy = y - row * rp;
+    if (fy >= rp - 1) return 'brk_m';                                           // шов между рядами (сверху ряда)
+    const off = ((row + row0) % 2) * 7.5, k = Math.floor((u + off) / 15), fx = u + off - k * 15;
+    if (fx >= 14) return 'brk_m';                                               // вертикальный шов
     const base = tint(k, row + row0);
-    if (fy >= 2) return base === 'brk_d' ? 'brk' : base === 'brk_l' ? 'brk_ll' : 'brk_l';   // светлая верхняя кромка кирпича
-    if (fx >= 7) return 'brk_d';                                                // тёмный торец
+    if (fy >= rp - 2) return lit(base);                                         // светлая верхняя кромка
+    if (fx < 1) return lit(base);                                               // светлая левая кромка
+    if (fx >= 13 || fy < 1) return dim(base);                                   // тёмный торец и низ
+    const hh = (Math.floor(u) * 31 + Math.floor(y) * 17 + k * 7 + sd) % 23;
+    if (hh === 0) return dim(base);                                             // щербинка
     return base;
   };
   b.fill((x, y, z) => {
     const ux = x < 1 || x > n - 1, uz = z < 1 || z > n - 1;
     if (y > H - 1) {
-      // крыша: кирпичи плашмя, ряды по 4 вдоль направления кладки
+      // крыша: кирпичи плашмя, пять рядов на блок вдоль направления кладки
       const [u, w] = along ? [z, x] : [x, z];
-      return course(u, w, 1);
+      return course(u, w, 1, 9);
     }
     if (!ux && !uz) return 'brk_m';
-    return course(ux ? z : x, y, 0);
+    return course(ux ? z : x, y, 0, 7);
   });
   return one(b, n, [n, n]);
 }
@@ -260,14 +267,67 @@ export function steel(v: number): ModelDef {
   return one(b, n, [n, n]);
 }
 
+/** Размеры кустов (ед. = воксели): маленький, средний, большой — каждый в своей плотности 1 воксель ≈ 1 пиксель. */
+export const BUSH_SIZES = [30, 46, 64];
+
 export function bush(v: number): ModelDef {
-  // пышный куст из нескольких шапок листвы: светлый верх, тёмный низ, красные ягоды
-  const n = 48, b = new Vox(n, 30, n);
+  // пышный куст из нескольких шапок листвы: светлый верх, тёмный низ, красные ягоды; v % 3 — размер, v >> 2 — вариант
+  const n = BUSH_SIZES[v % 3], k = n / 48, sd = v >> 2, b = new Vox(n, Math.ceil(32 * k) + 2, n);
   const blobs: [number, number, number, number][] = [[24, 13, 24, 13], [13, 9, 15, 9], [35, 10, 16, 9.5], [14, 10, 33, 9.5], [33, 9, 34, 10], [23, 19, 20, 8], [28, 17, 29, 7.5]];
-  for (const [x, y, z, r] of blobs) b.ell(x, y, z, r, r * 0.82, r, 'leaf');
-  b.paint((x, y, z) => { const h = Math.sin(x * 0.9 + z * 0.6 + v) * Math.cos(z * 0.8 - y * 0.7); return h > 0.62 ? 'leaf_l' : h < -0.66 ? 'leaf_d' : undefined; });
-  b.paint((x, y) => (y > 21 ? 'grass_ll' : y < 4 ? 'leaf_d' : undefined));
-  for (let i = 0; i < 9; i++) { const x = 8 + ((i * 17 + v * 5) % 32), z = 8 + ((i * 23 + v * 3) % 32), y = 8 + (i % 4) * 3; b.paint(() => 'berry', x, x + 2, y, y + 2, z, z + 2); }
+  for (const [x, y, z, r] of blobs) b.ell(x * k, y * k, z * k, r * k, r * k * 0.82, r * k, 'leaf');
+  // листва пятнами (крупные пятна тона), светлые макушки, тёмный низ
+  b.paint((x, y, z) => { const h = Math.sin(x / k * 0.9 + z / k * 0.6 + sd) * Math.cos(z / k * 0.8 - y / k * 0.7); return h > 0.62 ? 'leaf_l' : h < -0.66 ? 'leaf_d' : undefined; });
+  b.paint((x, y) => (y > 21 * k ? 'grass_ll' : y < 4 * k ? 'leaf_d' : undefined));
+  const nb = Math.round(4 + 5 * k);
+  for (let i = 0; i < nb; i++) { const x = 8 * k + ((i * 17 + sd * 5) % 32) * k, z = 8 * k + ((i * 23 + sd * 3) % 32) * k, y = (8 + (i % 4) * 3) * k; b.paint(() => 'berry', x, x + 2, y, y + 2, z, z + 2); }
+  return one(b, n, [n, n]);
+}
+
+/** Бочка со взрывчаткой: красная, обручи, белая полоса, крышка с жёлтым знаком. Взрывается от попаданий. */
+export function barrel(v: number): ModelDef {
+  const n = 22, c = 11, H = 28, b = new Vox(n, H + 1, n);
+  b.cylY(c, c, 9.6, 0, H, 'red');
+  for (const y of [3, H - 4]) b.cylY(c, c, 10.2, y, y + 2, 'red_d');                  // обручи
+  b.cylY(c, c, 9.8, 12, 16, 'white');                                                 // полоса
+  b.paint((x, y, z) => (Math.abs(Math.atan2(z - c, x - c) - 0.8) < 0.25 && y > 12.5 && y < 15.5 ? 'black' : undefined), 0, n, 12, 16, 0, n);  // знак
+  b.cylY(c, c, 8.4, H, H + 1, 'red_l');                                               // крышка
+  b.cylY(c - 3, c + 3, 1.6, H, H + 1, 'gun_d');                                       // пробка
+  b.paint((x, y, z) => (Math.abs(x - c - 2) + Math.abs(z - c + 2) < 3 ? 'yel' : undefined), 0, n, H, H + 1, 0, n);
+  b.paint((x, y, z) => ((x + z + v) % 9 < 1 && y < H ? 'red_l' : undefined), 0, n, 4, H - 4, 0, n);   // блики-подтёки
+  return one(b, n, [n, n]);
+}
+
+/** Деревянный ящик: доски, тёмная рамка, косая распорка, трафарет. */
+export function woodCrate(v: number): ModelDef {
+  const n = 32, H = 30, b = new Vox(n, H, n);
+  b.box(0, n, 0, H, 0, n, 'wood');
+  b.paint((x, y, z) => {
+    const ex = x < 3 || x > n - 3, ez = z < 3 || z > n - 3, ey = y < 3 || y > H - 3;
+    if ((ex && ez) || (ex && ey) || (ez && ey)) return 'wood_d';                     // рамка
+    const side = x > n - 1 || z > n - 1 || x < 1 || z < 1, top = y > H - 1;
+    const u = top ? x : x > n - 1 || x < 1 ? z : x, w = top ? z : y;
+    if (!top && side && Math.abs(u - w * (n / H)) < 1.6) return 'wood_d';           // распорка
+    if (Math.floor(w) % 6 === 0) return 'wood_d';                                    // щели между досками
+    if ((Math.floor(u * 3 + w * 7 + v)) % 29 === 0) return 'wood_l';
+    return undefined;
+  });
+  b.paint((x, y, z) => (y > H - 1 && Math.abs(x - n / 2) < 4 && Math.abs(z - n / 2) < 4 && (Math.abs(x - n / 2) < 1.2 || Math.abs(z - n / 2) < 1.2) ? 'red' : undefined));   // трафарет-крест
+  return one(b, n, [n, n]);
+}
+
+/** Игральный кубик: белый со скруглёнными рёбрами и красными точками (игрушка с полигона). */
+export function dice(v: number): ModelDef {
+  const n = 26, b = new Vox(n, n, n), c = n / 2;
+  b.fill((x, y, z) => {
+    const dx = Math.max(0, Math.abs(x - c) - (c - 3)), dy = Math.max(0, Math.abs(y - c) - (c - 3)), dz = Math.max(0, Math.abs(z - c) - (c - 3));
+    return dx * dx + dy * dy + dz * dz <= 9 ? 'white' : undefined;
+  });
+  const pip = (cx: number, cy: number, cz: number) => b.paint(() => 'red', cx - 1.5, cx + 1.5, cy - 1.5, cy + 1.5, cz - 1.5, cz + 1.5);
+  const f = [6.5, 13, 19.5];
+  const faces = [[[1, 1]], [[0, 0], [2, 2]], [[0, 0], [1, 1], [2, 2]], [[0, 0], [0, 2], [2, 0], [2, 2]], [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]]];
+  for (const [i, j] of faces[(v + 4) % 5]) pip(f[i], n - 0.5, f[j]);                // верх
+  for (const [i, j] of faces[(v + 1) % 5]) pip(f[i], f[j], n - 0.5);                // бок z+
+  for (const [i, j] of faces[(v + 2) % 5]) pip(n - 0.5, f[i], f[j]);                // бок x+
   return one(b, n, [n, n]);
 }
 

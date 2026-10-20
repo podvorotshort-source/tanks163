@@ -63,6 +63,8 @@ function free(list: Prop[], x: number, y: number, w: number, h: number, keep: { 
 const BLK = 45;
 const ROOM = 6;          // блоков на сторону комнаты
 const TOY_COLS = 10, TOY_ROWS = 6;
+/** Размеры кустов (как модели src/iso/models/stage0.ts BUSH_SIZES). */
+const BUSH_SIZES = [30, 46, 64];
 
 function toyProps(rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
@@ -82,19 +84,23 @@ function toyProps(rng: Rng, s: StageDef): Prop[] {
       if (!cur || (mat === 'steel' && cur.mat === 'brick')) sites.set(k, { mat, along });
     }
   };
-  // Стена по стороне комнаты: from (i0, j0) вдоль оси (di, dj) на ROOM блоков, с узлами по концам.
+  // Стена по стороне комнаты: from (i0, j0) вдоль оси (di, dj). Короткие куски (2–4 блока) и «пеньки» у углов —
+  // в углах сходятся в Г-образные укрытия; длинных сплошных стен нет (картинка богаче, бой подвижнее).
   const wall = (i0: number, j0: number, di: number, dj: number) => {
     const r = rng.next();
-    if (r < 0.3) return;                                                      // нет стены — открытая сторона
-    const type = rng.next();                                                  // кирпич / сталь / кирпич со стальными торцами
-    const mat = (k: number) => (type < 0.14 ? 'steel' : type < 0.3 && (k <= 1 || k >= ROOM - 1) ? 'steel' : 'brick');
-    const half = r < 0.42;                                                    // полустена от угла
-    const flip = rng.next() < 0.5;
-    const gl = rng.next() < 0.6 ? 2 : 3;                                      // проход на 2–3 блока
-    const gap = 1 + rng.int(0, ROOM - 1 - gl);
-    for (let k = 0; k <= ROOM; k++) {
-      if (half ? (flip ? k < ROOM / 2 : k > ROOM / 2) : k >= gap && k < gap + gl) continue;
-      put(i0 + di * k, j0 + dj * k, mat(k) as 'brick' | 'steel', dj ? 1 : 0);
+    if (r < 0.22) return;                                                     // нет стены — открытая сторона
+    const type = rng.next();                                                  // кирпич / сталь / кирпич со стальным торцом
+    const runs: [number, number][] = [];
+    if (r < 0.6) {
+      runs.push([0, 1 + rng.int(0, 1)]);                                      // пенёк от одного угла
+      if (rng.next() < 0.6) runs.push([ROOM - 1 - rng.int(0, 1), ROOM]);      // и от другого
+    } else {
+      const L = 2 + rng.int(0, 2), a = 1 + rng.int(0, ROOM - 1 - L);
+      runs.push([a, a + L - 1]);                                              // кусок в середине
+    }
+    for (const [a, b] of runs) for (let k = a; k <= b; k++) {
+      const mat = type < 0.1 ? 'steel' : type < 0.24 && k === b ? 'steel' : 'brick';
+      put(i0 + di * k, j0 + dj * k, mat, dj ? 1 : 0);
     }
   };
   // Только четверть (левый верхний угол), остальное — зеркалом. Внешние границы арены — без стен.
@@ -103,7 +109,7 @@ function toyProps(rng: Rng, s: StageDef): Prop[] {
   // Островки: стальной «сейф» 2×2 в центре некоторых комнат.
   for (let gy = 0; gy < TOY_ROWS / 2; gy++) for (let gx = 0; gx < TOY_COLS / 2; gx++) {
     const r = rng.next(), i = gx * ROOM + ROOM / 2, j = gy * ROOM + ROOM / 2;
-    if (r < 0.1) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(i - 1 + a, j - 1 + b, 'steel', 0);
+    if (r < 0.06) for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) put(i - 1 + a, j - 1 + b, 'steel', 0);
   }
   for (const [k, st] of sites) {
     const i = Math.floor(k / 1000), j = k % 1000;
@@ -112,14 +118,36 @@ function toyProps(rng: Rng, s: StageDef): Prop[] {
     if (!free(out, X, Y, BLK, BLK, keep, -2)) continue;
     out.push(P(0, st.mat, st.mat, X, Y, BLK, BLK, { v: st.mat === 'brick' ? st.along + 2 * (hash2(i, j, 31) * 4 | 0) : 0 }));
   }
-  // Кусты в некоторых комнатах (тоже зеркально).
-  for (let gy = 0; gy < TOY_ROWS / 2; gy++) for (let gx = 0; gx < TOY_COLS / 2; gx++) {
-    if (rng.next() > 0.28) continue;
-    const dx = rng.range(-50, 50), dy = rng.range(-50, 50), sz = rng.range(66, 84);
+  // Наполнение комнат (зеркально): кусты трёх размеров, бочки со взрывчаткой, ящики, игральные кубики.
+  const mirror = (kind: string, mat: Material, X0: number, Y0: number, w: number, h: number, o: Partial<Prop> = {}) => {
     for (const [fx, fy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
-      const X = cx + fx * (ox + (gx + 0.5) * ROOM * BLK + dx - cx), Y = cy + fy * (oy + (gy + 0.5) * ROOM * BLK + dy - cy);
-      if (free(out, X, Y, sz, sz, keep, 4)) out.push(P(0, 'bush', 'bush', X, Y, sz, sz, { v: (gx + gy) % 3 }));
+      const X = cx + fx * (X0 - cx), Y = cy + fy * (Y0 - cy);
+      if (free(out, X, Y, w, h, keep, 6)) out.push(P(0, kind, mat, X, Y, w, h, o));
     }
+  };
+  for (let gy = 0; gy < TOY_ROWS / 2; gy++) for (let gx = 0; gx < TOY_COLS / 2; gx++) {
+    const rx = ox + (gx + 0.5) * ROOM * BLK, ry = oy + (gy + 0.5) * ROOM * BLK, span = ROOM * BLK / 2 - BLK * 1.2;
+    const spot = () => [rx + rng.range(-span, span), ry + rng.range(-span, span)];
+    if (rng.next() < 0.55) {
+      // куст-группа: крупный и пара мелких рядом
+      const [X, Y] = spot(), big = rng.int(1, 2), sz = BUSH_SIZES[big];
+      mirror('bush', 'bush', X, Y, sz, sz, { v: big + 4 * rng.int(0, 3) });
+      for (let k = rng.int(0, 2); k > 0; k--) {
+        const c = rng.int(0, 1), s2 = BUSH_SIZES[c], a = rng.range(0, Math.PI * 2), d = (sz + s2) * 0.5;
+        mirror('bush', 'bush', X + Math.cos(a) * d, Y + Math.sin(a) * d, s2, s2, { v: c + 4 * rng.int(0, 3) });
+      }
+    }
+    if (rng.next() < 0.4) {
+      // бочки: одна–три вплотную
+      const [X, Y] = spot(), n = rng.int(1, 3);
+      for (let k = 0; k < n; k++) mirror('barrel', 'metal', X + (k % 2) * 23, Y + (k >> 1) * 23 + (k === 1 ? 6 : 0), 22, 22, { v: rng.int(0, 8), round: true, hp: 6, maxHp: 6 });
+    }
+    if (rng.next() < 0.3) {
+      const [X, Y] = spot();
+      mirror('woodCrate', 'wood', X, Y, 32, 32, { v: rng.int(0, 5) });
+      if (rng.next() < 0.5) mirror('woodCrate', 'wood', X + 33, Y + rng.range(-6, 6), 32, 32, { v: rng.int(0, 5) });
+    }
+    if (rng.next() < 0.14) { const [X, Y] = spot(); mirror('dice', 'plastic', X, Y, 26, 26, { v: rng.int(0, 4) }); }
   }
   return out;
 }
@@ -318,37 +346,37 @@ export const STAGE_DEFS: StageDef[] = [
     fuel: (x, y) => 0.45 + fuelNoise(0.003, 7)(x, y) * 0.3, props: carpetProps,
   },
   {
-    idx: 2, name: 'Детская комната', title: 'СТУПЕНЬ III', subtitle: 'Вся комната целиком', w: ARENA_W, h: ARENA_H,
+    idx: 2, name: 'Комната', title: 'СТУПЕНЬ III', subtitle: 'Вся комната целиком', w: ARENA_W, h: ARENA_H,
     relicX: 1500, relicY: 860, boss: 'vacuumLeviathan', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy'],
     fuel: (x, y) => 0.45 + fuelNoise(0.003, 9)(x, y) * 0.3, props: roomProps,
   },
   {
-    idx: 3, name: 'Квартира', title: 'СТУПЕНЬ IV', subtitle: 'Квартира и дом', w: ARENA_W, h: ARENA_H,
+    idx: 3, name: 'Квартира', title: 'СТУПЕНЬ IV', subtitle: 'Вся квартира', w: ARENA_W, h: ARENA_H,
     relicX: 1400, relicY: 520, boss: 'fridgeFortress', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'hq', 'swarm', 'convoy'],
     fuel: (x, y) => 0.35 + fuelNoise(0.003, 11)(x, y) * 0.3, props: houseProps,
   },
   {
-    idx: 4, name: 'Улицы', title: 'СТУПЕНЬ V', subtitle: 'Улицы и район', w: ARENA_W, h: ARENA_H,
+    idx: 4, name: 'Улицы', title: 'СТУПЕНЬ V', subtitle: 'Улицы и дома', w: ARENA_W, h: ARENA_H,
     relicX: 1200, relicY: 600, boss: 'roadRoller', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'convoy', 'swarm', 'hq'],
     fuel: (x, y) => 0.2 + fuelNoise(0.004, 13)(x, y) * 0.35, props: streetProps,
   },
   {
-    idx: 5, name: 'Мегаполис', title: 'СТУПЕНЬ VI', subtitle: 'Мегаполис', w: ARENA_W, h: ARENA_H,
+    idx: 5, name: 'Города', title: 'СТУПЕНЬ VI', subtitle: 'Города', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'skyFortress', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy'],
     fuel: (x, y) => 0.12 + fuelNoise(0.003, 15)(x, y) * 0.2, props: megaProps,
   },
   {
-    idx: 6, name: 'Земли титанов', title: 'СТУПЕНЬ VII', subtitle: 'Танки размером с города', w: ARENA_W, h: ARENA_H,
+    idx: 6, name: 'Континенты', title: 'СТУПЕНЬ VII', subtitle: 'Континенты', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'cityTitan', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'hq', 'swarm'],
     fuel: (x, y) => 0.3 + fuelNoise(0.002, 17)(x, y) * 0.4, props: regionProps,
   },
   {
-    idx: 7, name: 'Планета', title: 'СТУПЕНЬ VIII', subtitle: 'Планетарная война', w: ARENA_W, h: ARENA_H,
+    idx: 7, name: 'Планеты', title: 'СТУПЕНЬ VIII', subtitle: 'Планеты', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'planetEater', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy'],
     fuel: (x, y) => 0.15 + fuelNoise(0.002, 19)(x, y) * 0.3, props: planetProps,

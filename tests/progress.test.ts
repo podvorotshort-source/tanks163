@@ -31,10 +31,12 @@ describe('переход между масштабами', () => {
     // Трофей — способность босса.
     expect(p.abilities.some(a => a.id === 'magma')).toBe(true);
     void TANK_BASE;
-    // Старые препятствия переехали уменьшенными и давятся танком.
-    expect(sim.props.props.some(pr => pr.kind === 'brick')).toBe(true);
-    const brick = sim.props.props.find(pr => pr.kind === 'brick')!;
-    expect(brick.size).toBeLessThan(sim.size * PROP_CRUSH);
+    // Старые стены переехали уменьшенными — это ЛЕГО-кирпичики (оранжевые и серые), и они давятся танком.
+    expect(sim.props.props.some(pr => pr.kind === 'brick' || pr.kind === 'steel')).toBe(false);
+    const lego = sim.props.props.filter(pr => pr.kind === 'lego');
+    expect(lego.length).toBeGreaterThan(10);
+    expect(lego.some(pr => pr.v % 10 === 0) && lego.some(pr => pr.v % 10 === 1)).toBe(true);
+    for (const pr of lego) expect(pr.size).toBeLessThan(sim.size * PROP_CRUSH);
   });
 
   it('после последнего босса — победа', () => {

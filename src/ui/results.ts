@@ -9,7 +9,7 @@ import { panel, VMenu, menuBackground } from './widgets';
 import { save } from '../meta/save';
 import type { VariantDef } from '../meta/meta';
 import { THREATS, WORKSHOP } from '../meta/meta';
-import { WEAPONS } from '../sim/content/weapons';
+import { WEAPONS, BOSS_WEAPON } from '../sim/content/weapons';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { BOSSES } from '../sim/bosses';
 import { fmtTime } from '../core/math';
@@ -127,6 +127,8 @@ export class ResultsScene implements Scene {
     let ly = ry + 20;
     const line = (s: string, color: string) => { for (const l of wrapText(s, colW)) { drawText(ctx, l, cx, ly, { align: 'center', color }); ly += 11; } };
     if (this.newTrophies.length) line('НОВЫЕ ТРОФЕИ: ' + this.newTrophies.map(b => BOSSES[b]?.name ?? b).join(', '), UI.purple);
+    const newW = this.newTrophies.map(b => BOSS_WEAPON[STAGE_DEFS.findIndex(st => st.boss === b)]).filter(Boolean);
+    if (newW.length) line('В МАСТЕРСКОЙ ОТКРЫТО: ' + newW.map(w => WEAPONS[w!].name).join(', '), UI.gold);
     if (this.newThreat) line(`ОТКРЫТ НОВЫЙ УРОВЕНЬ УГРОЗЫ: ${THREATS[save.data.threatUnlocked].name.toUpperCase()}`, UI.red);
     if (this.newRecord) line('НОВЫЙ РЕКОРД: ДАЛЬШЕ ВСЕГО!', UI.green);
     if (!this.win) {

@@ -13,6 +13,7 @@ import { save } from '../meta/save';
 import { WORKSHOP, ARSENAL, RESEARCH, GARAGE, VARIANTS, THREATS, type UnlockDef } from '../meta/meta';
 import { BOSSES } from '../sim/bosses';
 import { STAGE_DEFS } from '../sim/content/stages';
+import { WEAPONS, BOSS_WEAPON } from '../sim/content/weapons';
 import { fmtTime } from '../core/math';
 import { TitleScene } from './title';
 import { SetupScene } from './setup';
@@ -62,7 +63,7 @@ export class BaseScene implements Scene {
             buy: () => { if (save.spend(cost)) { d.workshop[w.id] = r + 1; save.save(); } },
           };
         });
-      case 'arsenal': return ARSENAL.map(u => this.unlockRow(u));
+      case 'arsenal': return [...this.trophyRows(), ...ARSENAL.map(u => this.unlockRow(u))];
       case 'research': return RESEARCH.map(u => this.unlockRow(u));
       case 'garage': return [
         ...VARIANTS.filter(v => v.cost === 0).map(v => ({ icon: 'c_' + v.cls, name: v.name, desc: v.desc, status: 'ЕСТЬ', cost: 0, can: false, owned: true })),
@@ -70,6 +71,21 @@ export class BaseScene implements Scene {
       ];
       case 'trophies': return [];
     }
+  }
+
+  /** Трофейное оружие: открывается само победой над боссом своей ступени (до этого — замок и имя босса). */
+  private trophyRows(): Row[] {
+    const d = save.data;
+    return STAGE_DEFS.flatMap((s, i) => {
+      const w = BOSS_WEAPON[i];
+      if (!w) return [];
+      const got = (d.trophies[s.boss] ?? 0) > 0, boss = BOSSES[s.boss]?.name ?? s.boss;
+      return [{
+        icon: got ? 'w_' + w : 'lock', name: (got ? '' : '??? ') + WEAPONS[w].name,
+        desc: got ? `Трофей босса «${boss}». ${WEAPONS[w].desc}` : `Трофейное оружие. Победите босса «${boss}» (${s.title}) — откроется навсегда и сразу появится в карточках того же забега.`,
+        status: got ? 'ТРОФЕЙ' : 'ЗАКРЫТО', cost: 0, can: false, owned: got,
+      }];
+    });
   }
 
   private unlockRow(u: UnlockDef): Row {

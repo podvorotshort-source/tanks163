@@ -407,19 +407,51 @@ function regionProps(rng: Rng, s: StageDef): Prop[] {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Планета
+// 8. Страна: деревни у дорог, ветряки, стога в полях, рощи
+// ---------------------------------------------------------------------------
+function countryProps(rng: Rng, s: StageDef): Prop[] {
+  const out: Prop[] = [];
+  const keep = [{ x: s.relicX, y: s.relicY, r: 420 }];
+  const add = (kind: string, mat: Material, x: number, y: number, w: number, h: number, o: Partial<Prop> = {}, pad = 10) => { if (x > w / 2 && y > h / 2 && x < s.w - w / 2 && y < s.h - h / 2 && free(out, x, y, w, h, keep, pad)) out.push(P(s.idx, kind, mat, x, y, w, h, o)); };
+  for (let i = 0; i < 12; i++) { const t = rng.next(); add('village', 'brick', 2880 * t + rng.range(-60, 60), 420 + 220 * t + rng.range(40, 120) * (rng.chance(0.5) ? 1 : -1), 96, 96, { round: true, v: rng.int(0, 7) }, 30); }
+  for (let i = 0; i < 6; i++) add('village', 'brick', rng.range(100, s.w - 100), rng.range(100, s.h - 100), 96, 96, { round: true, v: rng.int(0, 7) }, 30);
+  for (let i = 0; i < 10; i++) add('windmill', 'wood', rng.range(80, s.w - 80), rng.range(80, s.h - 80), 34, 34, { round: true }, 20);
+  for (let i = 0; i < 60; i++) add('haystack', 'paper', rng.range(40, s.w - 40), rng.range(40, s.h - 40), 20, 20, { round: true, v: rng.int(0, 3) }, 8);
+  for (let g = 0; g < 10; g++) { const cx = rng.range(150, s.w - 150), cy = rng.range(150, s.h - 150); for (let i = 0; i < 8; i++) add('tree', 'bush', cx + rng.range(-70, 70), cy + rng.range(-50, 50), 30, 30, { round: true, v: rng.chance(0.5) ? 2 : 0 }, 2); }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 9. Континенты: горные хребты, вулканы, города-огни
+// ---------------------------------------------------------------------------
+function continentProps(rng: Rng, s: StageDef): Prop[] {
+  const out: Prop[] = [];
+  const keep = [{ x: s.relicX, y: s.relicY, r: 420 }];
+  const add = (kind: string, mat: Material, x: number, y: number, w: number, h: number, o: Partial<Prop> = {}, pad = 10) => { if (x > w / 2 && y > h / 2 && x < s.w - w / 2 && y < s.h - h / 2 && free(out, x, y, w, h, keep, pad)) out.push(P(s.idx, kind, mat, x, y, w, h, o)); };
+  // хребты: цепочки гор
+  for (let r = 0; r < 3; r++) {
+    let x = rng.range(200, s.w - 200), y = rng.range(150, s.h - 150);
+    const a = rng.range(0, Math.PI);
+    for (let i = 0; i < 6; i++) { const w = rng.range(130, 220); add('mountain', 'rock', x, y, w, w * 0.8, { round: true, v: rng.int(0, 5) }, 6); x += Math.cos(a) * 150; y += Math.sin(a) * 110; }
+  }
+  for (let i = 0; i < 4; i++) { const r = rng.range(70, 110); add('volcano', 'rock', rng.range(150, s.w - 150), rng.range(150, s.h - 150), r * 2, r * 2, { round: true, v: rng.int(0, 3) }, 30); }
+  for (let i = 0; i < 40; i++) { const sz = rng.range(40, 70); add('cityDot', 'concrete', rng.range(60, s.w - 60), rng.range(60, s.h - 60), sz, sz, { round: true, v: rng.int(0, 7) }, 14); }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 10. Планеты: планеты с кольцами, пояса астероидов, кристаллы
 // ---------------------------------------------------------------------------
 function planetProps(rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
-  const keep = [{ x: s.relicX, y: s.relicY, r: 360 }];
-  for (let i = 0; i < 14; i++) {
-    const r = rng.range(70, 140), x = rng.range(150, s.w - 150), y = rng.range(150, s.h - 150);
-    if (free(out, x, y, r * 2, r * 2, keep, 40)) out.push(P(s.idx, 'volcano', 'rock', x, y, r * 2, r * 2, { round: true, v: rng.int(0, 3) }));
+  const keep = [{ x: s.relicX, y: s.relicY, r: 460 }];
+  const add = (kind: string, mat: Material, x: number, y: number, w: number, h: number, o: Partial<Prop> = {}, pad = 10) => { if (x > w / 2 && y > h / 2 && x < s.w - w / 2 && y < s.h - h / 2 && free(out, x, y, w, h, keep, pad)) out.push(P(s.idx, kind, mat, x, y, w, h, o)); };
+  for (let i = 0; i < 10; i++) { const r = rng.range(70, 130); add('planet', 'rock', rng.range(150, s.w - 150), rng.range(150, s.h - 150), r * 2, r * 2, { round: true, v: rng.int(0, 11) }, 60); }
+  for (let b = 0; b < 3; b++) {
+    const a = rng.range(0, Math.PI), cx = rng.range(400, s.w - 400), cy = rng.range(300, s.h - 300);
+    for (let i = -10; i <= 10; i++) { const d = rng.range(24, 50); add('asteroid', 'rock', cx + Math.cos(a) * i * 70 + rng.range(-30, 30), cy + Math.sin(a) * i * 50 + rng.range(-30, 30), d, d, { round: true, v: rng.int(0, 5) }, 6); }
   }
-  for (let i = 0; i < 40; i++) {
-    const r = rng.range(16, 34), x = rng.range(60, s.w - 60), y = rng.range(60, s.h - 60);
-    if (free(out, x, y, r * 2, r * 2, keep, 10)) out.push(P(s.idx, 'crystal', 'ice', x, y, r * 2, r * 2, { round: true, v: rng.int(0, 4) }));
-  }
+  for (let i = 0; i < 24; i++) { const r = rng.range(14, 26); add('crystal', 'ice', rng.range(60, s.w - 60), rng.range(60, s.h - 60), r * 2, r * 2, { round: true, v: rng.int(0, 4) }, 10); }
   return out;
 }
 
@@ -472,13 +504,13 @@ export const STAGE_DEFS: StageDef[] = [
     idx: 7, name: 'Страна', title: 'СТУПЕНЬ VIII', subtitle: 'Страна', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'groza', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy', 'hq'],
-    fuel: (x, y) => 0.4 + fuelNoise(0.002, 16)(x, y) * 0.4, props: regionProps,
+    fuel: (x, y) => 0.4 + fuelNoise(0.002, 16)(x, y) * 0.4, props: countryProps,
   },
   {
     idx: 8, name: 'Континенты', title: 'СТУПЕНЬ IX', subtitle: 'Континенты', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'cityTitan', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'hq', 'swarm'],
-    fuel: (x, y) => 0.3 + fuelNoise(0.002, 17)(x, y) * 0.4, props: regionProps,
+    fuel: (x, y) => 0.3 + fuelNoise(0.002, 17)(x, y) * 0.4, props: continentProps,
   },
   {
     idx: 9, name: 'Планеты', title: 'СТУПЕНЬ X', subtitle: 'Планеты', w: ARENA_W, h: ARENA_H,

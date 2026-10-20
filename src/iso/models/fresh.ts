@@ -221,3 +221,94 @@ export function starCannon(): ModelDef {
   t.cylX(10, tc, 6, tcx + 44, tcx + 48, 'gun'); t.cylX(10, tc, 3, tcx + 47, tcx + 48.6, 'glow_r');
   return { size: 46, parts: [{ name: 'body', vox: v }, { name: 'turret', vox: t, pivot: [tcx, 0, tc], at: [0, 14, 0] }] };
 }
+
+// ============================================================================ препятствия страны, континентов, космоса
+/** Деревня с высоты: несколько домиков с красными и серыми крышами, церковь с куполом, огороды. */
+export function village(v: number): ModelDef {
+  const n = 64, b = new Vox(n, 30, n), c = n / 2;
+  b.fill((x, y, z) => (y < 1 && Math.hypot(x - c, z - c) < 30 ? ((Math.floor(x / 5) + Math.floor(z / 7)) % 3 === 0 ? 'dirt' : 'grass_d') : undefined), 0, n, 0, 1, 0, n);
+  for (let i = 0; i < 9; i++) {
+    const a = i * 2.39996 + v, r = 8 + Math.sqrt(i / 9) * 18, x = c + Math.cos(a) * r, z = c + Math.sin(a) * r;
+    b.box(x - 3, x + 3, 1, 5, z - 2.5, z + 2.5, (i + v) % 2 ? 'white' : 'cream');
+    b.fill((xx, y, zz) => (y < 9 - Math.abs(zz - z) * 1.2 ? ((i + v) % 3 ? 'roof' : 'gun') : undefined), x - 3.4, x + 3.4, 5, 9, z - 3, z + 3);
+    b.set(x + 3, 3, z, 'lamp');
+  }
+  b.box(c - 4, c + 4, 1, 12, c - 3, c + 3, 'white'); b.cylY(c, c, 2.6, 12, 18, 'white'); b.sphere(c, 19, c, 2.8, 'gold'); b.seg([c, 21, c], [c, 25, c], 0.4, 'gold');
+  return one(b, n, [n, n]);
+}
+
+/** Ветряная мельница: белая башня, лопасти (вращаются), домик рядом. */
+export function windmill(): ModelDef {
+  const n = 40, c = n / 2, b = new Vox(n, 70, n);
+  b.cylY(c, c, 5, 0, 52, 'white', 3);
+  b.paint((x, y) => (Math.floor(y) % 10 === 0 ? 'white_d' : undefined));
+  b.ell(c, 54, c, 4, 4, 4, 'steel'); b.cylX(54, c, 1, c, c + 6, 'gun');
+  b.box(c - 14, c - 6, 0, 6, c + 4, c + 12, 'cream'); b.fill((x, y, z) => (y < 10 - Math.abs(z - (c + 8)) ? 'roof' : undefined), c - 14.5, c - 5.5, 6, 10, c + 3.5, c + 12.5);
+  const r = new Vox(3, 50, 50), rc = 25;
+  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; r.seg([1, rc, rc], [1, rc + Math.sin(a) * 24, rc + Math.cos(a) * 24], 1.1, 'white'); }
+  r.cylX(rc, rc, 2, 0, 3, 'gun_d');
+  return { size: n, parts: [{ name: 'body', vox: b }, { name: 'spin', vox: r, pivot: [1, rc, rc], at: [6, 54, 0], axis: 'x' }], foot: [n, n] };
+}
+
+/** Стог сена: рыжий купол с соломинками. */
+export function haystack(v: number): ModelDef {
+  const n = 24, c = n / 2, b = new Vox(n, 20, n);
+  b.fill((x, y, z) => { const r = Math.hypot(x - c, z - c); return r < 11 - y * 0.35 - (y > 12 ? (y - 12) * 0.8 : 0) ? ((x * 3 + y * 5 + z) % 7 === 0 ? 'sand_d' : 'sand') : undefined; }, 0, n, 0, 20, 0, n);
+  if (v % 2) b.seg([c, 14, c], [c + 3, 20, c], 0.4, 'wood_d');
+  return one(b, n, [n, n]);
+}
+
+/** Город с высоты: плотные кварталы, вышка, светящиеся окна. */
+export function cityDot(v: number): ModelDef {
+  const n = 60, c = n / 2, b = new Vox(n, 40, n);
+  b.cylY(c, c, 28, 0, 1, 'asphalt_d');
+  for (let i = 0; i < 26; i++) {
+    const a = i * 2.39996 + v, r = Math.sqrt(i / 26) * 24, x = c + Math.cos(a) * r, z = c + Math.sin(a) * r;
+    const hh = 3 + ((i * 7 + v * 3) % 9) * (1 - r / 26) * 2.6, s = 2.4;
+    b.box(x - s, x + s, 1, 1 + hh, z - s, z + s, ['glass_d', 'concrete_l', 'cream', 'teal_d'][(i + v) % 4]);
+    b.paint((xx, y) => (Math.floor(y) % 3 === 0 && (Math.floor(xx * 2) % 3 === 0) ? 'lamp' : undefined), x - s, x + s, 2, 1 + hh, z - s, z + s);
+    b.box(x - s, x + s, 1 + hh, 1.6 + hh, z - s, z + s, 'gun');
+  }
+  b.seg([c, 1, c], [c, 36, c], 0.6, 'steel_l'); b.set(c, 37, c, 'lamp_r');
+  return one(b, n, [n, n]);
+}
+
+/** Гора: скальные уступы, снежная шапка, ели у подножия. */
+export function mountain(v: number): ModelDef {
+  const X = 120, Z = 100, b = new Vox(X, 80, Z);
+  const px = X * (0.4 + (v % 3) * 0.1), pz = Z * 0.5;
+  b.fill((x, y, z) => {
+    const d = Math.hypot((x - px) / (X * 0.5), (z - pz) / (Z * 0.5));
+    const hgt = 76 * Math.max(0, 1 - d) ** 1.3 + Math.sin(x * 0.3 + z * 0.2) * 3 + Math.cos(x * 0.13 - z * 0.27) * 4;
+    if (y >= hgt) return undefined;
+    if (y > 54 + Math.sin(x * 0.4) * 4) return 'white';
+    if (y > 46) return (x + z) % 4 ? 'white_d' : 'rock_l';
+    return Math.floor(y / 6) % 2 ? 'rock' : (x + y + z) % 5 ? 'rock_d' : 'rock_l';
+  });
+  for (let i = 0; i < 18; i++) { const a = i * 2.4, r = 0.85 + (i % 3) * 0.05; const x = px + Math.cos(a) * X * 0.45 * r, z = pz + Math.sin(a) * Z * 0.45 * r; for (let t = 0; t < 3; t++) b.fill((xx, y, zz) => (Math.hypot(xx - x, zz - z) < (3 - t) * (1 - (y - t * 3) / 6) && y >= t * 3 && y < t * 3 + 6 ? 'leaf_d' : undefined), x - 4, x + 4, 0, 12, z - 4, z + 4); }
+  return one(b, X, [X, Z]);
+}
+
+const PLANETS: [string, string, string][] = [['orange', 'orange_d', 'sand'], ['blue', 'blue_d', 'white'], ['purple', 'purple_d', 'pink'], ['khaki', 'khaki_d', 'sand'], ['teal', 'teal_d', 'ice_l'], ['red_d', 'brick_d', 'lava']];
+/** Планета: шар с полосами облаков/материков, у некоторых — кольцо, у вулканической — светящиеся трещины. */
+export function planet(v: number): ModelDef {
+  const n = 120, c = n / 2, R = 44, b = new Vox(n, 100, n), [a, d, l] = PLANETS[v % PLANETS.length];
+  b.fill((x, y, z) => {
+    const dx = x - c, dy = y - (R + 2), dz = z - c;
+    if (dx * dx + dy * dy + dz * dz > R * R) return undefined;
+    const band = Math.sin(dy * 0.25 + Math.sin(dx * 0.08 + dz * 0.05) * 2);
+    if (l === 'lava' && Math.abs(Math.sin(dx * 0.2 + dz * 0.15) * Math.cos(dy * 0.18)) < 0.06) return 'lava';
+    return band > 0.55 ? l : band < -0.4 ? d : a;
+  });
+  if (v % 2 === 0) b.fill((x, y, z) => { const r = Math.hypot(x - c, z - c); const yy = R + 2 + (x - c) * 0.25; return r > R + 6 && r < R + 14 && Math.abs(y - yy) < 1 ? ((Math.floor(r) % 3) ? 'sand' : 'sand_d') : undefined; });
+  return one(b, n, [n, n]);
+}
+
+/** Астероид: бугристый камень с кратерами и кристаллами. */
+export function asteroid(v: number): ModelDef {
+  const n = 48, c = n / 2, b = new Vox(n, 40, n);
+  b.fill((x, y, z) => { const dx = x - c, dy = y - 16, dz = z - c; const r = Math.sqrt(dx * dx + dy * dy * 1.6 + dz * dz) + Math.sin(x * 0.6 + v) * 2 + Math.cos(z * 0.5 + y * 0.4) * 2; return r < 18 ? ((x * 3 + y * 7 + z * 5) % 9 === 0 ? 'rock_l' : r > 16 ? 'rock_d' : 'rock') : undefined; });
+  for (const [x, z] of [[c - 6, c + 4], [c + 7, c - 3]]) b.sphere(x, 30, z, 3.5, 0);
+  if (v % 2) for (const [x, z] of [[c + 4, c + 6], [c - 5, c - 6]]) b.seg([x, 24, z], [x + 1, 32, z], 1.4, 'crystal');
+  return one(b, n, [n, n]);
+}

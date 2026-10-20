@@ -255,26 +255,45 @@ function houseProps(rng: Rng, s: StageDef): Prop[] {
 function streetProps(rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
   const keep = [{ x: s.relicX, y: s.relicY, r: 360 }];
-  // Кварталы домов между дорогами (дороги — каждые 540 по X, 405 по Y).
+  // Сетка улиц как у земли (grounds.ts STREET): дороги по x = 480k, y = 405k, полуширина 32, тротуар 18.
+  const CX = 480, CY = 405, RD = 32, WK = 18;
   for (let bx = 0; bx < 6; bx++) for (let by = 0; by < 4; by++) {
-    const x0 = bx * 480 + 70, y0 = by * 405 + 70, w = 340, h = 265;
-    const n = 1 + rng.int(1, 3);
+    const x0 = bx * CX + RD + WK + 6, y0 = by * CY + RD + WK + 6, w = CX - 2 * (RD + WK + 6), h = CY - 2 * (RD + WK + 6);
+    // дома вдоль улиц (фасадом к дороге), во дворе — деревья, лавочки, баки
+    const n = 1 + rng.int(1, 2);
     for (let i = 0; i < n; i++) {
-      const hw = rng.range(90, 150), hh = rng.range(80, 120);
-      const x = x0 + rng.range(hw / 2, w - hw / 2), y = y0 + rng.range(hh / 2, h - hh / 2);
-      if (free(out, x, y, hw, hh, keep, 14)) out.push(P(s.idx, 'house', 'brick', x, y, hw, hh, { v: rng.int(0, 5) }));
+      const hw = rng.range(110, 150), hh = rng.range(90, 115);
+      const x = x0 + rng.range(hw / 2, w - hw / 2), y = y0 + (i % 2 ? h - hh / 2 - rng.range(0, 30) : hh / 2 + rng.range(0, 30));
+      if (free(out, x, y, hw, hh, keep, 18)) out.push(P(s.idx, 'house', 'brick', x, y, hw, hh, { v: rng.int(0, 11) }));
     }
-    for (let i = 0; i < 4; i++) {
-      const x = x0 + rng.range(10, w - 10), y = y0 + rng.range(10, h - 10);
-      if (free(out, x, y, 26, 26, keep, 6)) out.push(P(s.idx, 'tree', 'bush', x, y, 26, 26, { round: true, v: rng.int(0, 3) }));
+    for (let i = 0; i < 9; i++) {
+      const x = x0 + rng.range(10, w - 10), y = y0 + rng.range(10, h - 10), d = rng.pick([24, 28, 34]);
+      if (free(out, x, y, d, d, keep, 4)) out.push(P(s.idx, 'tree', 'bush', x, y, d, d, { round: true, v: rng.int(0, 5) }));
+    }
+    for (let i = 0; i < 2; i++) {
+      const x = x0 + rng.range(30, w - 30), y = y0 + rng.range(20, h - 20);
+      if (free(out, x, y, 50, 18, keep, 6)) out.push(P(s.idx, i ? 'bins' : 'bench', i ? 'metal' : 'wood', x, y, i ? 40 : 50, 18, { v: rng.int(0, 3) }));
     }
   }
-  // Машины на дорогах — давимые.
-  for (let i = 0; i < 40; i++) {
-    const horiz = rng.chance(0.5);
-    const x = horiz ? rng.range(40, s.w - 40) : Math.round(rng.range(0, 6)) * 480 + 25, y = horiz ? Math.round(rng.range(0, 4)) * 405 + 30 : rng.range(40, s.h - 40);
-    const w = horiz ? 24 : 12, h = horiz ? 12 : 24;
-    if (free(out, x, y, w, h, keep, 4)) out.push(P(s.idx, 'car', 'metal', x, y, w, h, { v: rng.int(0, 5), a: horiz ? 0 : 1 }));
+  // фонари по тротуарам, остановки у перекрёстков
+  for (let k = 0; k <= 6; k++) for (let y = 60 + (k % 2) * 90; y < s.h - 40; y += 200) for (const sd of [-1, 1]) {
+    const x = k * CX + sd * (RD + 10);
+    if (x > 8 && x < s.w - 8 && free(out, x, y, 10, 10, keep, 2)) out.push(P(s.idx, 'streetLamp', 'metal', x, y, 10, 10, { round: true }));
+  }
+  for (let k = 0; k <= 4; k++) for (let x = 120 + (k % 2) * 100; x < s.w - 40; x += 240) for (const sd of [-1, 1]) {
+    const y = k * CY + sd * (RD + 10);
+    if (y > 8 && y < s.h - 8 && free(out, x, y, 10, 10, keep, 2)) out.push(P(s.idx, 'streetLamp', 'metal', x, y, 10, 10, { round: true }));
+  }
+  for (let i = 0; i < 8; i++) {
+    const bx = rng.int(1, 5), by = rng.int(0, 3), x = bx * CX + RD + WK + 46, y = by * CY + 180;
+    if (free(out, x, y, 26, 80, keep, 6)) out.push(P(s.idx, 'busStop', 'glass', x, y, 26, 80, {}));
+  }
+  // машины на полосах (правостороннее движение) — давимые
+  for (let i = 0; i < 46; i++) {
+    const horiz = rng.chance(0.5), lane = rng.chance(0.5) ? -15 : 15;
+    const x = horiz ? rng.range(40, s.w - 40) : rng.int(0, 6) * CX + lane, y = horiz ? rng.int(0, 4) * CY + lane : rng.range(40, s.h - 40);
+    const w = horiz ? 26 : 13, h = horiz ? 13 : 26;
+    if (free(out, x, y, w, h, keep, 6)) out.push(P(s.idx, 'car', 'metal', x, y, w, h, { v: rng.int(0, 6), a: horiz ? 0 : 1 }));
   }
   return out;
 }

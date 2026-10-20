@@ -36,7 +36,7 @@ export const PROPS: Record<string, PropBuilder> = {
   block: s1.block, book: s1.book, crayon: s1.crayon, furnitureLeg: () => s1.furnitureLeg(), marble: s1.marble, slipper: s1.slipper, pillow: s1.pillow,
   bed: () => s2.bed(), wardrobe: () => s2.wardrobe(), desk: () => s2.desk(), shelf: () => s2.shelf(), box: s2.box, bookStack: s2.bookStack, toyDebris: s2.toyDebris,
   clutter: s3.clutter, houseWall: () => s3.houseWall(), sofa: s3.sofa, table: () => s3.table(), fridge: () => s3.fridge(), tvStand: () => s3.tvStand(), plant: s3.plant, armchair: s3.armchair, stove: () => s3.stove(),
-  car: s4.car, house: s4.house, tree: s4.tree, midrise: s5.midrise, tower: s5.tower,
+  car: s4.car, house: s4.house, tree: s4.tree, streetLamp: () => s4.streetLamp(), bench: s4.bench, busStop: () => s4.busStop(), bins: s4.bins, midrise: s5.midrise, tower: s5.tower,
   cityDot: s6.cityDot, mountain: s6.mountain, crystal: s6.crystal, volcano: s6.volcano,
   lego: items.lego, toyTree: items.toyTree, barrel: s0.barrel, woodCrate: s0.woodCrate, dice: s0.dice,
 };

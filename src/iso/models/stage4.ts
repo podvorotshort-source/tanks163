@@ -139,40 +139,132 @@ export function bossRoller(): ModelDef {
   return { size: 104, parts: [{ name: 'body', vox: h, pivot: [60, 0, c] }] };
 }
 
-// ---------------------------------------------------------------- препятствия
+// ---------------------------------------------------------------- препятствия (улицы)
 const CAR = ['red', 'blue', 'white', 'yel', 'green', 'orange'];
+/** Легковушка: кузов со скруглёнными кромками, стёкла, фары, стоп-сигналы, колёса с дисками; иногда такси или полиция. */
 export function car(v: number): ModelDef {
-  const b = new Vox(24, 10, 12), zc = 6, col = CAR[v % 6];
-  for (const x of [5, 18]) for (const z of [0.5, 9.5]) b.cylZ(x, 2, 2, z, z + 2, 'rubber');
-  cbox(b, 1, 23, 1.5, 5, 1, 11, col, 1, 1);
-  cbox(b, 6, 17, 5, 8.5, 1.5, 10.5, col, 1, 1);
-  b.box(14, 16.8, 5, 8, 1.6, 10.4, 'glass'); b.box(6.5, 8, 5, 8, 1.6, 10.4, 'glass_d');
-  b.box(22.5, 23.2, 3, 4, 2, 4, 'lamp'); b.box(22.5, 23.2, 3, 4, 8, 10, 'lamp');
-  b.box(0.8, 1.4, 3, 4, 2, 4, 'lamp_r'); b.box(0.8, 1.4, 3, 4, 8, 10, 'lamp_r');
-  return one(b, 24, [24, 12]);
+  const X = 48, Z = 24, b = new Vox(X, 20, Z), zc = Z / 2, col = v % 7 === 6 ? 'white' : CAR[v % 6];
+  for (const x of [10, 37]) for (const z of [1, Z - 4]) { b.cylZ(x, 4, 4, z, z + 3, 'rubber'); b.cylZ(x, 4, 2, z - 0.1, z + 3.1, 'steel_l'); }
+  cbox(b, 1, X - 1, 3, 10, 2, Z - 2, col, 2, 2);
+  cbox(b, 12, 34, 10, 17, 3, Z - 3, col, 2, 2);
+  b.box(28, 32, 10.5, 16, 3.4, Z - 3.4, 'glass'); b.box(13, 16, 10.5, 16, 3.4, Z - 3.4, 'glass_d');
+  b.paint((x, y, z) => (y > 11 && y < 15.5 && (z < 3.6 || z > Z - 3.6) && x > 16 && x < 31 ? (Math.abs(x - 23) < 0.6 ? col : 'glass') : undefined));
+  b.box(X - 1.4, X - 0.6, 6, 8, 3, 6, 'lamp'); b.box(X - 1.4, X - 0.6, 6, 8, Z - 6, Z - 3, 'lamp');
+  b.box(0.6, 1.4, 6, 8, 3, 6, 'lamp_r'); b.box(0.6, 1.4, 6, 8, Z - 6, Z - 3, 'lamp_r');
+  b.box(X - 1.2, X - 0.4, 4, 5, 6, Z - 6, 'chrome');
+  if (v % 7 === 6) { b.box(18, 28, 17, 18.4, zc - 3, zc + 3, 'white'); b.box(18, 22, 18, 19, zc - 2.5, zc + 2.5, 'blue'); b.box(24, 28, 18, 19, zc - 2.5, zc + 2.5, 'red'); b.paint((x, y) => (y > 7 && y < 9 ? 'blue' : undefined), 1, X - 1, 3, 10, 0, Z); }
+  else if (col === 'yel') { b.box(20, 26, 17, 19, zc - 2, zc + 2, 'yel_l'); b.paint((x, y, z) => (y > 7 && y < 9 && (Math.floor(x / 2) + Math.floor(z / 2)) % 2 ? 'black' : undefined), 1, X - 1, 3, 10, 0, Z); }
+  return one(b, X, [X, Z]);
 }
 
-const WALL = ['brick', 'cream', 'white', 'concrete_l', 'sand'];
+const WALLS: [string, string][] = [['brick', 'brick_d'], ['cream', 'sand_d'], ['white', 'white_d'], ['concrete_l', 'concrete'], ['sand', 'sand_d'], ['pink', 'red_d']];
+/** Дом: стены (кирпич, штукатурка, панель), ряды окон с рамами и подоконниками (у части горит свет), подъезд
+ *  с козырьком, балконы; крыша — двускатная черепичная или плоская с антеннами и кондиционерами. */
 export function house(v: number): ModelDef {
-  const b = new Vox(30, 30, 24), wall = WALL[v % 5], roof = v % 2 ? 'roof' : 'gun';
-  b.box(1, 29, 0, 16, 1, 23, wall);
-  if (wall === 'brick') b.paint((x, y, z) => ((Math.floor(y) % 3 === 2) || ((Math.floor(x + (Math.floor(y / 3) % 2) * 2 + z) % 5) === 0) ? 'brick_d' : undefined), 0, 30, 0, 16, 0, 24);
-  b.fill((x, y, z) => (y < 16 + 7 - Math.abs(z - 12) * 0.6 ? wall : undefined), 1.2, 28.8, 16, 28, 1.2, 22.8);
-  b.fill((x, y, z) => (y < 16 + 7.6 - Math.abs(z - 12) * 0.6 ? (Math.floor(z) % 2 ? roof : roof === 'roof' ? 'roof_d' : 'gun_d') : undefined), 0, 30, 16, 28, 0, 24);
-  for (const x of [5, 13, 21]) for (const y of [4, 10]) { b.box(x, x + 4, y, y + 4, 0.5, 1, 'glass'); b.box(x, x + 4, y, y + 4, 23, 23.5, 'glass'); }
-  b.box(24, 27, 0, 7, 0.4, 1, 'wood_d');
-  pipe(b, 22, 6, 1.6, 20, 28, 'brick_d', 'gun_d');
-  return one(b, 30, [30, 24]);
+  const X = 140, Z = 110, floors = 2 + (v % 3), FH = 22, H = floors * FH + 6;
+  const b = new Vox(X + 6, H + 40, Z + 6);
+  const [wall, wd] = WALLS[v % WALLS.length], o = 3;
+  b.box(o, X + o, 0, H, o, Z + o, wall);
+  b.box(o - 1, X + o + 1, 0, 4, o - 1, Z + o + 1, 'concrete');                                         // цоколь
+  if (wall === 'brick') b.paint((x, y, z) => (y > 4 && ((Math.floor(y) % 4 === 3) || ((Math.floor((x + z) + (Math.floor(y / 4) % 2) * 3)) % 7 === 0)) ? 'brick_d' : undefined));
+  else if (wall === 'concrete_l') b.paint((x, y, z) => (y > 4 && (Math.floor(y) % FH === 0 || Math.floor(x + z) % 34 === 0) ? 'concrete' : undefined));
+  for (let f = 0; f < floors; f++) b.box(o - 0.4, X + o + 0.4, 4 + f * FH + FH - 1, 4 + f * FH + FH, o - 0.4, Z + o + 0.4, wd);   // межэтажные пояса
+  // окна: на всех четырёх фасадах
+  const win = (x: number, y: number, z: number, along: 'x' | 'z', lit: boolean) => {
+    const g = lit ? 'lamp' : 'glass';
+    if (along === 'x') { b.box(x - 5, x + 5, y, y + 12, z - 0.4, z + 0.4, 'white'); b.box(x - 4, x + 4, y + 1, y + 11, z - 0.6, z + 0.6, g); b.box(x - 0.4, x + 0.4, y + 1, y + 11, z - 0.7, z + 0.7, 'white'); b.box(x - 5.5, x + 5.5, y - 1, y, z - 1.5, z + 1.5, 'white_d'); }
+    else { b.box(z - 0.4, z + 0.4, y, y + 12, x - 5, x + 5, 'white'); b.box(z - 0.6, z + 0.6, y + 1, y + 11, x - 4, x + 4, g); b.box(z - 0.7, z + 0.7, y + 1, y + 11, x - 0.4, x + 0.4, 'white'); b.box(z - 1.5, z + 1.5, y - 1, y, x - 5.5, x + 5.5, 'white_d'); }
+  };
+  for (let f = 0; f < floors; f++) {
+    const y = 9 + f * FH;
+    for (let x = o + 14; x < X + o - 8; x += 22) { const lit = ((x * 7 + f * 13 + v) % 9) < 2; if (f === 0 && Math.abs(x - (X / 2 + o)) < 12) continue; win(x, y, Z + o, 'x', lit); win(x, y, o, 'x', !lit && (x + f) % 5 === 0); }
+    for (let z = o + 14; z < Z + o - 8; z += 22) { win(z, y, X + o, 'z', ((z + f + v) % 7) < 1); win(z, y, o, 'z', false); }
+  }
+  // подъезд: дверь, козырёк, ступени, фонарь
+  const dx = X / 2 + o;
+  b.box(dx - 7, dx + 7, 4, 22, Z + o - 0.5, Z + o + 0.6, 'wood_d'); b.box(dx - 6, dx + 6, 5, 21, Z + o + 0.4, Z + o + 0.8, 'wood');
+  b.box(dx - 10, dx + 10, 23, 25, Z + o, Z + o + 6, wd); b.box(dx - 9, dx + 9, 0, 3, Z + o, Z + o + 6, 'concrete_l');
+  b.box(dx + 9, dx + 11, 16, 19, Z + o + 0.5, Z + o + 2, 'lamp');
+  // балконы на верхних этажах
+  for (let f = 1; f < floors; f++) for (const bx of [o + 26, X + o - 26]) {
+    const y = 4 + f * FH;
+    b.box(bx - 10, bx + 10, y, y + 2, Z + o, Z + o + 8, 'concrete'); b.box(bx - 10, bx + 10, y + 2, y + 9, Z + o + 7.4, Z + o + 8, wd);
+    if ((f + bx + v) % 3 === 0) b.box(bx - 8, bx - 2, y + 2, y + 8, Z + o + 2, Z + o + 6, 'fabric_r');      // бельё/ящик
+  }
+  if (v % 2 === 0) {
+    // двускатная черепичная крыша вдоль x, слуховое окно
+    const roof = v % 4 === 0 ? 'roof' : 'gun';
+    b.fill((x, y, z) => { const hz = Math.abs(z - (Z / 2 + o)); const top = H + 30 - hz * 0.55; return y < top ? ((Math.floor(z) % 3 === 0) ? (roof === 'roof' ? 'roof_d' : 'gun_d') : roof) : undefined; }, o - 3, X + o + 3, H, H + 32, o - 3, Z + o + 3);
+    b.fill((x, y, z) => { const hz = Math.abs(z - (Z / 2 + o)); return y < H + 30 - hz * 0.55 - 1 ? wall : undefined; }, o, o + 1, H, H + 32, o, Z + o);
+    b.fill((x, y, z) => { const hz = Math.abs(z - (Z / 2 + o)); return y < H + 30 - hz * 0.55 - 1 ? wall : undefined; }, X + o - 1, X + o, H, H + 32, o, Z + o);
+    b.box(o + 30, o + 42, H + 6, H + 22, Z / 2 + o + 14, Z / 2 + o + 26, wall); b.box(o + 32, o + 40, H + 10, H + 18, Z / 2 + o + 25.5, Z / 2 + o + 26.5, 'glass');
+    b.cylY(X + o - 24, Z / 2 + o - 8, 4, H + 14, H + 36, 'brick_d'); b.cylY(X + o - 24, Z / 2 + o - 8, 4.6, H + 34, H + 36, 'gun_d');
+  } else {
+    // плоская крыша: парапет, рубероид, вентшахта, антенны, тарелка, кондиционеры
+    b.box(o, X + o, H, H + 1, o, Z + o, 'roof_d'); b.box(o, X + o, H, H + 4, o, o + 2, wd); b.box(o, X + o, H, H + 4, Z + o - 2, Z + o, wd); b.box(o, o + 2, H, H + 4, o, Z + o, wd); b.box(X + o - 2, X + o, H, H + 4, o, Z + o, wd);
+    cbox(b, o + 20, o + 44, H, H + 14, o + 20, o + 40, 'concrete', 1, 1);
+    for (const [x, z] of [[o + 80, o + 30], [o + 96, o + 30], [o + 80, o + 70]]) { cbox(b, x - 5, x + 5, H, H + 7, z - 4, z + 4, 'white_d', 1, 1); b.cylX(H + 3.5, z, 2.4, x + 4.8, x + 5.4, 'gun_d'); }
+    b.seg([o + 110, H, o + 60], [o + 110, H + 22, o + 60], 0.5, 'gun_d'); for (const y of [H + 14, H + 19]) b.box(o + 104, o + 116, y, y + 0.8, o + 59.6, o + 60.4, 'gun_d');
+    b.ell(o + 60, H + 8, o + 86, 6, 6, 2, 'white'); b.seg([o + 60, H, o + 84], [o + 60, H + 6, o + 85], 0.6, 'gun');
+  }
+  return one(b, X + 6, [X + 6, Z + 6]);
 }
 
+/** Дерево: ствол с корнями, крона из нескольких шаров (летняя, осенняя, ель). */
 export function tree(v: number): ModelDef {
-  const b = new Vox(16, 24, 16), c = 8;
-  b.cylY(c, c, 1.4, 0, 9, 'wood_d');
-  const leaves = v % 3 === 2 ? ['orange', 'orange_d'] : ['leaf', 'leaf_d'];
-  b.sphere(c, 13, c, 6, leaves[1]);
-  b.sphere(c - 1, 15, c - 1, 5.4, leaves[0]);
-  b.sphere(c + 2, 18, c + 1, 3.6, v % 3 === 2 ? 'yel' : 'leaf_l');
-  return one(b, 16, [16, 16]);
+  const n = 40, b = new Vox(n, 56, n), c = n / 2;
+  b.cylY(c, c, 2.4, 0, 22, 'wood_d', 1.8);
+  for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.4; b.seg([c, 1, c], [c + Math.cos(a) * 5, 0.5, c + Math.sin(a) * 5], 1.2, 'wood_d'); }
+  const k = v % 3;
+  if (k === 2) {
+    for (let t = 0; t < 4; t++) b.fill((x, y, z) => { const r = Math.hypot(x - c, z - c), y0 = 14 + t * 9, R = (16 - t * 3.2) * (1 - (y - y0) / 14); return y >= y0 && y < y0 + 14 && r < R ? (y - y0 > 9 || x < c - R * 0.3 ? 'leaf_l' : 'leaf_d') : undefined; });
+    b.paint((x, y, z) => ((x * 3 + y + z * 5) % 13 === 0 ? 'white' : undefined), 0, n, 14, 56, 0, n);   // снежинки-блики
+  } else {
+    const [a, d, l] = k === 1 ? ['orange', 'orange_d', 'yel'] : ['leaf', 'leaf_d', 'leaf_l'];
+    for (const [dx, dy, dz, r, col] of [[0, 26, 0, 13, d], [-4, 31, -4, 10, a], [5, 30, 3, 10, a], [0, 38, 1, 9, a], [-3, 40, -3, 6, l], [4, 35, 6, 6, l]] as [number, number, number, number, string][]) b.sphere(c + dx, dy, c + dz, r, col);
+    b.paint((x, y, z) => ((x * 5 + y * 3 + z * 7) % 17 === 0 ? d : undefined), 0, n, 16, 56, 0, n);
+    if (k === 0 && v % 2) for (let i = 0; i < 6; i++) b.set(c + Math.cos(i) * 11, 28 + i * 2, c + Math.sin(i) * 11, 'red');   // яблоки
+  }
+  return one(b, n, [n, n]);
+}
+
+/** Уличный фонарь: столб, изогнутый кронштейн, плафон (светится). */
+export function streetLamp(): ModelDef {
+  const b = new Vox(24, 70, 12), c = 6;
+  b.cylY(6, c, 2.2, 0, 4, 'gun_d'); b.cylY(6, c, 1.2, 4, 62, 'gun');
+  b.seg([6, 62, c], [16, 66, c], 1, 'gun'); b.box(13, 21, 62, 65, c - 2.5, c + 2.5, 'gun_d'); b.box(14, 20, 61, 62, c - 2, c + 2, 'lamp');
+  return one(b, 12, [12, 12]);
+}
+
+/** Скамейка: деревянные рейки на чугунных ножках, урна рядом. */
+export function bench(v: number): ModelDef {
+  const X = 44, Z = 18, b = new Vox(X + 12, 22, Z);
+  for (const x of [4, X - 6]) { b.box(x, x + 2, 0, 9, 2, Z - 2, 'gun_d'); b.box(x, x + 2, 9, 20, 2, 4, 'gun_d'); }
+  for (let i = 0; i < 3; i++) b.box(1, X - 1, 9, 10.5, 4 + i * 4, 7 + i * 4, i % 2 ? 'wood' : 'wood_l');
+  for (let i = 0; i < 2; i++) b.box(1, X - 1, 13 + i * 4, 15.5 + i * 4, 2, 3.5, 'wood_l');
+  if (v % 2) { b.cylY(X + 6, Z / 2, 4, 0, 12, 'gun'); b.cylY(X + 6, Z / 2, 3, 2, 12.1, 0); b.cylY(X + 6, Z / 2, 2.8, 2, 10, 'paper'); }
+  return one(b, X + 12, [X + 12, Z]);
+}
+
+/** Автобусная остановка: стеклянный павильон, скамья, табличка с номером. */
+export function busStop(): ModelDef {
+  const X = 80, Z = 26, b = new Vox(X, 44, Z);
+  for (const x of [2, X - 4]) b.box(x, x + 2, 0, 36, 2, 4, 'gun');
+  b.box(0, X, 36, 39, 0, Z, 'blue'); b.box(0, X, 39, 40, 2, Z - 2, 'blue_l');
+  b.box(2, X - 2, 4, 34, 2, 3, 'glass'); b.box(2, 3, 4, 34, 3, Z - 4, 'glass'); b.box(X - 3, X - 2, 4, 34, 3, Z - 4, 'glass');
+  b.box(10, X - 10, 10, 12, 4, 10, 'wood'); for (const x of [12, X - 14]) b.box(x, x + 2, 0, 10, 5, 9, 'gun_d');
+  b.box(X - 10, X - 8, 0, 42, Z - 4, Z - 2, 'gun'); b.box(X - 14, X - 4, 34, 42, Z - 3.4, Z - 2.6, 'white'); b.box(X - 12, X - 6, 36, 40, Z - 2.6, Z - 2.2, 'blue');
+  b.box(20, 50, 18, 30, 2.6, 3.4, 'fabric_y');                                                              // реклама
+  return one(b, X, [X, Z]);
+}
+
+/** Мусорные контейнеры: два бака с крышками, один приоткрыт. */
+export function bins(v: number): ModelDef {
+  const X = 44, Z = 22, b = new Vox(X, 26, Z), col = v % 2 ? 'green_d' : 'blue_d';
+  for (const x0 of [1, 23]) { cbox(b, x0, x0 + 20, 3, 20, 1, Z - 1, col, 1, 1); b.box(x0 - 0.5, x0 + 20.5, 20, 22, 0.5, Z - 0.5, 'gun_d'); for (const x of [x0 + 4, x0 + 16]) b.cylZ(x, 2, 2, 0, Z, 'rubber'); }
+  b.fill((x, y) => (y < 22 + (x - 23) * 0.4 && y > 21 ? 'gun_d' : undefined), 23, 43, 21, 32, 0.5, Z - 0.5);
+  b.box(28, 34, 20, 23, 6, 12, 'cardboard');
+  return one(b, X, [X, Z]);
 }
 
 void tracks;

@@ -452,6 +452,8 @@ def merge_slots(obj):
 
 
 def finish(parts, out_dir, name, bake=True, size=1024):
+    """Запекание и экспорт. Текстуры — WebP (в игре все модели встроены в один файл);
+    в игру модель попадает через `node tools/pack-models.mjs` (сжатие meshopt → assets/models)."""
     os.makedirs(out_dir, exist_ok=True)
     objs = []
     for p in parts:
@@ -468,7 +470,11 @@ def finish(parts, out_dir, name, bake=True, size=1024):
     for o in objs:
         o.select_set(True)
     path = os.path.join(out_dir, name + '.glb')
-    bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_apply=True, export_yup=True)
+    opts = dict(export_format='GLB', use_selection=True, export_apply=True, export_yup=True)
+    try:
+        bpy.ops.export_scene.gltf(filepath=path, export_image_format='WEBP', export_image_quality=88, **opts)
+    except TypeError:
+        bpy.ops.export_scene.gltf(filepath=path, **opts)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out_dir, name + '.blend'))
     print('EXPORTED', path)
     return path

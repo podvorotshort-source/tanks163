@@ -3,7 +3,7 @@
 // прежний мир оказывается предметом нового (коврик на ковре, ковёр в комнате, комната в квартире, квартира —
 // крыша дома во дворе, …, континенты — глобус-планета в космосе). Фактура — штампы (stampR).
 
-import { STAGE_DEFS } from '../sim/content/stages';
+import { STAGE_DEFS, blockK } from '../sim/content/stages';
 
 // ---------------------------------------------------------------- цвет (ABGR для ImageData)
 export const pack = (hex: string): number => {
@@ -313,7 +313,7 @@ export function districtVI(x: number, y: number, o: Smp): void {
     set(o, ASPH, 2 + (hash(x | 0, y | 0, 5) < 0.05 ? 1 : 0)); return;
   }
   if (ax < 32 || ay < 32) { set(o, PAVE, 3); return; }
-  const bi = Math.floor(x / 720), bj = Math.floor(y / 540), k = hash(bi, bj, 61);
+  const bi = Math.floor(x / 720), bj = Math.floor(y / 540), k = blockK(bi, bj, 61);
   const lx = ((x % 720) + 720) % 720, ly = ((y % 540) + 540) % 540;
   if (k < 0.18) {                                                       // стройплощадка: грунт, колеи, бетонные плиты
     const n = fbm(x / 40, y / 40, 62);
@@ -346,7 +346,7 @@ export function cityVII(x: number, y: number, o: Smp): void {
   }
   if (ax < 16 || ay < 16) { set(o, ASPH, (ax < 1 || ay < 1) && Math.floor((x + y) / 14) % 2 ? 4 : 2); return; }
   if (ax < 22 || ay < 22) { set(o, PAVE, 2); return; }
-  const bi = Math.floor(x / 360), bj = Math.floor(y / 270), k = hash(bi, bj, 72);
+  const bi = Math.floor(x / 360), bj = Math.floor(y / 270), k = blockK(bi, bj, 72);
   const lx = ((x % 360) + 360) % 360 - 180, ly = ((y % 270) + 270) % 270 - 135;
   if (k < 0.14) {                                                         // площадь: мощение кольцами
     const r = len(lx, ly * 1.3);

@@ -298,8 +298,82 @@ function streetProps(rng: Rng, s: StageDef): Prop[] {
   return out;
 }
 
+/** Тип квартала 0..1 по номеру клетки сетки (общий для земли — iso/grounds.ts — и препятствий). */
+export function blockK(i: number, j: number, seed: number): number {
+  let h = (Math.imul(i | 0, 374761393) + Math.imul(j | 0, 668265263) + Math.imul(seed, 1442695041)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 // ---------------------------------------------------------------------------
-// 6. Мегаполис
+// 6. Район: проспекты 720×540, кварталы — дворы с панельками, парки с фонтаном, стройки с краном
+// ---------------------------------------------------------------------------
+function districtProps(rng: Rng, s: StageDef): Prop[] {
+  const out: Prop[] = [];
+  const keep = [{ x: s.relicX, y: s.relicY, r: 420 }];
+  const add = (kind: string, mat: Material, x: number, y: number, w: number, h: number, o: Partial<Prop> = {}, pad = 10) => { if (x > w / 2 && y > h / 2 && x < s.w - w / 2 && y < s.h - h / 2 && free(out, x, y, w, h, keep, pad)) out.push(P(s.idx, kind, mat, x, y, w, h, o)); };
+  for (let bi = 0; bi < 4; bi++) for (let bj = 0; bj < 3; bj++) {
+    const k = blockK(bi, bj, 61), x0 = bi * 720 + 44, y0 = bj * 540 + 44, W = 632, H = 452;
+    if (k < 0.18) {
+      add('crane', 'metal', x0 + 300, y0 + 200, 200, 30, { hp: 1e12, maxHp: 1e12 });
+      add('panelHouse', 'concrete', x0 + 160, y0 + 380, 200, 56, { v: rng.int(0, 2) });
+      for (let i = 0; i < 10; i++) add('woodCrate', 'wood', x0 + rng.range(40, W - 40), y0 + rng.range(40, H - 40), 32, 32, { v: rng.int(0, 5) }, 4);
+    } else if (k > 0.78) {
+      add('fountain', 'concrete', x0 + W / 2, y0 + H / 2, 80, 80, {});
+      for (let i = 0; i < 26; i++) { const d = rng.pick([28, 34, 40]); add('tree', 'bush', x0 + rng.range(20, W - 20), y0 + rng.range(20, H - 20), d, d, { round: true, v: rng.int(0, 5) }, 6); }
+      for (let i = 0; i < 4; i++) add('bench', 'wood', x0 + W / 2 + (i % 2 ? 90 : -90), y0 + H / 2 + (i < 2 ? 70 : -70), 56, 18, { v: i });
+    } else {
+      // двор: панельки по периметру, гаражи, деревья, машины на стоянке
+      add('panelHouse', 'concrete', x0 + 150, y0 + 60, 200, 56, { v: rng.int(0, 2) });
+      add('panelHouse', 'concrete', x0 + 470, y0 + 60, 200, 56, { v: rng.int(0, 2) });
+      add('panelHouse', 'concrete', x0 + 60, y0 + 280, 56, 200, { v: rng.int(0, 2) });
+      if (k < 0.4) add('garages', 'concrete', x0 + 520, y0 + 380, 140, 40, { v: rng.int(0, 5) });
+      else add('panelHouse', 'concrete', x0 + 470, y0 + 400, 200, 56, { v: rng.int(0, 2) });
+      for (let i = 0; i < 12; i++) { const d = rng.pick([24, 30, 36]); add('tree', 'bush', x0 + rng.range(110, W - 40), y0 + rng.range(110, H - 60), d, d, { round: true, v: rng.int(0, 5) }, 4); }
+      for (let i = 0; i < 6; i++) add('car', 'metal', x0 + 300 + i * 30, y0 + 130, 13, 26, { v: rng.int(0, 6), a: 1 }, 2);
+      add('bench', 'wood', x0 + 200, y0 + 150, 50, 18, { v: rng.int(0, 2) });
+      add('bins', 'metal', x0 + 260, y0 + 300, 40, 18, { v: rng.int(0, 2) });
+    }
+  }
+  // машины на проспектах
+  for (let i = 0; i < 30; i++) {
+    const horiz = rng.chance(0.5), lane = rng.chance(0.5) ? -12 : 12;
+    const x = horiz ? rng.range(40, s.w - 40) : rng.int(0, 4) * 720 + lane, y = horiz ? rng.int(0, 3) * 540 + lane : rng.range(40, s.h - 40);
+    add('car', 'metal', x, y, horiz ? 26 : 13, horiz ? 13 : 26, { v: rng.int(0, 6), a: horiz ? 0 : 1 }, 6);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// 7. Город: сетка 360×270, кварталы — плотная застройка (небоскрёбы, среднеэтажки), площади с фонтанами, скверы
+// ---------------------------------------------------------------------------
+function cityProps(rng: Rng, s: StageDef): Prop[] {
+  const out: Prop[] = [];
+  const keep = [{ x: s.relicX, y: s.relicY, r: 420 }];
+  const add = (kind: string, mat: Material, x: number, y: number, w: number, h: number, o: Partial<Prop> = {}, pad = 8) => { if (x > w / 2 && y > h / 2 && x < s.w - w / 2 && y < s.h - h / 2 && free(out, x, y, w, h, keep, pad)) out.push(P(s.idx, kind, mat, x, y, w, h, o)); };
+  for (let bi = 0; bi < 8; bi++) for (let bj = 0; bj < 6; bj++) {
+    const k = blockK(bi, bj, 72), cx = bi * 360 + 180, cy = bj * 270 + 135;
+    // бульвар по диагонали арены — без домов
+    const t = Math.max(0, Math.min(1, (cx * 2880 + cy * 1620) / (2880 * 2880 + 1620 * 1620)));
+    if (Math.hypot(cx - 2880 * t, cy - 1620 * t) < 120) { for (let i = 0; i < 4; i++) add('tree', 'bush', cx + rng.range(-120, 120), cy + rng.range(-80, 80), 30, 30, { round: true, v: rng.int(0, 2) }, 4); continue; }
+    if (k < 0.14) { add('fountain', 'concrete', cx, cy, 80, 80, {}); for (const [dx, dy] of [[-110, -70], [110, -70], [-110, 70], [110, 70]]) add('streetLamp', 'metal', cx + dx, cy + dy, 10, 10, { round: true }); }
+    else if (k > 0.86) { for (let i = 0; i < 9; i++) add('tree', 'bush', cx + rng.range(-140, 140), cy + rng.range(-100, 100), 34, 34, { round: true, v: rng.int(0, 5) }, 4); add('bench', 'wood', cx, cy + 40, 50, 18, { v: rng.int(0, 2) }); }
+    else if (k > 0.6) add('tower', 'concrete', cx + rng.range(-40, 40), cy + rng.range(-20, 20), 120, 120, { v: rng.int(0, 5) }, 20);
+    else {
+      const n = 2 + rng.int(0, 2);
+      for (let i = 0; i < n; i++) add('midrise', 'brick', cx + (i % 2 ? 70 : -70) + rng.range(-10, 10), cy + (i < 2 ? -50 : 50) + rng.range(-8, 8), 80, 80, { v: rng.int(0, 5) }, 10);
+    }
+  }
+  for (let i = 0; i < 40; i++) {
+    const horiz = rng.chance(0.5), lane = rng.chance(0.5) ? -8 : 8;
+    const x = horiz ? rng.range(40, s.w - 40) : rng.int(0, 8) * 360 + lane, y = horiz ? rng.int(0, 6) * 270 + lane : rng.range(40, s.h - 40);
+    add('car', 'metal', x, y, horiz ? 20 : 10, horiz ? 10 : 20, { v: rng.int(0, 6), a: horiz ? 0 : 1 }, 4);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// (прежний) Мегаполис
 // ---------------------------------------------------------------------------
 function megaProps(rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
@@ -386,13 +460,13 @@ export const STAGE_DEFS: StageDef[] = [
     idx: 5, name: 'Район', title: 'СТУПЕНЬ VI', subtitle: 'Район', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'mole', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy'],
-    fuel: (x, y) => 0.18 + fuelNoise(0.003, 14)(x, y) * 0.3, props: megaProps,
+    fuel: (x, y) => 0.18 + fuelNoise(0.003, 14)(x, y) * 0.3, props: districtProps,
   },
   {
     idx: 6, name: 'Город', title: 'СТУПЕНЬ VII', subtitle: 'Город', w: ARENA_W, h: ARENA_H,
     relicX: 1440, relicY: 810, boss: 'skyFortress', bossAt: 345, diff: 1,
     events: ['eliteSquad', 'supply', 'barrage', 'swarm', 'convoy'],
-    fuel: (x, y) => 0.12 + fuelNoise(0.003, 15)(x, y) * 0.2, props: megaProps,
+    fuel: (x, y) => 0.12 + fuelNoise(0.003, 15)(x, y) * 0.2, props: cityProps,
   },
   {
     idx: 7, name: 'Страна', title: 'СТУПЕНЬ VIII', subtitle: 'Страна', w: ARENA_W, h: ARENA_H,

@@ -164,25 +164,89 @@ function propX(r: number): Vox {
 }
 
 // ---------------------------------------------------------------- препятствия
-const FACADE = ['concrete_l', 'brick', 'cream', 'steel_l', 'sand'];
+// ---------------------------------------------------------------- препятствия района и города
+const FACADE = ['cream', 'white', 'concrete_l', 'sand', 'pink'];
+/** Среднеэтажка: окна рядами (часть горит), карниз, на крыше — бак с водой, вентшахты, антенна. */
 export function midrise(v: number): ModelDef {
-  const b = new Vox(16, 30, 16), col = FACADE[v % 5], h = 18 + (v % 3) * 4;
-  b.box(1, 15, 0, h, 1, 15, col);
-  for (let y = 2; y < h - 2; y += 3) for (let i = 2; i < 14; i += 3) { b.box(i, i + 2, y, y + 2, 0.6, 1.2, (i + y) % 7 ? 'glass_d' : 'lamp'); b.box(0.6, 1.2, y, y + 2, i, i + 2, (i * y) % 5 ? 'glass_d' : 'lamp'); b.box(i, i + 2, y, y + 2, 14.8, 15.4, 'glass_d'); b.box(14.8, 15.4, y, y + 2, i, i + 2, 'glass_d'); }
-  b.box(0.5, 15.5, h, h + 1, 0.5, 15.5, 'gun_d');
-  b.box(4, 9, h + 1, h + 3, 4, 8, 'steel');
-  return one(b, 16, [16, 16]);
+  const n = 64, h = 70 + (v % 3) * 16, b = new Vox(n, h + 26, n), col = FACADE[v % 5];
+  b.box(2, n - 2, 0, h, 2, n - 2, col);
+  b.box(1, n - 1, 0, 5, 1, n - 1, 'concrete');
+  for (let y = 10; y < h - 6; y += 10) for (let i = 7; i < n - 7; i += 8) {
+    const lit = (i * 3 + y + v * 7) % 11 < 2;
+    b.box(i, i + 5, y, y + 6, 1.4, 2.2, lit ? 'lamp' : 'glass_d'); b.box(1.4, 2.2, y, y + 6, i, i + 5, (i + y) % 13 < 2 ? 'lamp' : 'glass');
+    b.box(i, i + 5, y, y + 6, n - 2.2, n - 1.4, 'glass_d'); b.box(n - 2.2, n - 1.4, y, y + 6, i, i + 5, 'glass_d');
+    b.box(i - 0.5, i + 5.5, y - 1, y, 0.8, 2.4, 'white_d');
+  }
+  b.box(0.5, n - 0.5, h, h + 3, 0.5, n - 0.5, 'gun_d'); b.box(3, n - 3, h, h + 1, 3, n - 3, 'roof_d');
+  b.cylY(16, 18, 7, h + 1, h + 4, 'wood_d'); for (let i = 0; i < 4; i++) b.seg([16 + Math.cos(i * 1.57) * 5, h + 4, 18 + Math.sin(i * 1.57) * 5], [16 + Math.cos(i * 1.57) * 5, h + 11, 18 + Math.sin(i * 1.57) * 5], 0.6, 'wood_d');
+  b.cylY(16, 18, 7, h + 11, h + 21, 'wood'); b.fill((x, y, z) => (y < h + 25 - Math.hypot(x - 16, z - 18) * 0.6 ? 'gun_d' : undefined), 9, 24, h + 21, h + 26, 11, 26);   // бак на ножках
+  cbox(b, 38, 54, h, h + 9, 36, 52, 'concrete_d', 1, 1);
+  b.seg([46, h, 14], [46, h + 22, 14], 0.5, 'gun_d'); b.set(46, h + 22, 14, 'lamp_r');
+  return one(b, n, [n, n]);
 }
 
+/** Небоскрёб: стеклянные стены с импостами, уступы, светящиеся этажи, техническая надстройка, шпиль с огнём. */
 export function tower(v: number): ModelDef {
-  const b = new Vox(20, 64, 20), h = 40 + (v % 3) * 8, glass = v % 2 ? 'glass' : 'teal';
-  b.box(1, 19, 0, h, 1, 19, glass === 'glass' ? 'glass_d' : 'teal_d');
-  b.paint((x, y, z) => (Math.floor(y) % 4 === 0 ? 'steel_l' : (Math.floor(x + z) % 4 === 0 ? 'steel' : glass)), 0, 20, 0, h, 0, 20);
-  b.box(3, 17, h, h + 4, 3, 17, 'steel_d');
-  b.box(5, 15, h + 4, h + 6, 5, 15, 'gun_d');
-  b.seg([10, h + 6, 10], [10, h + 14, 10], 0.5, 'steel_l'); b.set(10, h + 14, 10, 'lamp_r');
-  b.box(0.5, 19.5, 0, 4, 0.5, 19.5, 'concrete_d');
-  return one(b, 20, [20, 20]);
+  const n = 80, h = 170 + (v % 3) * 40, b = new Vox(n, h + 50, n), glass = ['glass', 'teal', 'blue_l'][v % 3], dark = glass === 'teal' ? 'teal_d' : 'glass_d';
+  const step = (y: number) => (y > h * 0.75 ? 14 : y > h * 0.45 ? 8 : 2);
+  b.fill((x, y, z) => { const s = step(y); return x >= s && x < n - s && z >= s && z < n - s ? dark : undefined; }, 0, n, 0, h, 0, n);
+  b.paint((x, y, z) => { const s = step(y); const edge = Math.min(x - s, n - s - 1 - x, z - s, n - s - 1 - z); if (edge > 1) return undefined; if (Math.floor(y) % 6 === 0) return 'steel_l'; if (Math.floor(x + z) % 6 === 0) return 'steel'; return ((Math.floor(y / 6) * 7 + Math.floor((x + z) / 6) * 3 + v) % 13) < 2 ? 'lamp' : glass; });
+  for (const y of [Math.round(h * 0.45), Math.round(h * 0.75)]) b.fill((x, y2, z) => { const s = step(y - 1); return x >= s && x < n - s && z >= s && z < n - s ? 'steel_d' : undefined; }, 0, n, y - 2, y, 0, n);
+  b.box(0, n, 0, 12, 0, n, 'concrete_d'); b.box(1, n - 1, 2, 11, n - 1.4, n - 0.6, 'glass_d'); b.box(n / 2 - 8, n / 2 + 8, 0, 9, n - 1.2, n, 'lamp');   // вестибюль
+  cbox(b, 22, n - 22, h, h + 14, 22, n - 22, 'steel', 1, 1);
+  b.cylY(n / 2, n / 2, 3, h + 14, h + 30, 'steel_l'); b.cylY(n / 2, n / 2, 1.2, h + 30, h + 48, 'steel_l'); b.sphere(n / 2, h + 48, n / 2, 1.6, 'lamp_r');
+  return one(b, n, [n, n]);
 }
 
+/** Панельная девятиэтажка: швы панелей, лоджии, подъезды с козырьками, машинные отделения лифтов на крыше. */
+export function panelHouse(v: number): ModelDef {
+  const X = 200, Z = 56, H = 120, b = new Vox(X, H + 18, Z), col = ['concrete_l', 'white', 'cream'][v % 3];
+  b.box(0, X, 0, H, 0, Z, col);
+  b.paint((x, y, z) => (Math.floor(y) % 13 === 0 || Math.floor(x) % 20 === 0 ? 'concrete' : undefined));
+  for (let f = 0; f < 9; f++) for (let x = 6; x < X - 10; x += 20) {
+    const y = 5 + f * 13, lit = (x * 3 + f * 7 + v) % 9 < 2;
+    b.box(x, x + 9, y + 2, y + 9, Z - 0.6, Z + 0.4, lit ? 'lamp' : 'glass'); b.box(x, x + 9, y + 2, y + 9, -0.4, 0.6, 'glass_d');
+    if (x % 40 === 26) { b.box(x - 2, x + 14, y, y + 1, Z, Z + 6, 'concrete'); b.box(x - 2, x + 14, y + 1, y + 6, Z + 5.4, Z + 6, (f + x + v) % 3 ? 'concrete_l' : 'fabric_b'); }
+  }
+  for (const x of [30, 100, 170]) { b.box(x - 7, x + 7, 0, 11, Z - 0.6, Z + 0.6, 'wood_d'); b.box(x - 9, x + 9, 11, 13, Z, Z + 6, 'concrete_d'); b.box(x + 7, x + 9, 8, 10, Z + 0.5, Z + 2, 'lamp'); }
+  b.box(0, X, H, H + 2, 0, Z, 'roof_d');
+  for (const x of [30, 100, 170]) cbox(b, x - 10, x + 10, H, H + 14, 16, 40, col, 1, 1);
+  b.seg([60, H, 28], [60, H + 16, 28], 0.5, 'gun_d'); b.box(54, 66, H + 12, H + 13, 27.5, 28.5, 'gun_d');
+  return one(b, X, [X, Z]);
+}
+
+/** Ряд гаражей: железные ворота разных цветов, плоская крыша из рубероида. */
+export function garages(v: number): ModelDef {
+  const X = 140, Z = 40, b = new Vox(X, 26, Z);
+  b.box(0, X, 0, 22, 0, Z, 'concrete');
+  b.box(-1, X + 1, 22, 24, -1, Z + 1, 'roof_d');
+  const cols = ['green_d', 'blue_d', 'red_d', 'gun', 'khaki_d', 'orange_d'];
+  for (let i = 0; i < 7; i++) { const x = 2 + i * 20; b.box(x, x + 16, 1, 19, Z - 0.5, Z + 0.4, cols[(i + v) % 6]); b.box(x + 7.6, x + 8.4, 1, 19, Z, Z + 0.6, 'gun_d'); b.box(x + 10, x + 12, 9, 11, Z, Z + 0.8, 'steel_l'); }
+  return one(b, X, [X, Z]);
+}
+
+/** Строительный кран: решётчатая башня, стрела с противовесом, кабина, крюк. */
+export function crane(): ModelDef {
+  const n = 30, H = 220, b = new Vox(200, H + 20, n), c = n / 2, bx = 40;
+  for (const [dx, dz] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) b.seg([bx + dx, 0, c + dz], [bx + dx, H, c + dz], 0.8, 'orange');
+  for (let y = 0; y < H; y += 10) { b.seg([bx - 5, y, c - 5], [bx + 5, y + 10, c - 5], 0.5, 'orange_d'); b.seg([bx - 5, y, c + 5], [bx + 5, y + 10, c + 5], 0.5, 'orange_d'); b.seg([bx - 5, y, c - 5], [bx - 5, y + 10, c + 5], 0.5, 'orange_d'); b.box(bx - 6, bx + 6, y, y + 1, c - 6, c + 6, 'orange'); }
+  cbox(b, bx - 9, bx + 9, 0, 6, c - 9, c + 9, 'concrete', 1, 1);
+  b.box(0, 196, H, H + 4, c - 2, c + 2, 'orange'); for (let x = 2; x < 196; x += 8) b.seg([x, H, c], [x + 4, H + 4, c], 0.5, 'orange_d');
+  cbox(b, 4, 24, H - 10, H, c - 6, c + 6, 'concrete_d', 1, 1);                                                    // противовес
+  cbox(b, bx + 6, bx + 16, H - 10, H, c - 5, c + 5, 'white', 1, 1); b.box(bx + 15.5, bx + 16.5, H - 8, H - 2, c - 4, c + 4, 'glass');
+  b.seg([bx, H + 4, c], [bx, H + 18, c], 0.8, 'orange'); b.seg([bx, H + 18, c], [4, H + 4, c], 0.4, 'gun_d'); b.seg([bx, H + 18, c], [190, H + 4, c], 0.4, 'gun_d');
+  b.seg([150, H, c], [150, 70, c], 0.3, 'gun_d'); b.box(146, 154, 62, 70, c - 3, c + 3, 'toy_y'); b.box(140, 160, 50, 62, c - 8, c + 8, 'concrete');   // крюк с плитой
+  b.set(bx, H + 19, c, 'lamp_r');
+  return one(b, 200, [200, n]);
+}
+
+/** Фонтан: каменная чаша, струи (светлая вода), бортик. */
+export function fountain(): ModelDef {
+  const n = 80, c = n / 2, b = new Vox(n, 40, n);
+  b.cylY(c, c, 38, 0, 8, 'stone_l'); b.cylY(c, c, 34, 2, 8.1, 'water'); b.cylY(c, c, 35, 7, 8, 'stone');
+  b.cylY(c, c, 8, 0, 18, 'stone_l'); b.cylY(c, c, 14, 18, 22, 'stone'); b.cylY(c, c, 12, 20, 22.1, 'water_l');
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; b.seg([c, 22, c], [c + Math.cos(a) * 20, 9, c + Math.sin(a) * 20], 0.7, 'foam'); }
+  b.seg([c, 22, c], [c, 36, c], 1, 'foam'); b.sphere(c, 36, c, 2.4, 'foam');
+  return one(b, n, [n, n]);
+}
 void tracks;

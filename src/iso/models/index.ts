@@ -14,6 +14,7 @@ import * as s5 from './stage5';
 import * as s6 from './stage6';
 import { DECO } from './deco';
 import * as items from './items';
+import * as fresh from './fresh';
 
 type Builder = () => ModelDef;
 type PropBuilder = (v: number) => ModelDef;
@@ -26,6 +27,8 @@ export const ENEMIES: Record<string, Builder> = {
   infantry: s4.infantry, apc: s4.apc, mbt: s4.mbt, attackHeli: s4.attackHeli, spg: s4.spg, armoredCar: s4.armoredCar, heavyTank: s4.heavyTank, mlrs: s4.mlrs,
   carsSwarm: s5.carsSwarm, walker: s5.walker, superTank: s5.superTank, gunship: s5.gunship, armoredTrain: s5.armoredTrain, droneCarrier: s5.droneCarrier, kamikazeDrone: s5.kamikazeDrone, mechTitan: s5.mechTitan,
   cityBlock: s6.cityBlock, crawler: s6.crawler, dropPod: s6.dropPod, stratoBomber: s6.stratoBomber, mobileFort: s6.mobileFort, silo: s6.silo, megaWalker: s6.megaWalker,
+  loader: fresh.loader, bulldozer: fresh.bulldozer, craneTruck: fresh.craneTruck, mixerTruck: fresh.mixerTruck, inspectDrone: fresh.inspectDrone, demoTruck: fresh.demoTruck, dumpTruck: fresh.dumpTruck, towerCrane: fresh.towerCrane,
+  tram: fresh.tram, tankColumn: fresh.tankColumn, missileTruck: fresh.missileTruck, cruiseMissile: fresh.cruiseMissile, airship: fresh.airship, ufo: fresh.ufo, comet: fresh.comet, starCannon: fresh.starCannon,
   meteorite: s6.meteorite, contCrawler: s6.contCrawler, orbitalSat: s6.orbitalSat, voidSpider: s6.voidSpider, lance: s6.lance, moonlet: s6.moonlet, starTitan: s6.starTitan,
 };
 export const BOSSES: Record<string, Builder> = {
@@ -36,7 +39,7 @@ export const PROPS: Record<string, PropBuilder> = {
   block: s1.block, book: s1.book, crayon: s1.crayon, furnitureLeg: () => s1.furnitureLeg(), marble: s1.marble, slipper: s1.slipper, pillow: s1.pillow,
   bed: () => s2.bed(), wardrobe: () => s2.wardrobe(), desk: () => s2.desk(), shelf: () => s2.shelf(), box: s2.box, bookStack: s2.bookStack, toyDebris: s2.toyDebris,
   clutter: s3.clutter, houseWall: () => s3.houseWall(), sofa: s3.sofa, table: () => s3.table(), fridge: () => s3.fridge(), tvStand: () => s3.tvStand(), plant: s3.plant, armchair: s3.armchair, stove: () => s3.stove(),
-  car: s4.car, house: s4.house, tree: s4.tree, streetLamp: () => s4.streetLamp(), bench: s4.bench, busStop: () => s4.busStop(), bins: s4.bins, midrise: s5.midrise, tower: s5.tower,
+  car: s4.car, house: s4.house, tree: s4.tree, streetLamp: () => s4.streetLamp(), bench: s4.bench, busStop: () => s4.busStop(), bins: s4.bins, midrise: s5.midrise, tower: s5.tower, panelHouse: s5.panelHouse, garages: s5.garages, crane: () => s5.crane(), fountain: () => s5.fountain(),
   cityDot: s6.cityDot, mountain: s6.mountain, crystal: s6.crystal, volcano: s6.volcano,
   lego: items.lego, toyTree: items.toyTree, barrel: s0.barrel, woodCrate: s0.woodCrate, dice: s0.dice,
 };

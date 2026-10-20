@@ -21,8 +21,9 @@ void main(){
   float n = min(min(d(vec2(1.0,0.0)), d(vec2(-1.0,0.0))), min(d(vec2(0.0,1.0)), d(vec2(0.0,-1.0))));
   vec4 col = texture2D(tColor, vUv);
   vec3 rgb = col.rgb;
-  if (c - n > thr) rgb = mix(rgb, outline, 0.88);
-  gl_FragColor = vec4(toSRGB(rgb), 1.0);
+  float a = col.a;
+  if (c - n > thr) { rgb = a > 0.0 ? mix(rgb, outline, 0.88) : outline; a = 1.0; }
+  gl_FragColor = vec4(toSRGB(rgb) * a, a);
 }`;
 
 /** Пул экземпляров одной геометрии (части модели). */
@@ -102,13 +103,15 @@ export class IsoRenderer {
   private uni: Record<string, THREE.IUniform>;
   w = 2; h = 2;
 
-  constructor(canvas: HTMLCanvasElement) {
-    this.gl = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: false });
+  /** transparent — прозрачный фон (витрины моделей поверх интерфейса). */
+  constructor(canvas: HTMLCanvasElement, transparent = false) {
+    this.gl = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', alpha: transparent, premultipliedAlpha: true });
+    if (transparent) this.gl.setClearColor(0x000000, 0);
     this.gl.setPixelRatio(1);
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.BasicShadowMap;          // жёсткие пиксельные тени
     this.gl.outputColorSpace = THREE.LinearSRGBColorSpace;   // перевод в sRGB — в последнем проходе
-    this.scene.background = new THREE.Color('#14121c');
+    if (!transparent) this.scene.background = new THREE.Color('#14121c');
     // В three.js освещённость делится на π (физически корректный Ламберт) — поэтому множитель π.
     this.scene.add(new THREE.AmbientLight('#e6ecff', 0.56 * Math.PI));
     this.scene.add(new THREE.HemisphereLight('#fff4e0', '#3a3448', 0.1 * Math.PI));

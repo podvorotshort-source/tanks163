@@ -2,7 +2,6 @@
 
 import { pickExt, extIcon } from '../ext';
 import { type Layer, type SpriteDef, rect, circ, ell, poly, cap, ring, sym, rasterize, texStripesY } from '../raster';
-import { star5 } from './props';
 import { makeCanvas } from '../screen';
 
 const L: Record<string, () => Layer[]> = {
@@ -100,3 +99,12 @@ export function iconCanvas(id: string, scale = 1): HTMLCanvasElement {
 }
 
 export const ICON_IDS = Object.keys(L);
+
+function star5(cx: number, cy: number, R: number, r: number): number[] {
+  const pts: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5, rr = i % 2 ? r : R;
+    pts.push(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+  }
+  return pts;
+}

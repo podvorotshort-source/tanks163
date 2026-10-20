@@ -98,7 +98,7 @@ export class App {
     while (from > 0 && this.stack[from].overlay) from--;
     let world = false;
     for (let i = from; i < this.stack.length; i++) if (this.stack[i].renderWorld) { this.stack[i].renderWorld!(wctx); world = true; }
-    if (!world && this.worldDirty) { wctx.fillStyle = '#07060b'; wctx.fillRect(0, 0, this.screen.ww, this.screen.wh); }
+    if (!world && this.worldDirty) wctx.clearRect(0, 0, this.screen.ww, this.screen.wh);
     this.worldDirty = world;
     const t2 = performance.now();
     if (this.screen.hiUsed) { this.screen.hctx.clearRect(0, 0, this.screen.ww, this.screen.wh); this.screen.hiUsed = false; }

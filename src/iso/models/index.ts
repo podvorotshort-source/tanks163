@@ -9,6 +9,7 @@ import * as s3 from './stage3';
 import * as s4 from './stage4';
 import * as s5 from './stage5';
 import * as s6 from './stage6';
+import { DECO } from './deco';
 
 type Builder = () => ModelDef;
 type PropBuilder = (v: number) => ModelDef;
@@ -68,6 +69,7 @@ export function model(key: string): BuiltModel {
   else if (kind === 'e') def = ENEMIES[a] ? ENEMIES[a]() : fallback('red', 10);
   else if (kind === 'boss') def = BOSSES[a] ? BOSSES[a]() : fallback('purple', 30);
   else if (kind === 'prop') def = PROPS[a] ? PROPS[a](+b || 0) : fallback('concrete');
+  else if (kind === 'deco') def = DECO[a] ? DECO[a](+b || 0) : fallback('grass', 4);
   else if (kind === 'drone') def = drone();
   else def = fallback('pink');
   m = buildModel(def);

@@ -1,6 +1,4 @@
 import { App, setApp } from './app';
-import { GalleryScene } from './debug/gallery';
-import { ArtViewScene } from './debug/artView';
 import { ModelsScene } from './debug/models';
 import { GameScene } from './client/game';
 import { input } from './input/input';
@@ -31,12 +29,8 @@ function boot(): void {
   const params = new URLSearchParams(location.search);
   const dev = params.get('dev');
 
-  if (dev === 'gallery') {
-    app.set(new GalleryScene());
-  } else if (dev === 'models') {
+  if (dev === 'models') {
     app.set(new ModelsScene(params));
-  } else if (dev === 'art') {
-    app.set(new ArtViewScene());
   } else if (dev === 'play') {
     // Прямой запуск боя (для тестов): ?dev=play&cls=assault,heavy&stage=0&seed=7
     const cls = (params.get('cls') ?? 'assault').split(',') as ClassId[];

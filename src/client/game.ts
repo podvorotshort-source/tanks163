@@ -16,6 +16,7 @@ import { music } from '../audio/music';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { BOSSES } from '../sim/bosses';
 import { BOSS_LAND } from './render';
+import { sharedIso } from '../iso/shared';
 import { POWERUP_INFO } from '../sim/powerups';
 import { WEAPONS } from '../sim/content/weapons';
 import { UI } from '../gfx/palette';
@@ -45,8 +46,7 @@ export class GameScene implements Scene {
   /** Та же камера в пикселях интерфейса (для подписей, указателей). */
   ucam = new Camera();
   /** Изометрический 3D-мир (создаётся при первом кадре на холсте #gl). */
-  private isoWorld: IsoWorld | null = null;
-  get iso(): IsoWorld { return (this.isoWorld ??= new IsoWorld(app.screen.gl)); }
+  get iso(): IsoWorld { return sharedIso(); }
   /** Следы на земле — в 3D-мир. */
   readonly ground = { addDecal: (d: Parameters<IsoWorld['addDecal']>[0]) => this.iso.addDecal(d) };
   fx = new Fx();
@@ -75,6 +75,7 @@ export class GameScene implements Scene {
 
   enter(): void {
     const s = app.screen;
+    this.iso.clearDecals();
     this.cam.setScreen(s.ww, s.wh);
     this.syncCamera(1);
     this.hud.banner(STAGE_DEFS[this.sim.stageIdx].title + ' · ' + STAGE_DEFS[this.sim.stageIdx].subtitle.toUpperCase(), UI.gold, 3.5, 'Модель ' + TIER_ROMAN[this.sim.stageIdx] + ': ' + TIER_NAMES[this.sim.stageIdx], true);

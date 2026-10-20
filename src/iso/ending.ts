@@ -3,27 +3,17 @@
 // (тот самый облик I, с которого всё началось). Камера отъезжает от планеты во весь экран к столу.
 
 import * as THREE from 'three';
-import { model } from './models/index';
+import { modelGroup, poseParts } from './meshes';
 import { groundMesh, cellAt } from './ground';
 import { PAL } from './vox';
 import { STAGE_DEFS } from '../sim/content/stages';
 
 export interface EndingScene { group: THREE.Group; globe: THREE.Object3D; center: THREE.Vector3; radius: number }
 
-/** Поставить модель из реестра как обычные сетки (без пулов: сцена статична). */
+/** Поставить модель на стол. */
 function place(parent: THREE.Object3D, key: string, x: number, z: number, size: number, rotY = 0, lit: THREE.Material, glow: THREE.Material, turret = 0): void {
-  const m = model(key);
-  const g = new THREE.Group();
-  const k = size / (m.foot ? Math.max(...m.foot) : m.size);
-  for (const p of m.parts) {
-    const sub = new THREE.Group();
-    sub.position.copy(p.at);
-    if (p.name === 'turret') sub.rotation.y = turret;
-    if (p.lit) { const me = new THREE.Mesh(p.lit, lit); me.castShadow = true; me.receiveShadow = true; sub.add(me); }
-    if (p.glow) sub.add(new THREE.Mesh(p.glow, glow));
-    g.add(sub);
-  }
-  g.scale.setScalar(k);
+  const g = modelGroup(key, size, lit, glow);
+  poseParts(g, n => (n === 'turret' ? turret : 0));
   g.rotation.y = -rotY;
   g.position.set(x, 0, z);
   parent.add(g);

@@ -5,7 +5,7 @@ import type { Scene } from '../app';
 import { app } from '../app';
 import { drawText, wrapText } from '../gfx/font';
 import { UI } from '../gfx/palette';
-import { panel, menuBackground, showcaseTank } from './widgets';
+import { panel, menuBackground, showcaseTank, showcaseModel } from './widgets';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
@@ -13,8 +13,6 @@ import { save } from '../meta/save';
 import { WORKSHOP, ARSENAL, RESEARCH, GARAGE, VARIANTS, THREATS, type UnlockDef } from '../meta/meta';
 import { BOSSES } from '../sim/bosses';
 import { STAGE_DEFS } from '../sim/content/stages';
-import { spriteSet, drawSprite } from '../gfx/sprites';
-import { unitArt } from '../gfx/art/units';
 import { fmtTime } from '../core/math';
 import { TitleScene } from './title';
 import { SetupScene } from './setup';
@@ -204,9 +202,7 @@ export class BaseScene implements Scene {
       panel(ctx, x, y, cw, ch, n ? UI.gold : UI.line);
       const def = BOSSES[id];
       if (n) {
-        const art = unitArt(def.art);
-        drawSprite(ctx, spriteSet(art.hull(art.ramp), 0.42), x + cw / 2, y + 28, -Math.PI / 2 + Math.sin(this.t + i) * 0.2);
-        if (art.turret) drawSprite(ctx, spriteSet(art.turret(art.ramp), 0.42), x + cw / 2, y + 28, -Math.PI / 2);
+        showcaseModel(`boss:${def.art}`, x + cw / 2, y + 24, 48, this.t * 0.5 + i);
         drawText(ctx, def.name.toUpperCase(), x + cw / 2, y + ch - 20, { align: 'center', color: UI.gold });
         drawText(ctx, `Побед: ${n}`, x + cw / 2, y + ch - 10, { align: 'center', color: UI.dim });
       } else {

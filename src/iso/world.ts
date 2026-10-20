@@ -12,7 +12,8 @@ import { STAGE_GROWTH } from '../sim/types';
 import { MATS } from '../sim/props';
 import { IsoRenderer, ModelPool } from './renderer';
 import { model } from './models/index';
-import { groundMesh, frameMesh } from './ground';
+import { groundMesh, frameMesh, cellAt } from './ground';
+import { decoFor } from './models/deco';
 import { tierOf } from '../client/tiers';
 import { bossDropH } from '../client/render';
 
@@ -55,6 +56,7 @@ export class IsoWorld {
     const st = STAGE_DEFS[s], mat = this.r.litMat;
     grp.add(groundMesh(s, 0, 0, st.w, st.h, 10, mat));
     grp.add(frameMesh(s, st.w, st.h, mat));
+    this.addDeco(grp, s);
     // внешний мир — следующая ступень (или стол с глобусом за планетой), в 4 раза крупнее, чуть ниже
     const G = STAGE_GROWTH, ns = s + 1, nd = STAGE_DEFS[Math.min(ns, 7)];
     const relX = ns <= 7 ? nd.relicX : 1440, relY = ns <= 7 ? nd.relicY : 810;
@@ -69,6 +71,36 @@ export class IsoWorld {
     return grp;
   }
 
+  /** Мелкие детали на земле арены (статичные экземпляры, без теней). */
+  private addDeco(grp: THREE.Group, s: number): void {
+    const st = STAGE_DEFS[s], G = STAGE_GROWTH;
+    const prev = s > 0 ? STAGE_DEFS[s - 1] : null;
+    const rx0 = prev ? st.relicX - prev.w / G / 2 : 0, ry0 = prev ? st.relicY - prev.h / G / 2 : 0;
+    const byKey = new Map<string, THREE.Matrix4[]>();
+    let seed = 1234567 + s * 999;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+    const N = 4200;
+    for (let i = 0; i < N; i++) {
+      const x = rnd() * st.w, y = rnd() * st.h;
+      if (prev && x > rx0 - 10 && y > ry0 - 10 && x < rx0 + prev.w / G + 10 && y < ry0 + prev.h / G + 10) continue;
+      const d = decoFor(s, cellAt(s, x, y).c);
+      if (!d) continue;
+      const key = `deco:${d[0]}:${Math.floor(rnd() * 5)}`;
+      const m = model(key), k = (d[1] / m.size) * (0.8 + rnd() * 0.5);
+      const mx = new THREE.Matrix4().makeRotationY(rnd() * 6.283).scale(new THREE.Vector3(k, k, k)).setPosition(x, 0, y);
+      let arr = byKey.get(key); if (!arr) byKey.set(key, (arr = []));
+      arr.push(mx);
+    }
+    for (const [key, arr] of byKey) {
+      const part = model(key).parts[0];
+      if (!part.lit) continue;
+      const im = new THREE.InstancedMesh(part.lit, this.r.litMat, arr.length);
+      arr.forEach((mx, i) => im.setMatrixAt(i, mx));
+      im.receiveShadow = true; im.frustumCulled = false; im.userData.shared = true;
+      grp.add(im);
+    }
+  }
+
   /** Показать сцену ступени s. */
   setStage(s: number): void {
     if (s === this.stage) return;
@@ -79,11 +111,13 @@ export class IsoWorld {
     this.stageGroup.add(this.built.get(s)!);
     // прежняя ступень больше не нужна — освобождаем память
     const g = this.built.get(old);
-    if (g && old !== s) { g.traverse(o => { if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose(); }); this.built.delete(old); }
+    if (g && old !== s) { g.traverse(o => { if ((o as THREE.Mesh).geometry && !o.userData.shared) (o as THREE.Mesh).geometry.dispose(); }); this.built.delete(old); }
     this.decalN = 0; this.decals.count = 0;
   }
 
   // ------------------------------------------------------------ следы на земле
+  clearDecals(): void { this.decalN = 0; this.decals.count = 0; }
+
   addDecal(d: Decal): void {
     const i = this.decalN % this.decalMax;
     const r = d.r * (d.kind === 'crater' ? 1.1 : 1);

@@ -1,14 +1,15 @@
 // Общие элементы интерфейса меню.
 
-import { hiTank } from '../gfx/hi';
 import { drawText, textWidth } from '../gfx/font';
 import { UI } from '../gfx/palette';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
 import { makeCanvas } from '../gfx/screen';
-import { groundAt } from '../gfx/art/ground';
-import { spriteSet, drawSprite } from '../gfx/sprites';
-import { unitArt } from '../gfx/art/units';
+import { app } from '../app';
+import { Camera } from '../client/camera';
+import { sharedIso } from '../iso/shared';
+import { MenuShowcase } from '../iso/showcase';
+import { portrait } from '../iso/portrait';
 
 export function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, border: string = UI.line, fill = 'rgba(21,19,32,0.92)'): void {
   x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
@@ -115,50 +116,34 @@ export class VMenu {
 // Фон меню: медленно плывущий мир и игрушечные танки
 // ---------------------------------------------------------------------------
 
-let bgCanvas: HTMLCanvasElement | null = null;
-let bgStage = -1;
+let showcase: MenuShowcase | null = null;
+const bgCam = new Camera();
 
 export function menuBackground(ctx: CanvasRenderingContext2D, W: number, H: number, t: number, stage = 0): void {
-  if (!bgCanvas || bgStage !== stage) {
-    bgStage = stage;
-    const bw = 360, bh = 220;
-    bgCanvas = makeCanvas(bw, bh);
-    const c = bgCanvas.getContext('2d')!;
-    const img = c.createImageData(bw, bh);
-    const d = new Uint32Array(img.data.buffer);
-    const k = 4;
-    const ox = 400, oy = 300;
-    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) d[y * bw + x] = groundAt(stage, ox + x * k, oy + y * k, 1 / k);
-    c.putImageData(img, 0, 0);
-  }
-  const bw = bgCanvas.width, bh = bgCanvas.height;
-  const scale = Math.max(W / bw, H / bh) * 1.25;
-  const dx = Math.sin(t * 0.05) * (bw * scale - W) * 0.4 - (bw * scale - W) / 2;
-  const dy = Math.cos(t * 0.04) * (bh * scale - H) * 0.4 - (bh * scale - H) / 2;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bgCanvas, Math.round(dx), Math.round(dy), Math.round(bw * scale), Math.round(bh * scale));
-  // Игрушечные танки, проезжающие по фону.
-  for (let i = 0; i < 6; i++) {
-    const sp = 18 + i * 5;
-    const dir = i % 2 ? 1 : -1;
-    const x = ((t * sp * dir + i * 173) % (W + 120) + W + 120) % (W + 120) - 60;
-    const y = 40 + ((i * 97) % Math.max(1, H - 80));
-    const art = unitArt(i % 3 === 0 ? 'toyTank' : i % 3 === 1 ? 'jeep' : 'armorToy');
-    const set = spriteSet(art.hull(art.ramp), 0.9);
-    const a = dir > 0 ? 0 : Math.PI;
-    ctx.globalAlpha = 0.25;
-    drawSprite(ctx, set, x + 2, y + 3, a, 0, 2);
-    ctx.globalAlpha = 1;
-    drawSprite(ctx, set, x, y, a, Math.floor(t * 10) % 4);
-    if (art.turret) drawSprite(ctx, spriteSet(art.turret(art.ramp), 0.9), x - (art.pivot?.[0] ?? 0) * dir * -0.9, y, a + Math.sin(t + i) * 0.4);
-  }
-  ctx.fillStyle = 'rgba(7,6,11,0.55)';
+  const iso = sharedIso(), sc = app.screen;
+  if (!showcase || showcase.stage !== stage) showcase = new MenuShowcase(stage, iso.r.litMat, iso.r.glowMat);
+  showcase.update(t);
+  showcase.frame(bgCam, sc.ww, sc.wh, t);
+  iso.renderScene(showcase.group, bgCam);
+  ctx.fillStyle = 'rgba(7,6,11,0.5)';
   ctx.fillRect(0, 0, W, H);
 }
 
 /** Танк игрока для витрин меню. */
 export function showcaseTank(ctx: CanvasRenderingContext2D, cls: 'scout' | 'assault' | 'heavy', ramp: 'gold' | 'lime', main: string, aux: string[], x: number, y: number, scale: number, a: number, tier = 0): void {
   // В слое высокой чёткости (в меню витрину ничего не перекрывает).
-  void ctx;
-  hiTank(cls, ramp, main, aux, x, y, scale, a, tier);
+  void ctx; void main; void aux;
+  const s = app.screen, k = s.ww / s.w;
+  s.hiUsed = true;
+  const px = Math.round(34 * scale * k);
+  const c = portrait(`tank:${cls}:${tier}:${ramp === 'lime' ? 1 : 0}`, px, a + Math.PI / 2, n => (n === 'turret' ? Math.sin(a * 1.3) * 0.5 : 0));
+  s.hctx.drawImage(c, Math.round(x * k - px / 2), Math.round(y * k - px / 2));
+}
+
+/** Любая модель (босс, враг) — витрина в слое высокой чёткости; size — в пикселях интерфейса. */
+export function showcaseModel(key: string, x: number, y: number, size: number, a: number): void {
+  const s = app.screen, k = s.ww / s.w;
+  s.hiUsed = true;
+  const px = Math.round(size * k);
+  s.hctx.drawImage(portrait(key, px, a), Math.round(x * k - px / 2), Math.round(y * k - px / 2));
 }

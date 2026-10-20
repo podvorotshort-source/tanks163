@@ -1,7 +1,6 @@
 // Отладочный API в window.__tk — для автотестов (Playwright) и ручной проверки.
 
 import { damagePlayer } from '../sim/combat';
-import { rasterStats } from '../gfx/sprites';
 import type { App } from '../app';
 import { GameScene } from '../client/game';
 import { input } from '../input/input';
@@ -31,7 +30,7 @@ export function installDebug(app: App): void {
       };
     },
     /** Время фаз кадра (мс) и число частиц. */
-    perf() { const g = game(); const r = { ...app.perf, fps: app.fps, parts: g?.fx.parts.length ?? 0, lights: g?.fx.lights.length ?? 0, rasterMs: rasterStats.ms, rasterN: rasterStats.n, ...(g ? g.perf : {}), fxMs: g?.fx.drawMs ?? 0 }; rasterStats.ms = 0; rasterStats.n = 0; app.perf.peakFrame = 0; if (g) g.fx.drawMs = 0; return r; },
+    perf() { const g = game(); const r = { ...app.perf, fps: app.fps, parts: g?.fx.parts.length ?? 0, lights: g?.fx.lights.length ?? 0, ...(g ? g.perf : {}), fxMs: g?.fx.drawMs ?? 0 }; app.perf.peakFrame = 0; if (g) g.fx.drawMs = 0; return r; },
     give(p: number, w: WeaponId) { const s = game()?.sim; if (s) s.addWeapon(s.players[p], w); },
     ability(p: number, a: AbilityId) { const s = game()?.sim; if (s) s.players[p].abilities.push({ id: a, level: 1, t: 0, active: 0, charges: 1 }); },
     power(id: PowerupId) { const s = game()?.sim; if (s) applyPowerup(s, id, 0); },

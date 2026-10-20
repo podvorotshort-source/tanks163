@@ -93,19 +93,24 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
   dens *= fx.density();
   const rp = (r * cam.zoom) / (cam.h / 360);
   const nf = Math.round(Math.min(26, Math.round(6 + rp * 0.25)) * k * (frames ? 0.2 : 1) * dens);
+  // Центральный шар: белое ядро → оранжевое тело → остывает в дым с угольком.
+  if (!frames) {
+    const p = fx.spawn('fire', e.x, e.y);
+    p.z = r * 0.25; p.vz = r * 0.5; p.r = r * 0.42; p.r1 = r * 0.62; p.life = 0.34 + Math.min(0.2, rp * 0.004); p.drag = 0; p.ramp = ramp;
+  }
   for (let i = 0; i < nf; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * r * 0.6;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d * 0.3, e.y + Math.sin(a) * d * 0.3);
-    p.vx = Math.cos(a) * d * 4; p.vy = Math.sin(a) * d * 4 - r * 0.4;
-    p.r = r * (0.22 + Math.random() * 0.2); p.r1 = r * 0.05; p.life = 0.3 + Math.random() * 0.35; p.drag = 5; p.ramp = ramp;
+    p.vx = Math.cos(a) * d * 4; p.vy = Math.sin(a) * d * 4; p.z = r * 0.15; p.vz = r * (0.3 + Math.random() * 0.6);
+    p.r = r * (0.16 + Math.random() * 0.14); p.r1 = r * (0.24 + Math.random() * 0.16); p.life = 0.3 + Math.random() * 0.35; p.drag = 5; p.ramp = ramp;
   }
   // Дым
   const ns = Math.round(Math.min(14, Math.round(3 + rp * 0.12)) * k * dens);
   for (let i = 0; i < ns; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.random() * r * 0.6;
     const p = fx.spawn('smoke', e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
-    p.vx = Math.cos(a) * r * 0.6; p.vy = Math.sin(a) * r * 0.6 - r * 0.5;
-    p.r = r * 0.25; p.r1 = r * (0.55 + Math.random() * 0.3); p.life = 0.9 + Math.random() * 0.9; p.drag = 1.5;
+    p.vx = Math.cos(a) * r * 0.6; p.vy = Math.sin(a) * r * 0.6; p.z = r * 0.3; p.vz = r * (0.5 + Math.random() * 0.4);
+    p.r = r * 0.18; p.r1 = r * (0.34 + Math.random() * 0.2); p.life = 0.8 + Math.random() * 0.6; p.drag = 1.5;
     p.col = Math.random() < 0.5 ? '#3a3550' : '#57535f'; p.alpha = 0.55;
   }
   // Искры
@@ -168,11 +173,11 @@ export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: D
   for (let i = 0; i < (8 + Math.min(16, zp * 0.4)) * dens; i++) {
     const a = Math.random() * Math.PI * 2, d = Math.random() * sz * 0.4;
     const p = fx.spawn('fire', e.x + Math.cos(a) * d, e.y + Math.sin(a) * d);
-    p.vx = Math.cos(a) * sz * 2; p.vy = Math.sin(a) * sz * 2 - sz; p.r = sz * 0.25; p.r1 = sz * 0.05; p.life = 0.35 + Math.random() * 0.3; p.drag = 4;
+    p.vx = Math.cos(a) * sz * 2; p.vy = Math.sin(a) * sz * 2; p.z = sz * 0.2; p.vz = sz * (0.4 + Math.random() * 0.6); p.r = sz * 0.18; p.r1 = sz * 0.3; p.life = 0.35 + Math.random() * 0.3; p.drag = 4;
   }
   for (let i = 0; i < 5 * dens; i++) {
     const p = fx.spawn('smoke', e.x, e.y);
-    p.vx = (Math.random() - 0.5) * sz * 1.5; p.vy = -sz * (0.5 + Math.random()); p.r = sz * 0.2; p.r1 = sz * 0.6; p.life = 1.2; p.col = '#3a3550'; p.alpha = 0.6;
+    p.vx = (Math.random() - 0.5) * sz * 1.5; p.vy = (Math.random() - 0.5) * sz * 0.5; p.z = sz * 0.3; p.vz = sz * (0.5 + Math.random()); p.r = sz * 0.16; p.r1 = sz * 0.42; p.life = 1.2; p.col = '#3a3550'; p.alpha = 0.6;
   }
   for (let i = 0; i < (6 + Math.min(10, zp * 0.2)) * dens; i++) {
     const p = fx.spawn('debris', e.x, e.y);

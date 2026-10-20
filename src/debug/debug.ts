@@ -7,6 +7,7 @@ import { input } from '../input/input';
 import type { PowerupId, WeaponId, AbilityId } from '../sim/types';
 import { dropPowerup, applyPowerup } from '../sim/powerups';
 import { spawnEnemy } from '../sim/director';
+import { spriteMade } from '../client/fx';
 
 export function installDebug(app: App): void {
   const game = () => (app.top instanceof GameScene ? app.top : (app as unknown as { stack?: unknown[] }) && findGame(app));
@@ -30,7 +31,7 @@ export function installDebug(app: App): void {
       };
     },
     /** Время фаз кадра (мс) и число частиц. */
-    perf() { const g = game(); const r = { ...app.perf, fps: app.fps, parts: g?.fx.parts.length ?? 0, lights: g?.fx.lights.length ?? 0, ...(g ? g.perf : {}), fxMs: g?.fx.drawMs ?? 0 }; app.perf.peakFrame = 0; if (g) g.fx.drawMs = 0; return r; },
+    perf() { const g = game(); const r = { ...app.perf, fps: app.fps, parts: g?.fx.parts.length ?? 0, lights: g?.fx.lights.length ?? 0, ...(g ? g.perf : {}), fxMs: g?.fx.drawMs ?? 0, sprites: spriteMade, fxgl: g?.iso.fx.stats() }; app.perf.peakFrame = 0; if (g) g.fx.drawMs = 0; return r; },
     give(p: number, w: WeaponId) { const s = game()?.sim; if (s) s.addWeapon(s.players[p], w); },
     ability(p: number, a: AbilityId) { const s = game()?.sim; if (s) s.players[p].abilities.push({ id: a, level: 1, t: 0, active: 0, charges: 1 }); },
     power(id: PowerupId) { const s = game()?.sim; if (s) applyPowerup(s, id, 0); },
@@ -43,6 +44,10 @@ export function installDebug(app: App): void {
     skipStage() { game()?.sim.debugSkipStage(); },
     boss() { const s = game()?.sim; if (s) s.stageTime = s.stage.bossAt - 0.1; },
     hurt(p: number, k = 0.5) { const s = game()?.sim; if (s) { const pl = s.players[p]; pl.hp -= pl.maxHp * k; } },
+    /** Поджечь землю рядом с игроком (проверка огня): смещение по x, радиус. */
+    ignite(dx = 90, r = 40) { const s = game()?.sim; if (!s) return; const p = s.players[0]; s.fire.ignite(p.x + dx, p.y, r, 30, 0, -1, true); },
+    /** Поджечь землю вокруг ближайшего к игроку препятствия из материала mat (проверка, что огонь не лезет на блоки). */
+    igniteProp(mat = 'brick', r = 60) { const s = game()?.sim; if (!s) return; const p = s.players[0]; let best = null as null | { x: number; y: number }, bd = 1e18; for (const q of s.props.props) { if (q.dead || q.mat !== mat) continue; const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; best = q; } } if (best) s.fire.ignite(best.x, best.y, r, 30, 0, -1, true); return best && { x: best.x - p.x, y: best.y - p.y }; },
     god(on = true) { const s = game()?.sim; if (s) for (const p of s.players) p.invulnT = on ? 1e9 : 0; },
   };
   (window as unknown as { __tk: typeof api }).__tk = api;

@@ -35,7 +35,6 @@ import { PauseMenu } from './pause';
 import { settings } from '../meta/settings';
 import { emitExplosion, emitKill, emitPropBreak, emitShot, emitHit, emitAbility } from './effects';
 import { Ending } from './ending';
-import { extFrames } from '../gfx/ext';
 
 interface TransitionFx {
   from: number;
@@ -325,37 +324,25 @@ export class GameScene implements Scene {
   private ambientFx(dt: number): void {
     const sim = this.sim, fx = this.fx;
     if (sim.state === 'levelup') return;
-    // Огонь — раскадровкой fx_fire_1..N из внешней графики (если есть), иначе частицами.
-    const fireN = extFrames('fx_fire');
-    const fireAnim = (x: number, y: number, r: number, life: number) => {
-      const p = fx.spawn('anim', x, y);
-      p.text = 'fx_fire'; p.va = fireN; p.r = r; p.life = life;
-      return p;
-    };
-    // Пламя огнемётов (снаряды «flame» — частицами).
+    // Пламя огнемётов: клубы огня летят за струёй и разрастаются.
     for (const s of sim.shots) {
       if (s.kind !== 'flame' || s.dead) continue;
-      if (fireN) {
-        if (Math.random() < 0.2) {
-          const p = fireAnim(s.x, s.y, sim.size * (0.13 + Math.random() * 0.06), 0.26 + Math.random() * 0.1);
-          p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.drag = 4; p.grow = 1;
-        }
-      } else if (Math.random() < 0.6) {
-        const p = fx.spawn('fire', s.x, s.y);
-        p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.r = sim.size * 0.12; p.r1 = sim.size * 0.3; p.life = 0.25 + Math.random() * 0.15; p.drag = 4;
+      if (Math.random() < 0.7) {
+        const p = fx.spawn('fire', s.x + (Math.random() - 0.5) * sim.size * 0.08, s.y + (Math.random() - 0.5) * sim.size * 0.08);
+        p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.r = sim.size * 0.1; p.r1 = sim.size * (0.26 + Math.random() * 0.1); p.life = 0.28 + Math.random() * 0.16; p.drag = 4;
+      }
+      if (Math.random() < 0.08) {
+        const p = fx.spawn('ember', s.x, s.y);
+        p.vx = s.vx * 0.4 + (Math.random() - 0.5) * sim.size; p.vy = s.vy * 0.4; p.vz = sim.size * 0.6; p.r = 0.6; p.r1 = 0.5; p.life = 0.5; p.drag = 2;
       }
     }
-    // Горящие враги.
+    // Горящие враги: языки пламени на корпусе.
     for (const e of sim.enemies) {
-      if (e.burnT > 0 && fireN && Math.random() < dt * 4) {
-        const p = fireAnim(e.x + (Math.random() - 0.5) * e.size * 0.5, e.y + (Math.random() - 0.5) * e.size * 0.5, e.size * (0.18 + Math.random() * 0.08), 0.45 + Math.random() * 0.2);
-        p.vy = -e.size * 0.35; p.drag = 1;
-      } else if (e.burnT > 0 && !fireN && Math.random() < dt * 14) {
-        const p = fx.spawn('fire', e.x + (Math.random() - 0.5) * e.size * 0.6, e.y + (Math.random() - 0.5) * e.size * 0.6);
-        p.vy = -e.size * 0.6; p.r = e.size * 0.12; p.r1 = e.size * 0.04; p.life = 0.4; p.drag = 1;
-      }
+      if (e.burnT <= 0 || Math.random() > dt * 7) continue;
+      const p = fx.spawn('flame', e.x + (Math.random() - 0.5) * e.size * 0.5, e.y + (Math.random() - 0.5) * e.size * 0.4);
+      p.z = e.size * 0.35; p.r = e.size * (0.35 + Math.random() * 0.2); p.life = 0.5 + Math.random() * 0.3; p.drag = 0;
     }
-    // Огонь на земле.
+    // Огонь на земле: гарь с угольками, языки пламени, искры и дым.
     const fire = sim.fire;
     const [vx0, vy0, vx1, vy1] = this.cam.view(fire.cell);
     const now = new Set<number>();
@@ -363,18 +350,21 @@ export class GameScene implements Scene {
       now.add(i);
       const [x, y] = fire.centerOf(i);
       if (x < vx0 || y < vy0 || x > vx1 || y > vy1) continue;
-      if (fireN) {
-        if (Math.random() < dt * 2.5) {
-          const p = fireAnim(x + (Math.random() - 0.5) * fire.cell * 0.7, y + (Math.random() - 0.5) * fire.cell * 0.7, fire.cell * (0.42 + Math.random() * 0.18), 0.6 + Math.random() * 0.35);
-          p.vy = -fire.cell * 0.35; p.drag = 1;
-        }
-      } else if (Math.random() < dt * 9) {
-        const p = fx.spawn('fire', x + (Math.random() - 0.5) * fire.cell, y + (Math.random() - 0.5) * fire.cell);
-        p.vy = -fire.cell * 1.2; p.r = fire.cell * 0.32; p.r1 = fire.cell * 0.08; p.life = 0.45 + Math.random() * 0.3; p.drag = 1;
+      if (!this.burnSeen.has(i)) {
+        const c = fx.spawn('char', x + (Math.random() - 0.5) * fire.cell * 0.3, y + (Math.random() - 0.5) * fire.cell * 0.3);
+        c.r = fire.cell * (0.85 + Math.random() * 0.3); c.life = fire.burn[i] + 3 + Math.random() * 2; c.drag = 0;
       }
-      if (Math.random() < dt * 1.2) {
+      if (Math.random() < dt * 1.1) {
+        const p = fx.spawn('flame', x + (Math.random() - 0.5) * fire.cell * 0.8, y + (Math.random() - 0.5) * fire.cell * 0.8);
+        p.r = fire.cell * (0.55 + Math.random() * 0.65); p.life = 0.7 + Math.random() * 0.5; p.drag = 0;
+      }
+      if (Math.random() < dt * 2) {
+        const p = fx.spawn('ember', x + (Math.random() - 0.5) * fire.cell, y + (Math.random() - 0.5) * fire.cell);
+        p.vz = fire.cell * (1.5 + Math.random()); p.vx = (Math.random() - 0.5) * fire.cell; p.r = 0.6; p.r1 = 0.5; p.life = 0.7 + Math.random() * 0.4; p.drag = 0.8;
+      }
+      if (Math.random() < dt * 0.5) {
         const p = fx.spawn('smoke', x, y);
-        p.vy = -fire.cell * 1.5; p.vx = (Math.random() - 0.5) * fire.cell; p.r = fire.cell * 0.3; p.r1 = fire.cell; p.life = 1.4; p.col = '#3a3742'; p.alpha = 0.45; p.drag = 0.5;
+        p.z = fire.cell * 1.5; p.vz = fire.cell * 1.4; p.vx = (Math.random() - 0.5) * fire.cell * 0.6; p.r = fire.cell * 0.3; p.r1 = fire.cell * 0.85; p.life = 1.8; p.col = Math.random() < 0.5 ? '#3a3742' : '#57535f'; p.alpha = 0.8; p.drag = 0.5;
       }
     }
     // Погасшие клетки — следы гари.
@@ -383,13 +373,12 @@ export class GameScene implements Scene {
       this.ground.addDecal({ x, y, r: fire.cell * 0.7, kind: 'burn', col: '#1a1724', seed: i, a: 0 });
     }
     this.burnSeen = now;
-    // Дым подбитых танков игроков.
+    // Дым и огонь подбитых танков игроков.
     for (const p of sim.players) {
       if (p.state !== 'down' || Math.random() > dt * 10) continue;
       const s = fx.spawn('smoke', p.x, p.y);
-      s.vy = -sim.size * 0.8; s.vx = (Math.random() - 0.5) * sim.size * 0.3; s.r = sim.size * 0.15; s.r1 = sim.size * 0.5; s.life = 1.6; s.col = '#272336'; s.alpha = 0.7; s.drag = 0.5;
-      if (fireN && Math.random() < 0.25) { const f = fireAnim(p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y, sim.size * 0.22, 0.5); f.vy = -sim.size * 0.4; f.drag = 1; }
-      else if (!fireN && Math.random() < 0.4) { const f = fx.spawn('fire', p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y); f.vy = -sim.size * 0.6; f.r = sim.size * 0.1; f.r1 = 0.5; f.life = 0.4; }
+      s.z = sim.size * 0.3; s.vz = sim.size * 0.8; s.vx = (Math.random() - 0.5) * sim.size * 0.3; s.r = sim.size * 0.12; s.r1 = sim.size * 0.4; s.life = 1.6; s.col = '#272336'; s.alpha = 0.7; s.drag = 0.5;
+      if (Math.random() < 0.35) { const f = fx.spawn('flame', p.x + (Math.random() - 0.5) * sim.size * 0.4, p.y + (Math.random() - 0.5) * sim.size * 0.3); f.z = sim.size * 0.3; f.r = sim.size * 0.3; f.life = 0.6; f.drag = 0; }
     }
     // Выхлоп танков на ходу, следы.
     for (const p of sim.players) {
@@ -507,6 +496,8 @@ export class GameScene implements Scene {
     if (this.ending && this.endT > 2.5) { this.ending.renderWorld(W, H); return; }
     const sim = this.sim;
     const t0 = performance.now();
+    this.fx.gl = this.iso.fx;
+    this.fx.syncGl(this.cam);
     this.iso.render(sim, this.cam, this.alpha, this.time, sim.state === 'transition' && this.trans ? this.trans.view : null);
     const t1 = performance.now();
     const rc: RenderCtx = { sim, cam: this.cam, fx: this.fx, alpha: this.alpha, time: this.time };

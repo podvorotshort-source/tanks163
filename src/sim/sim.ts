@@ -232,6 +232,15 @@ export class Sim {
     this.nav.rebuildBlocked(this.props);
     this.fire = new FireGrid(0, 0, s.w, s.h, 16);
     this.fire.fillFuel(s.fuel);
+    const near: Prop[] = [];
+    this.fire.blocked = (x, y) => {
+      for (const p of this.props.queryRect(x, y, x, y, near)) {
+        const m = MATS[p.mat];
+        if (!m.move || m.canopy) continue;                          // кусты горят
+        if (!p.round || (x - p.x) ** 2 + (y - p.y) ** 2 <= (p.w / 2) ** 2) return true;
+      }
+      return false;
+    };
     this.enemies = [];
     this.shots = [];
     this.mines = [];

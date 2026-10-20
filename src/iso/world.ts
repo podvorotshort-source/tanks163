@@ -14,6 +14,7 @@ import { STAGE_GROWTH } from '../sim/types';
 import { MATS, type Prop } from '../sim/props';
 import { Rng } from '../core/rng';
 import { IsoRenderer, ModelPool } from './renderer';
+import { FxLayer } from './fxgl';
 import { model } from './models/index';
 import { paintStage, paintNow, ART_Z, type PaintResult } from './paint';
 import { tierOf } from '../client/tiers';
@@ -47,6 +48,8 @@ const PAINTED = new Set(['water']);
 
 export class IsoWorld {
   readonly r: IsoRenderer;
+  /** Огонь на земле с проверкой глубины (заполняет Fx.syncGl). */
+  readonly fx: FxLayer;
   private pools = new Map<string, ModelPool>();
   private units = new THREE.Group();
   private decals: THREE.InstancedMesh;
@@ -66,6 +69,8 @@ export class IsoWorld {
     this.decals = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }), this.decalMax);
     this.decals.count = 0; this.decals.frustumCulled = false; this.decals.renderOrder = 1;
     this.r.scene.add(this.decals);
+    this.fx = new FxLayer(this.r.gl);
+    this.r.scene.add(this.fx.group);
   }
 
   // ------------------------------------------------------------ земля ступеней
@@ -159,7 +164,7 @@ export class IsoWorld {
     if (this.extra !== obj) {
       if (this.extra) this.r.scene.remove(this.extra);
       this.extra = obj; this.r.scene.add(obj);
-      this.units.visible = this.decals.visible = false;
+      this.units.visible = this.decals.visible = this.fx.group.visible = false;
     }
     this.r.resize(cam.w, cam.h);
     if (ground !== null) {
@@ -175,7 +180,7 @@ export class IsoWorld {
 
   // ------------------------------------------------------------ кадр
   render(sim: Sim, cam: Camera, alpha: number, time: number, tv: TransView | null = null): void {
-    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = true; }
+    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = this.fx.group.visible = true; }
     this.setSeed(sim.cfg.seed);
     this.r.resize(cam.w, cam.h);
     this.ground(sim, cam, tv);
@@ -196,6 +201,7 @@ export class IsoWorld {
     } else if (tv.wreck && tv.wreck.k > 0.02) this.syncWreck(tv.wreck, time);
     for (const p of this.pools.values()) p.end();
     this.r.setCamera(cam);
+    this.fx.end(cam.w, cam.h, cam.zoom);
     this.r.render();
   }
 

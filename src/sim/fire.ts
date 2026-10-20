@@ -19,6 +19,8 @@ export class FireGrid {
   active: number[] = [];
   private isActive: Uint8Array;
   static MAX_ACTIVE = 900;
+  /** Клетка занята твёрдым препятствием (кирпич, ящик, вода) — там не горит. */
+  blocked: (x: number, y: number) => boolean = () => false;
 
   constructor(public x0: number, public y0: number, w: number, h: number, public cell: number) {
     this.cols = Math.max(1, Math.ceil(w / cell));
@@ -49,6 +51,7 @@ export class FireGrid {
   }
 
   private light(i: number, dur: number, dps: number, owner: number): void {
+    if (!this.isActive[i]) { const [x, y] = this.centerOf(i); if (this.blocked(x, y)) return; }
     if (this.burn[i] < dur) this.burn[i] = dur;
     if (this.dps[i] < dps) { this.dps[i] = dps; this.owner[i] = owner; }
     if (!this.isActive[i]) {

@@ -23,7 +23,8 @@ void main(){
   vec4 col = texture2D(tColor, vUv);
   vec3 rgb = col.rgb;
   float a = col.a;
-  if (c - n > thr) { rgb = a > 0.0 ? mix(rgb, outline, 0.9) : outline; a = 1.0; }
+  if (abs(a - 0.5) < 0.1) a = 1.0;                    // пламя (FX_MARK, src/iso/fxgl.ts): контур моделей по нему не рисуем
+  else if (c - n > thr) { rgb = a > 0.0 ? mix(rgb, outline, 0.9) : outline; a = 1.0; }
   gl_FragColor = vec4(toSRGB(rgb) * a, a);
 }`;
 

@@ -6,8 +6,10 @@ import { makeCanvas } from '../gfx/screen';
 import { RAMPS, type RampId } from '../gfx/palette';
 import type { Camera } from './camera';
 import { drawText } from '../gfx/font';
+import { charPatch, firePuff, flameTongues, smokePuff, type Pix } from '../gfx/flame';
+import type { FxLayer } from '../iso/fxgl';
 
-export type PKind = 'fire' | 'smoke' | 'spark' | 'debris' | 'ring' | 'text' | 'dust' | 'shell' | 'ember' | 'bubble' | 'pixel' | 'anim';
+export type PKind = 'fire' | 'smoke' | 'spark' | 'debris' | 'ring' | 'text' | 'dust' | 'shell' | 'ember' | 'bubble' | 'pixel' | 'anim' | 'flame' | 'char';
 
 export class Particle {
   kind: PKind = 'fire';
@@ -29,6 +31,8 @@ export class Particle {
   scaleText = 1;
   /** Рост раскадровки за жизнь (anim): размер ×(1 + grow·u). */
   grow = 0;
+  /** Вариант формы (клубы огня и дыма, языки пламени). */
+  v = 0;
 }
 
 /** Кеш пиксельных дисков: радиус в пикселях × цвет. */
@@ -80,6 +84,65 @@ function drawDisc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   }
 }
 
+/** Кеш пиксельных спрайтов огня и дыма (src/gfx/flame.ts). */
+const sprites = new Map<string, HTMLCanvasElement>();
+let spritePixels = 0;
+/** Сколько спрайтов построено (отладка: кеш должен насыщаться). */
+export let spriteMade = 0;
+function sprite(key: string, make: () => Pix): HTMLCanvasElement {
+  let c = sprites.get(key);
+  if (!c) {
+    const p = make();
+    c = makeCanvas(p.w, p.h);
+    const x = c.getContext('2d')!;
+    const img = x.createImageData(p.w, p.h);
+    new Uint32Array(img.data.buffer).set(p.d);
+    x.putImageData(img, 0, 0);
+    spritePixels += p.w * p.h;
+    spriteMade++;
+    if (sprites.size > 6000 || spritePixels > 16e6) { sprites.clear(); spritePixels = 0; }
+    sprites.set(key, c);
+  }
+  return c;
+}
+/** Спрайт с центром в (x, y); крупнее DISC_MAX — растянутый. */
+function drawSprite(ctx: CanvasRenderingContext2D, c: HTMLCanvasElement, x: number, y: number, k = 1): void {
+  if (k === 1) ctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2));
+  else ctx.drawImage(c, Math.round(x - c.width * k / 2), Math.round(y - c.height * k / 2), Math.round(c.width * k), Math.round(c.height * k));
+}
+/** Огонь врагов — красноватый, но с горячим ядром (старая рампа red давала «розовые кружки»). */
+function fireRamp(id: RampId | null): RampId { return id === 'red' ? 'blaze' : id ?? 'fire'; }
+
+interface Frame { key: string; make: () => Pix; k: number; alpha: number }
+/** Что рисуется в 3D-слое (с проверкой глубины), когда он есть. */
+const GL_KINDS = new Set<PKind>(['flame', 'char', 'fire', 'smoke']);
+/** Клуб пламени: ядро → оранжевое тело → красная кромка, к концу — тёмный дым с угольком. */
+function puffFrame(p: Particle, u: number, z: number): Frame {
+  const rid = fireRamp(p.ramp);
+  const r = quantR(Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z));
+  const rr = Math.min(r, DISC_MAX), age = Math.min(7, Math.floor(u * 8)), v = p.v & 3;
+  return { key: `f${rid}${rr}:${age}:${v}`, make: () => firePuff(rr, RAMPS[rid], age / 7, v), k: r / rr, alpha: 1 };
+}
+/** Объёмный клуб дыма: плотный, без просвечивания; к концу — рассыпается по пикселям. */
+function smokeFrame(p: Particle, u: number, z: number): Frame {
+  const r = quantR(Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z)), rr = Math.min(r, DISC_MAX);
+  const cut = u > 0.5 ? Math.min(4, Math.floor((u - 0.5) / 0.5 * 5)) : 0, v = p.v & 3;
+  return { key: `s${p.col}${rr}:${v}:${cut}`, make: () => smokePuff(rr, p.col, v, cut / 5), k: r / rr, alpha: 1 };
+}
+/** Языки пламени, стоят низом на точке: r — ширина (ед.), кадры ~12/с, рост и спад по жизни.
+ *  Кадров немного (8 по кругу × 6 стадий × 4 варианта на ширину) — иначе кеш не держит набор. */
+function flameFrame(p: Particle, u: number, z: number): Frame {
+  const w = quantR(Math.max(3, p.r * z)), ww = Math.min(w, DISC_MAX);
+  const f = (Math.floor(p.t * 12) + p.v * 3) & 7, lq = Math.min(5, Math.floor(u * 6)), v = p.v & 3, rid = fireRamp(p.ramp);
+  return { key: `t${rid}${ww}:${v}:${f}:${lq}`, make: () => flameTongues(ww, RAMPS[rid], f / 12, lq / 5, v), k: w / ww, alpha: 1 };
+}
+/** Гарь под огнём: угольки тлеют и гаснут к концу жизни, затем пятно растворяется. */
+function charFrame(p: Particle, u: number, z: number): Frame {
+  const w = quantR(Math.max(4, p.r * z * 2)), ww = Math.min(w, DISC_MAX * 2);
+  const glow = Math.max(0, Math.min(1, (1 - u) * 1.6)), gq = Math.round(glow * 4), f = gq ? Math.floor(p.t * 5) % 3 : 0, v = p.v & 3;
+  return { key: `c${ww}:${v}:${gq}:${f}`, make: () => charPatch(ww, RAMPS.fire, gq / 4, f, v), k: w / ww, alpha: u > 0.85 ? (1 - u) / 0.15 : 1 };
+}
+
 /** Мягкое пятно света (радиальный градиент) — рисуется в полуразрешении. */
 let glowSprite: HTMLCanvasElement | null = null;
 function glow(): HTMLCanvasElement {
@@ -126,6 +189,8 @@ export class Fx {
   drawMs = 0;
   /** Масштаб «силы» эффектов (растёт с поколением танка). */
   power = 1;
+  /** 3D-слой для огня на земле (гарь, языки пламени) — с проверкой глубины; без него рисуем в 2D. */
+  gl: FxLayer | null = null;
 
   /** Плотность новых эффектов: при сотнях частиц (массовая гибель врагов) — меньше частиц на событие. */
   density(): number {
@@ -139,9 +204,40 @@ export class Fx {
     }
     const p = this.pool.pop() ?? new Particle();
     p.kind = kind; p.x = x; p.y = y; p.vx = 0; p.vy = 0; p.z = 0; p.vz = 0; p.r = 1; p.r1 = 1; p.life = 1; p.t = 0;
-    p.col = '#fff'; p.ramp = null; p.drag = 2; p.a = 0; p.va = 0; p.text = ''; p.add = false; p.alpha = 1; p.scaleText = 1; p.grow = 0;
+    p.col = '#fff'; p.ramp = null; p.drag = 2; p.a = 0; p.va = 0; p.text = ''; p.add = false; p.alpha = 1; p.scaleText = 1; p.grow = 0; p.v = (Math.random() * 8) | 0;
     this.parts.push(p);
     return p;
+  }
+
+  /** Гарь и языки пламени — в 3D-слой (до вывода сцены). Кирпичи, ящики и танки их закрывают. */
+  syncGl(cam: Camera): void {
+    const g = this.gl;
+    if (!g) return;
+    g.begin();
+    const z = cam.zoom;
+    for (const p of this.parts) {
+      if (!GL_KINDS.has(p.kind)) continue;
+      const sx = cam.sxOf(p.x, p.y), sy = cam.syOf(p.x, p.y, p.z);
+      if (sx < -80 || sy < -40 || sx > cam.w + 80 || sy > cam.h + 120) continue;
+      const u = p.t / p.life;
+      if (p.kind === 'flame') {
+        const f = flameFrame(p, u, z), s = g.slot(f.key, f.make);
+        if (!s) continue;
+        const W = Math.round(s.w * f.k), H = Math.round(s.h * f.k);
+        g.push(s, p.x, p.z, p.y, -Math.round(W / 2), 1 - H, W, H, true);
+      } else if (p.kind === 'fire' || p.kind === 'smoke') {
+        // Клубы в воздухе: стоячая плоскость с центром в точке.
+        const f = p.kind === 'fire' ? puffFrame(p, u, z) : smokeFrame(p, u, z), s = g.slot(f.key, f.make);
+        if (!s) continue;
+        const W = Math.round(s.w * f.k), H = Math.round(s.h * f.k);
+        g.push(s, p.x, p.z, p.y, -Math.round(W / 2), -Math.round(H / 2), W, H, true);
+      } else {
+        const f = charFrame(p, u, z), s = g.slot(f.key, f.make);
+        if (!s) continue;
+        const W = Math.round(s.w * f.k), H = Math.round(s.h * f.k);
+        g.push(s, p.x, 0.1, p.y, -Math.round(W / 2), -Math.round(H / 2), W, H, false, f.alpha);
+      }
+    }
   }
 
   light(x: number, y: number, r: number, col: string, a = 1, life = 0.15): void {
@@ -167,6 +263,7 @@ export class Fx {
         p.z += p.vz * dt;
         if (p.z < 0) { p.z = 0; p.vz = -p.vz * 0.35; p.vx *= 0.6; p.vy *= 0.6; p.va *= 0.5; }
       }
+      else if (p.vz) p.z += p.vz * dt;               // дым и искры поднимаются
       if (p.kind !== 'anim') p.a += p.va * dt;
       this.parts[n++] = p;
     }
@@ -186,19 +283,47 @@ export class Fx {
     const z = cam.zoom;
     for (const p of this.parts) {
       if ((p.kind === 'text') !== (layer === 2)) continue;
-      const top = p.kind === 'fire' || p.kind === 'anim' || p.kind === 'spark' || p.kind === 'ember' || p.kind === 'ring' || p.kind === 'smoke' || p.kind === 'pixel';
+      const top = p.kind === 'fire' || p.kind === 'flame' || p.kind === 'anim' || p.kind === 'spark' || p.kind === 'ember' || p.kind === 'ring' || p.kind === 'smoke' || p.kind === 'pixel';
       if (layer !== 2 && (layer === 1) !== top) continue;
       const u = p.t / p.life;
       const sx = cam.sxOf(p.x, p.y), sy = cam.syOf(p.x, p.y, p.z);
       if (sx < -60 || sy < -60 || sx > cam.w + 60 || sy > cam.h + 60) continue;
       switch (p.kind) {
-        case 'fire': case 'ember': {
-          const ramp = RAMPS[p.ramp ?? 'fire'];
+        case 'ember': {
+          const ramp = RAMPS[fireRamp(p.ramp)];
           const ci = Math.max(0, Math.min(5, Math.round(5 - u * 5.5)));
           drawDisc(ctx, sx, sy, Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z), ramp[ci]);
           break;
         }
-        case 'smoke': case 'dust': case 'bubble': {
+        case 'fire': {
+          if (this.gl) break;                             // в 3D-слое (syncGl)
+          const f = puffFrame(p, u, z);
+          drawSprite(ctx, sprite(f.key, f.make), sx, sy, f.k);
+          break;
+        }
+        case 'flame': {
+          if (this.gl) break;                             // в 3D-слое (syncGl)
+          const f = flameFrame(p, u, z), c = sprite(f.key, () => f.make()), k = f.k;
+          ctx.drawImage(c, Math.round(sx - c.width * k / 2), Math.round(sy - c.height * k + 1), Math.round(c.width * k), Math.round(c.height * k));
+          break;
+        }
+        case 'char': {
+          if (this.gl) break;
+          const f = charFrame(p, u, z);
+          ctx.globalAlpha = f.alpha;
+          drawSprite(ctx, sprite(f.key, () => f.make()), sx, sy, f.k);
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'smoke': {
+          if (this.gl) break;
+          const f = smokeFrame(p, u, z);
+          ctx.globalAlpha = Math.min(1, p.alpha * 1.6) * (u < 0.08 ? u / 0.08 : 1);
+          drawSprite(ctx, sprite(f.key, f.make), sx, sy, f.k);
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'dust': case 'bubble': {
           ctx.globalAlpha = p.alpha * (1 - u) * (u < 0.15 ? u / 0.15 : 1);
           drawDisc(ctx, sx, sy, Math.max(0.5, (p.r + (p.r1 - p.r) * u) * z), p.col);
           ctx.globalAlpha = 1;
@@ -281,6 +406,7 @@ export class Fx {
     for (const l of this.lights) add(l.x, l.y, l.r, l.col, l.a * (1 - l.t / l.life));
     for (const p of this.parts) {
       if (p.kind === 'fire' && p.t < p.life * 0.6) add(p.x, p.y, p.r * 3, '#f08a1c', 0.12);
+      else if (p.kind === 'flame') add(p.x, p.y, p.r * 2.2, '#f08a1c', 0.1);
     }
     extra(add);
     lc.globalAlpha = 1;

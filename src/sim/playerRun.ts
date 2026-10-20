@@ -5,7 +5,10 @@ import type { Player, WeaponInst, Enemy } from './entities';
 import { Mine } from './entities';
 import { rotateTowards, angleDiff, clamp } from '../core/math';
 import { WEAPONS } from './content/weapons';
-import { EFFECT, type DmgType } from './types';
+import { EFFECT, VIEW_W, VIEW_H, type DmgType } from './types';
+
+/** Проекция изометрии на экран (как у камеры): пикселей по горизонтали/вертикали на единицу x − y / x + y. */
+const ISO_X = Math.SQRT1_2, ISO_Y = Math.SQRT1_2 * 0.5;
 import { MATS, pushOut, type Prop } from './props';
 import { damageEnemy, killEnemy, breakProp, explode, chainLightning, loseLife, applyBurn } from './combat';
 import { useAbility, updateAbilities } from './abilities';
@@ -201,12 +204,14 @@ function movePlayer(sim: Sim, p: Player, cmd: PlayerCmd, dt: number): void {
   p.x = clamp(p.x, p.r, s.w - p.r);
   p.y = clamp(p.y, p.r, s.h - p.r);
   if (sim.players.length > 1) {
-    const [hw, hh] = sim.viewHalf();
     const other = sim.players.find(q => q !== p && (q.state === 'alive' || q.state === 'down'));
     if (other) {
-      const mx2 = hw * 1.8 - p.r * 2, my2 = hh * 1.8 - p.r * 2;
-      p.x = clamp(p.x, other.x - mx2, other.x + mx2);
-      p.y = clamp(p.y, other.y - my2, other.y + my2);
+      // Оба танка — в одном кадре: ограничение по осям экрана изометрии (u = x − y вправо, v = x + y вниз),
+      // с полями под размер танка и интерфейс.
+      const mu = (VIEW_W - 170) / ISO_X, mv = (VIEW_H - 150) / ISO_Y;
+      const dx = p.x - other.x, dy = p.y - other.y;
+      const du = clamp(dx - dy, -mu, mu), dv = clamp(dx + dy, -mv, mv);
+      p.x = other.x + (du + dv) / 2; p.y = other.y + (dv - du) / 2;
     }
   }
 }
@@ -450,7 +455,7 @@ function fireOnce(sim: Sim, p: Player, w: WeaponInst, tgt: Enemy | null, main: b
         // dps горения на цели
         sh.blast = s.extra * pw; sh.lobTotal = s.extra2;
       }
-      if (sim.tick % 4 === 0) sim.emit({ t: 'flame', x: mx, y: my, a: aim, spread: s.spread, range: s.range * size, p: p.idx });
+      sim.emit({ t: 'flame', x: mx, y: my, a: aim, spread: s.spread, range: s.range * size, p: p.idx });
       break;
     }
     case 'tesla': {

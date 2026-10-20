@@ -62,74 +62,238 @@ export function barrel(t: Vox, x0: number, x1: number, y: number, z: number, r: 
   t.cylX(y, z, Math.max(0.6, r * 0.55), x1 - 0.6, x1 + 0.01, bore);
 }
 
+/** Короткая толстая гаубица (фугас): казённая муфта, эжектор, раструб дула. */
+export function howitzer(t: Vox, x0: number, x1: number, y: number, z: number, r: number, col: string, dark: string, bore = 'black'): void {
+  t.cylX(y, z, r + 0.8, x0, x0 + 3, dark);
+  t.cylX(y, z, r, x0, x1 - 3, col);
+  const mid = x0 + (x1 - x0) * 0.45;
+  t.cylX(y, z, r + 0.9, mid - 1.5, mid + 1.5, dark);
+  t.cylX(y, z, r + 1.3, x1 - 3, x1, dark);                                            // раструб
+  t.cylX(y, z, r + 0.6, x1 - 3, x1 - 2, col);
+  t.cylX(y, z, r * 0.65, x1 - 1.6, x1 + 0.01, bore);
+}
+
+/** Огнемёт: ствол-брандспойт с кольцами, топливная трубка сверху, сопло и запальник (светится). */
+export function flamer(t: Vox, x0: number, x1: number, y: number, z: number, r: number, col: string, dark: string, pilot = 'fire'): void {
+  t.cylX(y, z, r, x0, x1 - 3, col);
+  for (let x = x0 + 3; x < x1 - 4; x += 4) t.cylX(y, z, r + 0.6, x, x + 1, dark);
+  t.cylX(y + r + 0.9, z, 0.8, x0, x1 - 4, 'gun_d');                                    // топливная трубка
+  t.box(x1 - 6, x1 - 5, y, y + r + 1.6, z - 0.5, z + 0.5, 'gun_d');
+  t.cylX(y, z, r + 0.4, x1 - 3, x1 - 1, dark, r + 1.2);                               // сопло (раструб)
+  t.cylX(y, z, r + 1.2, x1 - 1, x1, 'copper');                                         // закопчённое медное сопло
+  t.cylX(y, z, r * 0.6, x1 - 1, x1 + 0.01, 'black');
+  t.set(x1 - 1, y - r - 1, z, pilot); t.set(x1, y - r - 1, z, pilot);                  // запальник
+}
+
+/** Покрасить верхнюю поверхность (самый верхний воксель столбца) в области. */
+function topPaint(v: Vox, x0: number, x1: number, z0: number, z1: number, fn: (x: number, z: number, y: number) => string | undefined): void {
+  for (let z = Math.floor(z0); z < z1; z++) for (let x = Math.floor(x0); x < x1; x++) {
+    for (let y = v.ny - 1; y >= 0; y--) {
+      if (!v.get(x, y, z)) continue;
+      const c = fn(x + 0.5, z + 0.5, y);
+      if (c) v.set(x, y, z, c);
+      break;
+    }
+  }
+}
+
+/** Гранёная башня: тело с обрезанными углами, лобовым и бортовыми скосами. */
+function turretBody(t: Vox, tcx: number, tcz: number, bl: number, blb: number, br: number, bh: number, col: string, chamfer = 3.5, front = 0.9): void {
+  t.fill((x, y, z) => {
+    const dx = x - tcx, dz = Math.abs(z - tcz);
+    if (dx > bl || dx < -blb || dz > br) return undefined;
+    if ((dx > 0 ? dx / bl : -dx / blb) * bl + dz > bl + br - chamfer) return undefined;   // срезанные углы
+    if (dx > bl - 5 && y > bh - (dx - (bl - 5)) * front) return undefined;                  // лобовой скос
+    if (dz > br - 2 && y > bh - 1) return undefined;                                        // бортовые скосы
+    return col;
+  }, 0, t.nx, 0, bh, 0, t.nz);
+}
+
+/** Командирская башенка с перископами. */
+function cupola(t: Vox, x: number, z: number, y: number, r: number, S: Paint): void {
+  t.cylY(x, z, r, y, y + 2, S.dark);
+  t.cylY(x, z, r - 1, y + 2, y + 2.8, S.metal);
+  for (const [dx, dz] of [[r - 0.4, 0], [0, r - 0.4], [-(r - 0.4), 0], [0, -(r - 0.4)]]) t.set(x + dx, y + 1, z + dz, 'glass_d');
+}
+
+/** Антенна, закреплённая на башне, с огоньком цвета игрока. */
+function antenna(t: Vox, x: number, y: number, z: number, h: number, S: Paint): void {
+  t.cylY(x, z, 1, y, y + 1, 'gun');
+  t.seg([x, y, z], [x - 2, y + h, z], 0.45, 'gun_d');
+  t.set(x - 2, y + h, z, S.glow);
+}
+
+const hullParts = (v: Vox, t: Vox, NX: number, NZ: number, tcx: number, tcz: number, tx: number, yt: number, size: number): ModelDef => ({
+  size,
+  parts: [
+    { name: 'hull', vox: v, pivot: [NX / 2, 0, NZ / 2] },
+    { name: 'turret', vox: t, pivot: [tcx, 0, tcz], at: [tx - NX / 2, yt, 0] },
+  ],
+});
+
+/** Общий размер облика I: разведчик меньше, тяжёлый крупнее (все рисуются в одном масштабе). */
+const SIZE_I = 48;
+
 // ======================================================================== облик I
-/** Облик I: лёгкий танк — жёлтый (1P) / зелёный (2P) с тёмно-синей отделкой. */
+/** Облик I: лёгкий танк — жёлтый (1P) / зелёный (2P) с тёмно-синей отделкой; корпус и орудие по классу. */
 export function heroI(cls: TankClass, pl: 0 | 1): ModelDef {
-  const S = pl ? P2 : P1, c = k(cls);
-  const L = Math.round(48 * c), TW = Math.round(11 * c), TH = 11, W = Math.round(38 * c);
+  const S = pl ? P2 : P1;
+  return cls === 'scout' ? scoutI(S) : cls === 'heavy' ? heavyI(S) : assaultI(S);
+}
+
+/** Штурмовик: средний универсальный танк, коробчатая башня, короткая толстая фугасная гаубица, дымовые мортирки. */
+function assaultI(S: Paint): ModelDef {
+  const L = 48, TW = 11, TH = 11, W = 38;
   const NX = L + 6, NZ = W + 2, zc = NZ / 2, x0 = 3, x1 = 3 + L;
   const v = new Vox(NX, 26, NZ);
   track(v, x0, x1, TH, 1, 1 + TW, 1, 5, 'gun', S.metal);
   track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 5, 'gun', S.metal);
-  // нижний корпус между гусеницами
   v.box(x0 + 3, x1 - 3, 2, TH - 1, 1 + TW, NZ - 1 - TW, 'gun_d');
-  // верхний корпус: чуть шире промежутка, наклонный лоб, скошенная корма
   const hz0 = TW - 1, hz1 = NZ - TW + 1, yb = TH - 2, yt = TH + 8;
   v.box(x0 + 1, x1 - 1, yb, yt, hz0, hz1, S.main);
   v.cut(0.75, 1, 0, 0.75 * (x1 - 10) + yt, x1 - 11, x1, yb, yt);
   v.cut(-1.3, 1, 0, -1.3 * (x0 + 5) + yt, x0, x0 + 6, yb, yt);
-  // отделка: тёмная полоса по низу корпуса, светлая кромка по верху
-  v.paint(() => S.trim, x0, x1, yb, yb + 1.5, 0, NZ);
+  // надгусеничные полки с ящиками ЗИП
+  for (const [z0, z1] of [[1, hz0], [hz1, NZ - 1]]) {
+    v.box(x0 + 4, x1 - 6, TH + 1, TH + 2, z0, z1, S.dark);
+    v.box(x0 + 8, x0 + 16, TH + 2, TH + 5, z0 + 1, z1 - 1, S.trim);
+    v.box(x0 + 22, x0 + 28, TH + 2, TH + 4, z0 + 1, z1 - 1, 'wood');
+  }
+  v.paint(() => S.trim, x0, x1, yb, yb + 1.5, hz0, hz1);
   v.paint((x, y) => (y > yt - 1 ? S.light : undefined), x0 + 6, x1 - 10, yt - 1, yt, hz0, hz0 + 1);
-  // фары и буксирные крюки
   for (const zz of [hz0 + 2, hz1 - 4]) { v.box(x1 - 4, x1 - 2, yb + 3, yb + 5, zz, zz + 2, 'lamp'); v.box(x1 - 1, x1 + 1, yb, yb + 2, zz, zz + 2, 'gun_d'); }
-  // люк мехвода на лобовом листе
   v.box(x1 - 9, x1 - 6, yt - 1, yt + 0.2, zc - 3, zc + 3, S.dark);
-  // решётка моторного отделения и выхлопные трубы на корме
   for (let i = 0; i < 5; i++) v.box(x0 + 6 + i * 2, x0 + 7 + i * 2, yt - 1, yt, zc - 7, zc + 7, 'gun_d');
   for (const zz of [hz0 + 3, hz1 - 3]) { v.cylX(yt - 3, zz, 1.4, x0 - 2, x0 + 4, 'gun'); v.cylX(yt - 3, zz, 0.8, x0 - 2.2, x0 - 1, 'black'); }
-  // ящики ЗИП на корме
-  v.box(x0 + 4, x0 + 10, yt, yt + 3, hz0 + 1, hz0 + 5, S.trim);
-  v.box(x0 + 4, x0 + 9, yt, yt + 2, hz1 - 5, hz1 - 1, 'wood');
-  v.box(x0 + 4, x0 + 9, yt + 0.8, yt + 1.2, hz1 - 5, hz1 - 1, 'wood_d');
 
-  // ---------------- башня: гранёная, с маской, командирской башенкой, корзиной на корме и антенной
-  const TS = c, TNX = Math.round(70 * TS), TNZ = Math.round(30 * TS), tcx = Math.round(20 * TS), tcz = TNZ / 2;
+  // башня: широкая коробчатая, мощная маска, короткая гаубица
+  const TNX = 56, TNZ = 32, tcx = 20, tcz = TNZ / 2;
   const t = new Vox(TNX, 26, TNZ);
-  const bl = Math.round(13 * TS), br = Math.round(10.5 * TS), bh = 10;
-  t.fill((x, y, z) => {
-    const dx = x - tcx, dz = Math.abs(z - tcz);
-    if (dx > bl || dx < -bl - 1 || dz > br) return undefined;
-    if (Math.abs(dx + 0.5) + dz > bl + br - 3.5) return undefined;                 // скошенные углы
-    if (dx > bl - 5 && y > bh - (dx - (bl - 5)) * 0.9) return undefined;           // лобовой скос
-    if (dz > br - 2 && y > bh - 1) return undefined;                                // бортовые скосы
-    return S.main;
-  }, 0, TNX, 0, bh, 0, TNZ);
+  const bl = 12, br = 11.5, bh = 10;
+  turretBody(t, tcx, tcz, bl, bl + 1, br, bh, S.main, 2.5, 0.7);
   t.paint(() => S.trim, 0, TNX, 0, 1.2, 0, TNZ);
-  // маска орудия и ствол
-  t.box(tcx + bl - 3, tcx + bl + 2, 1, bh - 1, tcz - 4, tcz + 4, S.dark);
-  barrel(t, tcx + bl + 1, tcx + bl + 1 + Math.round(28 * TS), 5, tcz, cls === 'scout' ? 1.9 : cls === 'heavy' ? 2.7 : 2.3, 'gun_l', 'gun');
-  // командирская башенка с люком и перископами, люк заряжающего
-  t.cylY(tcx - 4, tcz + 4, 3.4, bh, bh + 2, S.dark);
-  t.cylY(tcx - 4, tcz + 4, 2.4, bh + 2, bh + 2.8, S.metal);
-  for (const [dx, dz] of [[3, 0], [0, 3], [-3, 0], [0, -3]]) t.set(tcx - 4 + dx, bh + 1, tcz + 4 + dz, 'glass_d');
-  t.box(tcx - 7, tcx - 2, bh, bh + 0.8, tcz - 7, tcz - 2, S.dark);
-  // корзина на корме башни: ящик и свёрнутый брезент
-  t.box(tcx - bl - 7, tcx - bl, 1, 6, tcz - 7, tcz + 7, 'gun_d');
-  t.box(tcx - bl - 6, tcx - bl, 2, 6.5, tcz - 6, tcz - 1, 'wood');
-  t.cylZ(tcx - bl - 3, 5, 2, tcz + 1, tcz + 6, 'army');
-  // антенна (закреплена на башне) с огоньком цвета игрока
-  t.seg([tcx - bl + 1, bh, tcz - br + 2], [tcx - bl - 1, bh + 13, tcz - br + 1], 0.45, 'gun_d');
-  t.set(tcx - bl - 1, bh + 13, tcz - br + 1, S.glow);
-  // эмблема — шеврон цвета отделки на крыше
+  t.box(tcx + bl - 3, tcx + bl + 3, 1, bh - 1, tcz - 5, tcz + 5, S.dark);                      // маска
+  howitzer(t, tcx + bl + 2, tcx + bl + 2 + 17, 5, tcz, 3, 'gun_l', 'gun');
+  // дымовые мортирки по бокам башни (по три трубки)
+  for (const zs of [-1, 1]) for (let i = 0; i < 3; i++) {
+    const zz = tcz + zs * (br - 0.5), xx = tcx + 3 - i * 2.2;
+    t.cylY(xx, zz + zs * 0.8, 0.9, bh - 4, bh, 'gun_d');
+  }
+  cupola(t, tcx - 4, tcz + 4, bh, 3.4, S);
+  t.box(tcx - 8, tcx - 3, bh, bh + 0.8, tcz - 7, tcz - 2, S.dark);
+  t.box(tcx - bl - 7, tcx - bl, 1, 7, tcz - 8, tcz + 8, 'gun_d');                               // корзина
+  for (const zz of [tcz - 7, tcz - 3, tcz + 1, tcz + 5]) t.box(tcx - bl - 6, tcx - bl - 1, 2, 6.5, zz, zz + 3, 'army');   // снарядные ящики
+  antenna(t, tcx - bl + 1, bh, tcz - br + 2, 12, S);
   t.box(tcx + 2, tcx + 5, bh - 0.4, bh, tcz - 2, tcz - 1, S.trim); t.box(tcx + 2, tcx + 5, bh - 0.4, bh, tcz + 1, tcz + 2, S.trim);
-  return {
-    size: L,
-    parts: [
-      { name: 'hull', vox: v, pivot: [NX / 2, 0, NZ / 2] },
-      { name: 'turret', vox: t, pivot: [tcx, 0, tcz], at: [x0 + L * 0.44 - NX / 2, yt, 0] },
-    ],
-  };
+  return hullParts(v, t, NX, NZ, tcx, tcz, x0 + L * 0.44, yt, SIZE_I);
+}
+
+/** Разведчик: низкий узкий клин, четыре больших катка, маленькая плоская башня, длинная тонкая бронебойная пушка. */
+function scoutI(S: Paint): ModelDef {
+  const L = 46, TW = 8, TH = 10, W = 30;
+  const NX = L + 6, NZ = W + 2, zc = NZ / 2, x0 = 3, x1 = 3 + L;
+  const v = new Vox(NX, 22, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 4, 'gun', S.metal);
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 4, 'gun', S.metal);
+  v.box(x0 + 3, x1 - 3, 2, TH - 1, 1 + TW, NZ - 1 - TW, 'gun_d');
+  const hz0 = TW - 1, hz1 = NZ - TW + 1, yb = TH - 2, yt = TH + 5;
+  // корпус: низкий, длинный пологий лоб, крылья над гусеницами
+  v.box(x0 + 1, x1 - 1, yb, yt, hz0, hz1, S.main);
+  v.cut(0.4, 1, 0, 0.4 * (x1 - 16) + yt, x1 - 17, x1, yb, yt);
+  v.cut(-1.4, 1, 0, -1.4 * (x0 + 4) + yt, x0, x0 + 5, yb, yt);
+  // нос клином в плане
+  v.fill((x, y, z, c) => (c && x - (x1 - 8) > Math.min(z - hz0, hz1 - z) * 1.1 ? 0 : undefined), x1 - 9, x1, TH + 1, yt, hz0, hz1);
+  for (const [z0, z1] of [[1, hz0], [hz1, NZ - 1]]) {
+    v.box(x0 + 2, x1 - 3, TH + 1, TH + 2, z0, z1, S.main);                                  // крылья
+    v.box(x1 - 6, x1 - 2, TH, TH + 1, z0, z1, S.dark);
+  }
+  v.paint(() => S.trim, x0, x1, yb, yb + 1.2, hz0, hz1);
+  // «гоночная» полоса цвета отделки по оси, от носа до кормы
+  topPaint(v, x0, x1, zc - 2, zc + 2, (x, z) => (Math.abs(z - zc) < 1 ? S.light : S.trim));
+  for (const zz of [hz0 + 1, hz1 - 3]) v.box(x1 - 5, x1 - 3, TH + 1, TH + 3, zz, zz + 2, 'lamp');
+  // корма: решётка и один большой глушитель
+  for (let i = 0; i < 4; i++) v.box(x0 + 4 + i * 2, x0 + 5 + i * 2, yt - 1, yt, zc - 6, zc - 3, 'gun_d');
+  v.cylX(yt - 2, hz1 - 3, 1.6, x0 - 2, x0 + 4, 'gun'); v.cylX(yt - 2, hz1 - 3, 0.9, x0 - 2.2, x0 - 1, 'black');
+
+  // башня: маленькая, плоская, сдвинута назад; длинная тонкая пушка
+  const TNX = 64, TNZ = 24, tcx = 14, tcz = TNZ / 2;
+  const t = new Vox(TNX, 24, TNZ);
+  const bl = 9, br = 7.5, bh = 6;
+  turretBody(t, tcx, tcz, bl, bl + 2, br, bh, S.main, 4, 0.7);
+  t.paint(() => S.trim, 0, TNX, 0, 1, 0, TNZ);
+  t.box(tcx + bl - 2, tcx + bl + 2, 1, bh - 1, tcz - 2.5, tcz + 2.5, S.dark);
+  barrel(t, tcx + bl + 1, tcx + bl + 1 + 38, 3.5, tcz, 1.3, 'gun_l', 'gun');
+  // оптика: коробка прицела-дальномера справа, перископ
+  t.box(tcx - 1, tcx + 4, bh, bh + 3, tcz + 2, tcz + 6, S.dark);
+  t.box(tcx + 4, tcx + 5, bh + 1, bh + 2.5, tcz + 2.5, tcz + 5.5, 'glass');
+  t.box(tcx - 5, tcx - 2, bh, bh + 0.8, tcz - 5, tcz - 1, S.dark);
+  // две длинные антенны
+  antenna(t, tcx - bl, bh - 1, tcz - br + 2, 15, S);
+  antenna(t, tcx - bl, bh - 1, tcz + br - 2, 10, S);
+  return hullParts(v, t, NX, NZ, tcx, tcz, x0 + L * 0.38, yt, SIZE_I);
+}
+
+/** Тяжёлый: широкая высокая крепость, бронеэкраны с заклёпками, шесть катков, приземистая башня с огнемётом,
+ *  баки с горючей смесью на корме. */
+function heavyI(S: Paint): ModelDef {
+  const L = 54, TW = 13, TH = 12, W = 46;
+  const NX = L + 8, NZ = W + 2, zc = NZ / 2, x0 = 4, x1 = 4 + L;
+  const v = new Vox(NX, 32, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 6, 'gun', S.metal);
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 6, 'gun', S.metal);
+  v.box(x0 + 3, x1 - 3, 2, TH - 1, 1 + TW, NZ - 1 - TW, 'gun_d');
+  const hz0 = TW - 2, hz1 = NZ - TW + 2, yb = TH - 2, yt = TH + 9;
+  // высокий корпус: крутой толстый лоб, корма уступом
+  v.box(x0 + 1, x1 - 1, yb, yt, hz0, hz1, S.main);
+  v.cut(1.1, 1, 0, 1.1 * (x1 - 9) + yt, x1 - 10, x1, yb, yt);
+  v.cut(-1.6, 1, 0, -1.6 * (x0 + 4) + yt, x0, x0 + 5, yb, yt);
+  // лобовая бронеплита-накладка и заклёпки на ней
+  const gl = 1.1 * (x1 - 9) + yt;
+  v.paint((x, y) => (1.1 * x + y > gl - 1.6 ? S.dark : undefined), x1 - 11, x1, yb + 2, yt, hz0 + 2, hz1 - 2);
+  for (let z = hz0 + 4; z < hz1 - 3; z += 4) for (const y of [yb + 4, yt - 3]) v.set(Math.floor((gl - 0.5 - y) / 1.1), y, z, 'steel_l');
+  // бортовые бронеэкраны над гусеницами: плиты с заклёпками, низ катков виден
+  for (const [z0, z1] of [[0, 1], [NZ - 1, NZ]]) {
+    v.box(x0 + 3, x1 - 3, TH * 0.45, TH + 2, z0, z1, S.main);
+    v.box(x0 + 3, x1 - 3, TH * 0.45, TH * 0.45 + 1, z0, z1, S.trim);
+    v.box(x0 + 3, x1 - 3, TH + 1, TH + 2, z0, z1, S.light);
+    for (let x = x0 + 4; x < x1 - 3; x += 12) v.box(x, x + 1, TH * 0.45 + 1, TH + 1, z0, z1, S.dark);   // стыки плит
+    for (let x = x0 + 6; x < x1 - 4; x += 6) v.set(x, TH - 1, z0, 'steel_l');
+  }
+  for (const [z0, z1] of [[1, hz0], [hz1, NZ - 1]]) v.box(x0 + 2, x1 - 4, TH + 1, TH + 2, z0, z1, S.dark);
+  v.paint(() => S.trim, x0, x1, yb, yb + 2, hz0, hz1);
+  for (let x = x0 + 8; x < x1 - 10; x += 4) for (const zz of [hz0, hz1 - 1]) v.set(x, yt - 2, zz, S.dark);   // заклёпки по борту
+  for (const zz of [hz0 + 2, hz1 - 4]) v.box(x1 - 2, x1, yb + 2, yb + 4, zz, zz + 2, 'lamp');
+  // корма: два бака горючей смеси поперёк, с полосами и крышками
+  for (const xx of [x0 + 5, x0 + 12]) {
+    v.cylZ(xx, yt + 3, 3.2, hz0 + 2, hz1 - 2, 'steel');
+    v.cylZ(xx, yt + 3, 3.3, hz0 + 5, hz0 + 7, S.trim); v.cylZ(xx, yt + 3, 3.3, hz1 - 7, hz1 - 5, S.trim);
+    v.cylZ(xx, yt + 3, 3.25, zc - 1, zc + 1, 'red');
+    v.cylZ(xx, yt + 3, 1.4, hz0 + 1, hz0 + 2, 'orange'); v.cylZ(xx, yt + 3, 1.4, hz1 - 2, hz1 - 1, 'orange');
+    v.box(xx - 1, xx + 1, yt, yt + 1, hz0 + 3, hz1 - 3, 'gun_d');                          // ложемент
+  }
+  for (const zz of [hz0 + 3, hz1 - 3]) { v.cylY(x0 + 1, zz, 1.6, yt - 4, yt + 2, 'gun'); v.cylY(x0 + 1, zz, 0.9, yt + 1.2, yt + 2.1, 'black'); }
+
+  // башня: приземистая широкая, литая, с огнемётом и баком на корме башни
+  const TNX = 54, TNZ = 34, tcx = 20, tcz = TNZ / 2;
+  const t = new Vox(TNX, 26, TNZ);
+  const bl = 11, br = 12.5, bh = 8;
+  turretBody(t, tcx, tcz, bl, bl + 1, br, bh, S.main, 6, 1.1);
+  t.paint(() => S.trim, 0, TNX, 0, 1.4, 0, TNZ);
+  t.paint((x, y) => (y > bh - 1 ? S.light : undefined), 0, TNX, bh - 1, bh, 0, TNZ);
+  t.box(tcx + bl - 3, tcx + bl + 2, 1, bh - 1, tcz - 4, tcz + 4, S.dark);
+  flamer(t, tcx + bl + 1, tcx + bl + 1 + 15, 4, tcz, 2.2, 'steel', 'gun');
+  // шланг от бака к огнемёту
+  t.seg([tcx - bl - 2, 5, tcz - 6], [tcx + bl - 2, 4, tcz - 6], 0.7, 'rubber');
+  t.seg([tcx + bl - 2, 4, tcz - 6], [tcx + bl + 3, 4, tcz - 3], 0.7, 'rubber');
+  // кормовой бак башни
+  t.cylZ(tcx - bl - 3, 5, 3.6, tcz - 9, tcz + 9, 'steel');
+  t.cylZ(tcx - bl - 3, 5, 3.7, tcz - 1, tcz + 1, 'red');
+  t.cylZ(tcx - bl - 3, 5, 1.5, tcz + 9, tcz + 10, 'orange');
+  cupola(t, tcx - 3, tcz + 4, bh, 3.6, S);
+  // смотровые блоки по лбу
+  for (const zz of [tcz - 6, tcz + 5]) t.box(tcx + bl - 5, tcx + bl - 3, bh - 3, bh - 1, zz, zz + 1, 'glass_d');
+  antenna(t, tcx - bl + 2, bh, tcz - br + 3, 11, S);
+  return { ...hullParts(v, t, NX, NZ, tcx, tcz, x0 + L * 0.5, yt, SIZE_I), muzzles: [[bl + 16, 4.5, 0.5]] };
 }
 
 // ======================================================================== облик II (форма генерала)
@@ -186,7 +350,15 @@ export function heroII(cls: TankClass, glow: string, boss = false): ModelDef {
   t.paint((x, y) => (x < tcx - bl + 2 && y > 2 && y < 4.5 ? glow : undefined));                       // и на корме
   t.box(tcx + bl - 6, tcx + bl - 5, 5, 7, tcz - 5, tcz + 5, glow);                                    // смотровая щель
   t.box(tcx + bl - 4, tcx + bl + 3, 1, bh - 2, tcz - 7, tcz + 7, 'steel_d');                          // маска
-  for (const bz of [tcz - 4, tcz + 4]) barrel(t, tcx + bl + 2, tcx + bl + 2 + Math.round(32 * c), 4.5, bz, 2.1, 'gun', 'gun_d', glow);
+  // спаренное орудие по классу: у босса и разведчика — длинные пушки (у разведчика тоньше и длиннее),
+  // у штурмовика — короткие толстые гаубицы, у тяжёлого — огнемёты со светящимися запальниками
+  const gx0 = tcx + bl + 2;
+  for (const bz of [tcz - 4, tcz + 4]) {
+    if (boss) barrel(t, gx0, gx0 + Math.round(32 * c), 4.5, bz, 2.1, 'gun', 'gun_d', glow);
+    else if (cls === 'scout') barrel(t, gx0, gx0 + 42, 4.5, bz, 1.4, 'gun', 'gun_d', glow);
+    else if (cls === 'assault') howitzer(t, gx0, gx0 + 19, 4.5, bz + Math.sign(bz - tcz) * 0.6, 2.8, 'gun', 'gun_d', glow);
+    else flamer(t, gx0, gx0 + 15, 4, bz, 2, 'gun', 'gun_d', glow);
+  }
   t.cylY(tcx - 5, tcz + 5, 4, bh, bh + 2.5, 'steel_d');
   t.cylY(tcx - 5, tcz + 5, 2.6, bh + 2.5, bh + 3.2, 'gun');
   t.box(tcx - 6, tcx - 4, bh + 2.5, bh + 3.3, tcz + 4, tcz + 6, glow);
@@ -208,7 +380,7 @@ export function heroII(cls: TankClass, glow: string, boss = false): ModelDef {
     { name: 'turret', vox: t, pivot: [tcx, 0, tcz], at: [x0 + L * 0.46 - NX / 2, yt, 0] },
     { name: 'key', vox: key, pivot: [14, kc, kc], at: [x0 - NX / 2, TH + 6, 0], axis: 'x' },
   ];
-  if (!boss) return { size: L, parts };
+  if (!boss) return { size: 56, parts, muzzles: cls === 'heavy' ? [[bl + 17, 4.5, -3.5], [bl + 17, 4.5, 4.5]] : undefined };   // общий масштаб: разведчик меньше, тяжёлый крупнее
   // босс — та же форма вдвое подробнее (каждый воксель → 2×2×2), чтобы на крупном плане не было «кубиков»
   return {
     size: L * 2,

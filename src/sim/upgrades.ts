@@ -70,7 +70,6 @@ export const STAT_UPS: StatUp[] = [
   { id: 'critDmg', name: 'Кумулятивные заряды', icon: 'critDmg', max: 5, vals: [20, 30, 45], fmt: v => `Урон критических попаданий +${v}%`, apply: (p, v) => { p.stats.critMult += v / 100; }, req: p => p.stats.crit >= 0.08 },
   { id: 'luck', name: 'Счастливая звезда', icon: 'luck', max: 4, vals: [1, 1.5, 2], fmt: v => `Удача +${v}: чаще редкие карты и бонусы`, apply: (p, v) => { p.stats.luck += v; } },
   { id: 'tutor', name: 'Боевой опыт', icon: 'tutor', max: 4, vals: [6, 9, 12], fmt: v => `Опыт всей команды +${v}%`, apply: (p, v) => { p.stats.xp += v / 100; } },
-  { id: 'press', name: 'Гусеничный пресс', icon: 'press', max: 4, vals: [3, 4, 6], fmt: v => `Давит врагов крупнее: порог +${v}% размера`, apply: (p, v) => { p.stats.crush += v / 100; } },
 ];
 
 // ---------------------------------------------------------------------------

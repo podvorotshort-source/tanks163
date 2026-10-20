@@ -26,6 +26,8 @@ export const PAL: Record<string, string> = {
   purple: '#8a4ec0', purple_d: '#5c2e8a', pink: '#f07aa0', teal: '#2fa8a0', teal_d: '#1e7270', khaki: '#a8a060', khaki_d: '#7a7440',
   army: '#5d7a3a', army_d: '#46602c', army_l: '#7d9a4c', camo: '#6e6a3a', concrete: '#a4a2a0', concrete_d: '#7a7876', concrete_l: '#c8c6c2',
   asphalt: '#4a4a52', asphalt_d: '#38383f', asphalt_l: '#62626a', brick: '#b8523a', brick_d: '#8a3a2c', brick_l: '#d8724e', mortar: '#d8c8a8',
+  brk: '#c4552f', brk_l: '#d96a3a', brk_ll: '#ec8f58', brk_d: '#97391f', brk_m: '#5c2620',
+  stl: '#8692aa', stl_l: '#ccd5e3', stl_d: '#58627c', stl_s: '#363d55', stl_r: '#e6ecf5',
   glass: '#7cc0e0', glass_d: '#4a86b0', roof: '#a8443a', roof_d: '#7a2e28', plastic: '#e0583a', toy_b: '#3a7ee0', toy_g: '#4ab84a', toy_y: '#f2c43a',
   bone: '#e8dcc0', bread: '#d89a50', flesh: '#c87a6a', alien: '#7a3ec0', alien_d: '#4a2280', alien_l: '#b07ae8', void: '#2a1840', crystal: '#9ae0f0', magma: '#e8401a',
   // светящееся (без света сцены)
@@ -212,16 +214,19 @@ export interface ModelDef {
   size: number;
   /** Для препятствий: размер основания в вокселях (x, z) — растягивается на w×h препятствия. */
   foot?: [number, number];
+  /** Сопла орудия: точки в вокселях относительно оси башни (часть 'turret'), откуда бьёт струя огнемёта. */
+  muzzles?: [number, number, number][];
 }
 
 export interface BuiltPart { name: string; lit: THREE.BufferGeometry | null; glow: THREE.BufferGeometry | null; at: THREE.Vector3; axis: 'x' | 'y' | 'z' }
-export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number] }
+export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number]; muzzles?: [number, number, number][] }
 
 /** Собрать геометрии частей (единицы — воксели; масштаб задаёт вывод). */
 export function buildModel(def: ModelDef): BuiltModel {
   return {
     size: def.size,
     foot: def.foot,
+    muzzles: def.muzzles,
     parts: def.parts.map(p => {
       const g = meshVox(p.vox, { pivot: p.pivot });
       const at = new THREE.Vector3(...(p.at ?? [0, 0, 0]));

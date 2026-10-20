@@ -19,6 +19,8 @@ import type { GroundLayer } from './renderer';
 /** Боевой масштаб: пикселей кадра на единицу мира (одинаков на всех ступенях). */
 export const ART_Z = 1.0;
 const MARGIN = 180;
+/** Насколько за край арены рисуется мир следующей ступени (ед.): камера у углов арены заглядывает за край. */
+const OUTER = 520;
 const G = STAGE_GROWTH;
 
 // ---------------------------------------------------------------- цвет
@@ -122,7 +124,7 @@ const relicRect = (s: number): Rect | null => RELICS[s] ?? null;
 const len = (a: number, b: number) => Math.sqrt(a * a + b * b);
 const inRect = (r: Rect, x: number, y: number) => x >= r.x0 && y >= r.y0 && x < r.x1 && y < r.y1;
 
-/** Ступень I: игрушечный полигон — трава, грунтовые тропы, плиточная дорога, пруды с каменными берегами. */
+/** Ступень I: игрушечный полигон — трава, грунтовые тропы, пруды с каменными берегами. */
 function toy(x: number, y: number, ponds: Ponds, o: Smp): void {
   const w = 2880, h = 1620;
   const d = ponds.sdf(x, y);
@@ -131,19 +133,6 @@ function toy(x: number, y: number, ponds: Ponds, o: Smp): void {
   const pd = Math.min(segD(x, y, 0, h * 0.28, w, h * 0.44), segD(x, y, w * 0.3, 0, w * 0.48, h), segD(x, y, w * 0.72, 0, w * 0.84, h));
   const m = pd < 60 ? fbm(x / 48, y / 48, 9) : 0.5;
   if (pd + (m - 0.5) * 46 < 34) { o.m = Mt.DIRT; o.t = m > 0.62 ? 4 : m < 0.38 ? 2 : 3; return; }
-  const ry = y - h / 2;
-  if (Math.abs(ry) < 46 && x > w * 0.1 && x < w * 0.9) {
-    const T = 30, tx = Math.floor(x / T), ty = Math.floor((ry + 46) / T);
-    const fx = x / T - tx, fy = (ry + 46) / T - ty;
-    o.m = Mt.TILE;
-    if (Math.abs(ry) > 41) { o.t = 1; return; }                           // бордюр
-    if (fx < 0.06 || fy < 0.06) { o.t = 1; return; }                       // шов
-    const r = hash(tx, ty, 4);
-    let t = r < 0.25 ? 2 : r > 0.82 ? 4 : 3;
-    if (fx < 0.16) t++; else if (fx > 0.9 || fy > 0.9) t--;
-    o.t = t;
-    return;
-  }
   const n = fbm(x / 190, y / 190, 3), n2 = vnoise(x / 34, y / 34, 21);
   o.m = Mt.GRASS;
   o.t = n > 0.6 ? 4 : n < 0.37 ? 2 : 3;
@@ -253,7 +242,7 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
       const x = au + bv, y = bv - au;
       const k = j * w + i;
       if (x >= 0 && y >= 0 && x < W && y < H) sample(s, x, y, seed, o);
-      else if ((outer[k] = 1) && (x < -260 || y < -260 || x > W + 260 || y > H + 260)) { o.m = Mt.VOID; o.t = 0; o.a = 0; }
+      else if ((outer[k] = 1) && (x < -OUTER || y < -OUTER || x > W + OUTER || y > H + OUTER)) { o.m = Mt.VOID; o.t = 0; o.a = 0; }
       else if (next) sample(s + 1, next.relicX + (x - W / 2) / G, next.relicY + (y - H / 2) / G, seed, o);
       else { const n = fbm(x / 260, y / 160, 1); o.m = Mt.WOOD; o.t = n > 0.6 ? 4 : 3; o.a = 0; }
       mat[k] = o.m; tone[k] = o.t; aux[k] = o.a;

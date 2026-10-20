@@ -32,7 +32,7 @@ export class Camera {
   update(dt: number, shakeScale = 1): void {
     this.t += dt;
     if (this.shake > 0) {
-      const s = Math.min(this.shake, 14) * shakeScale * (this.h / 360);
+      const s = Math.min(this.shake, 14) * shakeScale * this.pu;
       this.sx = Math.round((Math.sin(this.t * 71) + Math.sin(this.t * 37)) * 0.5 * s);
       this.sy = Math.round((Math.cos(this.t * 63) + Math.sin(this.t * 29)) * 0.5 * s);
       this.shake = Math.max(0, this.shake - dt * (8 + this.shake * 6));
@@ -46,6 +46,12 @@ export class Camera {
     const u = Math.round((this.x - this.y) * ISO_X * z), v = Math.round((this.x + this.y) * ISO_Y * z);
     const d = u / (ISO_X * z), s = v / (ISO_Y * z);
     this.cx = (s + d) / 2; this.cy = (s - d) / 2;
+  }
+
+  /** Пикселей кадра на «базовый» пиксель эффектов. Мир всегда рисуется 1 пиксель на единицу (ART_Z), поэтому
+   *  размеры эффектов не зависят от высоты кадра. */
+  get pu(): number {
+    return 1;
   }
 
   addShake(v: number): void {

@@ -330,7 +330,7 @@ function drawPickups(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     if (pu.dead) continue;
     if (pu.life - pu.t < 5 && Math.floor(rc.time * 8) % 2) continue;
     const gx = cam.sxOf(pu.x, pu.y), gy = cam.syOf(pu.x, pu.y);
-    const u = cam.h / 360;
+    const u = cam.pu;
     const s = Math.max(Math.round(12 * u), Math.round(Math.min(28 * u, pu.r * 2.2 * cam.zoom)));
     const sy = gy - s * 0.7 + Math.sin(rc.time * 4) * 2;
     const icon = (hasExt('icon_p_' + pu.id) ? extFrame('icon_p_' + pu.id, s) : null) ?? iconCanvas('p_' + pu.id);

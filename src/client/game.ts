@@ -27,6 +27,7 @@ function screenToWorld(sx: number, sy: number): [number, number] {
 }
 import { POWERUP_INFO } from '../sim/powerups';
 import { WEAPONS } from '../sim/content/weapons';
+import { MATS } from '../sim/props';
 import { UI } from '../gfx/palette';
 import { drawText } from '../gfx/font';
 import { easeInOutCubic, clamp } from '../core/math';
@@ -65,6 +66,9 @@ export class GameScene implements Scene {
   private endT = 0;
   private trans: TransitionFx | null = null;
   private burnSeen = new Set<number>();
+  /** Струи огнемётов игроков: последний выстрел, видимая часть (голова/хвост), дальность, сопло по событию. */
+  private flameJets = [0, 1].map(() => ({ last: -1, head: 0, tail: 0, range: 0, ox: 0, oy: 0, a: 0 }));
+  private muzzle: number[] = [];
   /** Колбэк по окончании забега (результаты). */
   onEnd: ((sim: Sim) => void) | null = null;
   private zoomSmooth = 1;
@@ -127,6 +131,17 @@ export class GameScene implements Scene {
     // изометрия: край арены может попадать в кадр — там нарисован мир следующей ступени
     tx = clamp(tx, 220, s.w - 220);
     ty = clamp(ty, 160, s.h - 160);
+    // Игроки всегда в кадре: у углов арены кадр сдвигается за её край (там нарисован мир следующей ступени).
+    // Поля — по осям экрана изометрии, сверху шире (интерфейс).
+    const cz = this.cam.zoom, hu = this.cam.w / 2 - 70, vt = this.cam.h / 2 - 90, vb = this.cam.h / 2 - 50;
+    for (const p of sim.players) {
+      if (p.state !== 'alive' && p.state !== 'down') continue;
+      const du = ((p.x - tx) - (p.y - ty)) * ISO_X * cz, dv = ((p.x - tx) + (p.y - ty)) * ISO_Y * cz;
+      const su = du > hu ? du - hu : du < -hu ? du + hu : 0, sv = dv > vb ? dv - vb : dv < -vt ? dv + vt : 0;
+      if (!su && !sv) continue;
+      const ou = su / (ISO_X * cz), ov = sv / (ISO_Y * cz);
+      tx += (ou + ov) / 2; ty += (ov - ou) / 2;
+    }
     if (k >= 1) { this.cam.x = tx; this.cam.y = ty; } else { this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k; }
   }
 
@@ -271,7 +286,12 @@ export class GameScene implements Scene {
           break;
         }
         case 'arc': fx.arc(e.pts.length === 5 ? e.pts.slice(0, 4) : e.pts, e.pts.length === 5 ? '#ea6a3f' : '#bdf3dc', e.pts.length === 5 ? 2 : 1, e.pts.length === 5 ? 0.3 : 0.14); if (e.pts.length !== 5) audio.play('tesla', { gap: 70, vol: 0.6 }); else { audio.play('elaser', { vol: 0.9 }); cam.addShake(3); } break;
-        case 'flame': audio.play('flame', { pan: this.pan(e.x), gap: 140 }); break;
+        case 'flame': {
+          audio.play('flame', { pan: this.pan(e.x), gap: 140 });
+          const j = this.flameJets[e.p], p = sim.players[e.p];
+          if (j && p) { j.last = this.time; j.range = e.range; j.ox = e.x - p.x; j.oy = e.y - p.y; j.a = e.a; }
+          break;
+        }
         case 'mineDrop': audio.play('mine', { pan: this.pan(e.x), gap: 120, vol: 0.5 }); break;
         case 'pickup': {
           const info = POWERUP_INFO[e.id];
@@ -324,18 +344,7 @@ export class GameScene implements Scene {
   private ambientFx(dt: number): void {
     const sim = this.sim, fx = this.fx;
     if (sim.state === 'levelup') return;
-    // Пламя огнемётов: клубы огня летят за струёй и разрастаются.
-    for (const s of sim.shots) {
-      if (s.kind !== 'flame' || s.dead) continue;
-      if (Math.random() < 0.7) {
-        const p = fx.spawn('fire', s.x + (Math.random() - 0.5) * sim.size * 0.08, s.y + (Math.random() - 0.5) * sim.size * 0.08);
-        p.vx = s.vx * 0.3; p.vy = s.vy * 0.3; p.r = sim.size * 0.1; p.r1 = sim.size * (0.26 + Math.random() * 0.1); p.life = 0.28 + Math.random() * 0.16; p.drag = 4;
-      }
-      if (Math.random() < 0.08) {
-        const p = fx.spawn('ember', s.x, s.y);
-        p.vx = s.vx * 0.4 + (Math.random() - 0.5) * sim.size; p.vy = s.vy * 0.4; p.vz = sim.size * 0.6; p.r = 0.6; p.r1 = 0.5; p.life = 0.5; p.drag = 2;
-      }
-    }
+    this.flameJetsFx(dt);
     // Горящие враги: языки пламени на корпусе.
     for (const e of sim.enemies) {
       if (e.burnT <= 0 || Math.random() > dt * 7) continue;
@@ -387,6 +396,54 @@ export class GameScene implements Scene {
         const bx = p.x - Math.cos(p.angle) * sim.size * 0.5, by = p.y - Math.sin(p.angle) * sim.size * 0.5;
         const s = fx.spawn('dust', bx, by);
         s.vx = -Math.cos(p.angle) * sim.size * 0.5; s.vy = -Math.sin(p.angle) * sim.size * 0.5; s.r = sim.size * 0.08; s.r1 = sim.size * 0.22; s.life = 0.6; s.col = '#57535f'; s.alpha = 0.35;
+      }
+    }
+  }
+
+  /** Огнемёт — цельная струя из сопла (src/gfx/flame.ts flameJet): растёт от сопла, при остановке
+   *  отрывается и улетает; упирается в стены. Кроме неё — только редкие искры и дым на конце. */
+  private flameJetsFx(dt: number): void {
+    const sim = this.sim, fx = this.fx, SPEED = 2.2;
+    fx.jets.length = 0;
+    for (const p of sim.players) {
+      const j = this.flameJets[p.idx];
+      if (!j) continue;
+      const on = this.time - j.last < 0.12 && p.state === 'alive' && sim.state !== 'transition';
+      if (on) {
+        if (j.tail > 0) j.head = j.tail = 0;
+        j.head = Math.min(1, j.head + dt * SPEED);
+      } else if (j.head > 0) {
+        j.head = Math.min(1, j.head + dt * SPEED); j.tail += dt * SPEED * 1.3;
+        if (j.tail >= j.head) j.head = j.tail = 0;
+      }
+      if (j.head <= 0) continue;
+      const main = p.weapons[0]?.id === 'flame';
+      const pts = this.muzzle;
+      let a = j.a;
+      if (main && this.iso.muzzlesOf(sim, p, this.alpha, pts)) a = p.turret;
+      else { pts.length = 0; pts.push(p.x + j.ox, sim.size * 0.3, p.y + j.oy); }
+      const twin = pts.length > 3, ca = Math.cos(a), sa = Math.sin(a);
+      for (let k = 0; k < pts.length; k += 3) {
+        const x = pts[k], h = pts[k + 1], y = pts[k + 2];
+        // Струя гаснет о стены и препятствия, которые держат снаряды.
+        let len = j.range;
+        const hit = sim.props.raycast(x, y, x + ca * len, y + sa * len, sim.size * 0.05, pr => MATS[pr.mat].shots && !pr.friendly && !MATS[pr.mat].canopy);
+        if (hit) len *= Math.max(0.05, hit.t);
+        const ex = x + ca * len, ey = y + sa * len, eh = h + sim.size * 0.12;
+        fx.jets.push({ x, h, y, ex, eh, ey, head: j.head, tail: j.tail, w0: sim.size * 0.028, w1: sim.size * (twin ? 0.16 : 0.22), seed: p.idx * 2 + k / 3 });
+        if (!on) continue;
+        // Дым с конца струи и редкие искры вдоль неё.
+        const tx = x + (ex - x) * j.head, ty = y + (ey - y) * j.head;
+        if (Math.random() < dt * (twin ? 4 : 6)) {
+          const s = fx.spawn('smoke', tx + (Math.random() - 0.5) * sim.size * 0.2, ty + (Math.random() - 0.5) * sim.size * 0.2);
+          s.z = eh + sim.size * 0.1; s.vz = sim.size * 0.9; s.vx = ca * sim.size * 0.6; s.vy = sa * sim.size * 0.6;
+          s.r = sim.size * 0.06; s.r1 = sim.size * 0.2; s.life = 0.9; s.col = Math.random() < 0.5 ? '#3a3742' : '#57535f'; s.alpha = 0.8; s.drag = 1.5;
+        }
+        if (Math.random() < dt * 8) {
+          const t = 0.3 + Math.random() * 0.6, e = fx.spawn('ember', x + (ex - x) * t, y + (ey - y) * t);
+          e.z = h; e.vx = ca * sim.size * 2 + (Math.random() - 0.5) * sim.size; e.vy = sa * sim.size * 2 + (Math.random() - 0.5) * sim.size;
+          e.vz = sim.size * 0.8; e.r = 0.6; e.r1 = 0.5; e.life = 0.45; e.drag = 2;
+        }
       }
     }
   }

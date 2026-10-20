@@ -225,3 +225,96 @@ export function charPatch(w: number, ramp: readonly string[], glow: number, f: n
   }
   return { w: W, h: H, d };
 }
+
+/** Струя огнемёта в экранной сетке спрайта: сопло (ox, oy) → конец полной длины (ex, ey), пиксели. */
+export interface JetSpec {
+  ox: number; oy: number; ex: number; ey: number;
+  /** Полуширина у сопла и в конце, px. */
+  w0: number; w1: number;
+  /** Видимая часть струи (доли длины): голова летит от сопла, хвост отрывается, когда огонь прекращён. */
+  head: number; tail: number;
+  /** Время (с) и скорость течения узора вдоль струи (px/с). */
+  t: number; flow: number;
+  seed: number;
+}
+
+/**
+ * Струя пламени: у сопла — узкая бело-жёлтая сердцевина, дальше расширяется в оранжевое тело
+ * с рваной красной кромкой; узор течёт от сопла, к концу струя рвётся на клубки и остывает в дым.
+ * Тёмный контур — чтобы струя читалась на траве. buf — переиспользуемый буфер (без выделений в кадре).
+ */
+export function flameJet(W: number, H: number, j: JetSpec, ramp: readonly string[], buf?: Uint32Array): Pix {
+  const n = W * H;
+  const d = buf && buf.length >= n * 2 ? buf.subarray(0, n) : new Uint32Array(n);
+  const m = buf && buf.length >= n * 2 ? buf.subarray(n, n * 2) : new Uint32Array(n);
+  d.fill(0);
+  const pal = ramp.map(abgr);
+  const dx = j.ex - j.ox, dy = j.ey - j.oy, L = Math.max(1, Math.sqrt(dx * dx + dy * dy)), ux = dx / L, uy = dy / L;
+  const flow = j.t * j.flow, detached = j.tail > 0.001;
+  // Конец струи — круглая «шапка» длиной в полуширину (клубится), так же оторванный хвост.
+  const capH = Math.min(0.45, (j.w0 + (j.w1 - j.w0) * Math.pow(Math.min(1, j.head), 0.7)) * 1.3 / L);
+  const capT = detached ? Math.min(0.45, (j.w0 + (j.w1 - j.w0) * Math.pow(Math.min(1, j.tail), 0.7)) * 1.3 / L) : 0;
+  const head = j.head, tail = j.tail, w0 = j.w0, dw = j.w1 - j.w0, seed = j.seed;
+  const t0 = tail - capT * 0.3, t1 = head + capH * 0.3;
+  // Перебираем только полосу струи: по строкам — отрезок, где строка пересекает её прямоугольник.
+  const bm = (w0 + dw) * 1.8 + 1, a0 = Math.max(-1.5, t0 * L) - 1, a1 = t1 * L + 1, nx = -uy, ny = ux;
+  const qx = [a0 * ux - bm * nx, a1 * ux - bm * nx, a1 * ux + bm * nx, a0 * ux + bm * nx].map(v => v + j.ox);
+  const qy = [a0 * uy - bm * ny, a1 * uy - bm * ny, a1 * uy + bm * ny, a0 * uy + bm * ny].map(v => v + j.oy);
+  const lo = new Int32Array(H).fill(W), hi = new Int32Array(H).fill(-1);
+  for (let y = 0; y < H; y++) {
+    const yc = y + 0.5;
+    let mn = Infinity, mx = -Infinity;
+    for (let e = 0; e < 4; e++) {
+      const e2 = (e + 1) & 3, ya = qy[e], yb = qy[e2];
+      if ((yc < ya && yc < yb) || (yc > ya && yc > yb)) continue;
+      const xc = ya === yb ? Math.min(qx[e], qx[e2]) : qx[e] + (qx[e2] - qx[e]) * (yc - ya) / (yb - ya);
+      const xd = ya === yb ? Math.max(qx[e], qx[e2]) : xc;
+      if (xc < mn) mn = xc; if (xd > mx) mx = xd;
+    }
+    if (mx < mn) continue;
+    lo[y] = Math.max(0, Math.floor(mn) - 1); hi[y] = Math.min(W - 1, Math.ceil(mx) + 1);
+  }
+  for (let y = 0; y < H; y++) {
+    const ry = y + 0.5 - j.oy;
+    for (let x = lo[y], xe = hi[y]; x <= xe; x++) {
+    const rx = x + 0.5 - j.ox;
+    const a = rx * ux + ry * uy, t = a / L;
+    if (t < t0 || t > t1 || a < -1.5) continue;
+    const b = -rx * uy + ry * ux;
+    if (b > w0 * 1.8 + dw * 1.8 || b < -w0 * 1.8 - dw * 1.8) continue;
+    const tc = t < 0 ? 0 : t > 1 ? 1 : t;
+    const hw = w0 + dw * Math.pow(tc, 0.7);
+    if (b > hw * 1.8 || b < -hw * 1.8) continue;   // вне струи — без шума
+    // Узор: вытянутые вдоль струи языки, текут от сопла и крупнеют к концу.
+    const nz = fbm((a - flow) / (3 + hw * 0.9), b / (2 + hw * 0.55) + 17.3, seed);
+    let k = 1;
+    const ch = (t - (head - capH)) / capH;
+    if (ch > 0) k *= Math.sqrt(Math.max(0, 1 - ch * ch * (0.75 + nz * 0.5)));
+    if (detached) { const ct = (tail + capT - t) / capT; if (ct > 0) k *= Math.sqrt(Math.max(0, 1 - ct * ct * (0.75 + nz * 0.5))); }
+    if (k <= 0) continue;
+    const r = Math.abs(b) / (hw * k);
+    if (r > 1.8) continue;
+    const edge = 1 + (nz - 0.5) * (0.5 + tc * 1.1);
+    // ближе к концу струя рвётся на клубки
+    const brk = tc > 0.6 ? (tc - 0.6) / 0.4 * (0.55 - nz) * 0.9 : 0;
+    const q = edge - r - Math.max(0, brk);
+    if (q <= 0) continue;
+    const heat = q * (1.2 - tc * 0.7) * (0.6 + k * 0.4) + (nz - 0.5) * 0.35 + (t < 0.12 ? (0.12 - t) * 3 : 0);
+    d[y * W + x] = pal[heat > 0.8 ? 5 : heat > 0.56 ? 4 : heat > 0.34 ? 3 : heat > 0.15 ? 2 : 1];
+    }
+  }
+  // Кромка: краевые пиксели пламени — тёмно-красные, снаружи — контур, как у языков пламени.
+  m.set(d);
+  const hot = pal[5], warm = pal[4], rim = pal[1], out = pal[0];
+  for (let y = 0; y < H; y++) {
+    const xs = Math.max(0, Math.min(lo[y], y > 0 ? lo[y - 1] : W, y < H - 1 ? lo[y + 1] : W) - 1);
+    const xe = Math.min(W - 1, Math.max(hi[y], y > 0 ? hi[y - 1] : -1, y < H - 1 ? hi[y + 1] : -1) + 1);
+    for (let x = xs; x <= xe; x++) {
+    const k = y * W + x, v = m[k];
+    const l = x > 0 ? m[k - 1] : 0, r = x < W - 1 ? m[k + 1] : 0, u = y > 0 ? m[k - W] : 0, dn = y < H - 1 ? m[k + W] : 0;
+    if (v) { if ((!l || !r || !u || !dn) && v !== hot && v !== warm) d[k] = rim; }
+    else if (l || r || u || dn) d[k] = out;
+    }
+  }
+  return { w: W, h: H, d };
+}

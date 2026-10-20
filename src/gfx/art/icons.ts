@@ -54,7 +54,6 @@ const L: Record<string, () => Layer[]> = {
   s_critDmg: () => [poly([0, -7.6, 3, -2, 7.6, 0, 3, 2, 0, 7.6, -3, 2, -7.6, 0, -3, -2], 'red', 4, { hi: 2 }), circ(0, 0, 1.8, 'white', 5, { glow: true })],
   s_luck: () => [...[[-2.8, -2.8], [2.8, -2.8], [-2.8, 2.8], [2.8, 2.8]].map(([x, y]) => circ(x, y, 3.4, 'lime', 4, { hi: 1 })), cap(0, 0, 3, 7, 0.7, 'lime', 2)],
   s_tutor: () => [rect(0, 1, 13, 11, 'blue', 3, { r: 1 }), rect(0, 1, 1, 11, 'blue', 1, { bevel: 0 }), poly(star5(3.5, -1.5, 3, 1.3), 'gold', 5)],
-  s_press: () => [...sym(rect(0, 4.8, 15, 4.4, 'iron', 2, { r: 2, tex: (x) => (Math.floor(x / 1.5) & 1 ? -1 : 0) })), rect(0, 0, 9, 4, 'iron', 4)],
   syn: () => [ring(-2.6, 0, 2.6, 4.6, 'gold', 4, { hi: 1 }), ring(2.6, 0, 2.6, 4.6, 'purple', 4, { hi: 1 })],
   f_repair: () => L.p_repair(),
   f_scrap: () => [ring(0, 0, 2, 5.6, 'steel', 4, { tex: (x, y) => (Math.floor(Math.atan2(y, x) * 2.5) & 1 ? -2 : 0) }), circ(0, 0, 2, 'ink', 0, { bevel: 0 })],

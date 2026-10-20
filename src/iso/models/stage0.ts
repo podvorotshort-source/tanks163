@@ -1,5 +1,5 @@
 // Ступень I «Игрушечный полигон»: заводные игрушки, солдатики, блоки «Танчиков».
-import { Vox, type ModelDef } from '../vox';
+import { Vox, mi, type ModelDef } from '../vox';
 import { tankSpec, wheel, gun, rotor, figure, one, tracks } from './kit';
 
 // ---------------------------------------------------------------- враги
@@ -188,47 +188,76 @@ export function windupGeneral(): ModelDef {
 
 // ---------------------------------------------------------------- препятствия ступени I
 
+/** Сторона блока стены (ед. и воксели): кратна кирпичу (9) и плите стали — соседние блоки сливаются в сплошную стену. */
+export const WALL_BLK = 45;
+const WALL_H = 28;
+
 export function brick(v: number): ModelDef {
-  // кирпичный куб: ряды кирпичей с перевязкой, светлые торцы, сколы на кромках
-  const n = 40, H = 30, b = new Vox(n, H, n);
-  b.box(0, n, 0, H, 0, n, 'mortar');
-  const brickCol = (i: number, row: number) => { const h = (i * 7 + row * 13 + v * 5) % 9; return h < 2 ? 'brick_l' : h > 6 ? 'brick_d' : 'brick'; };
+  // Блок кирпичной стены: кладка с перевязкой (кирпич 8×3 + шов 1), тёмный раствор, у каждого кирпича светлая
+  // верхняя кромка и тёмный правый торец, редкие светлые/тёмные кирпичи. Узор с периодом 45 — стыкуется с соседями.
+  // v & 1 — направление кладки на крыше (вдоль x или z), v >> 1 — вариант разброса тонов.
+  const n = WALL_BLK, H = WALL_H, b = new Vox(n, H, n), along = v & 1, sd = v >> 1;
+  const tint = (k: number, row: number) => { const h = (k * 7 + row * 13 + sd * 5 + 3) % 11; return h === 0 ? 'brk_l' : h === 6 ? 'brk_d' : 'brk'; };
+  // кирпич в развёртке: u — вдоль ряда, y — высота ряда; вернёт цвет пикселя
+  const course = (u: number, y: number, row0: number) => {
+    const row = Math.floor(y / 4), fy = y - row * 4;
+    if (fy >= 3) return 'brk_m';                                                // шов между рядами (сверху ряда)
+    const off = ((row + row0) % 2) * 4.5, k = Math.floor((u + off) / 9), fx = u + off - k * 9;
+    if (fx >= 8) return 'brk_m';                                                // вертикальный шов
+    const base = tint(k, row + row0);
+    if (fy >= 2) return base === 'brk_d' ? 'brk' : base === 'brk_l' ? 'brk_ll' : 'brk_l';   // светлая верхняя кромка кирпича
+    if (fx >= 7) return 'brk_d';                                                // тёмный торец
+    return base;
+  };
   b.fill((x, y, z) => {
-    const side = x < 1 || x > n - 1 || z < 1 || z > n - 1;
-    if (!side || y > H - 1) return undefined;
-    const row = Math.floor(y / 4.25), fy = y - row * 4.25;
-    if (fy < 1) return 'mortar';
-    const along = x < 1 || x > n - 1 ? z : x, off = (row % 2) * 5;
-    const k = Math.floor((along + off) / 10), fx = (along + off) - k * 10;
-    if (fx < 1) return 'mortar';
-    return brickCol(k, row);
+    const ux = x < 1 || x > n - 1, uz = z < 1 || z > n - 1;
+    if (y > H - 1) {
+      // крыша: кирпичи плашмя, ряды по 4 вдоль направления кладки
+      const [u, w] = along ? [z, x] : [x, z];
+      return course(u, w, 1);
+    }
+    if (!ux && !uz) return 'brk_m';
+    return course(ux ? z : x, y, 0);
   });
-  b.fill((x, y, z) => {
-    const r = Math.floor(z / 8.5), fz = z - r * 8.5, off = (r % 2) * 9;
-    const k = Math.floor((x + off) / 13), fx = x + off - k * 13;
-    if (fz < 1 || fx < 1) return 'mortar';
-    return brickCol(k + 3, r + 5);
-  }, 0, n, H - 1, H, 0, n);
-  // сколы по верхним кромкам
-  for (let i = 0; i < 9; i++) { const t = (i * 37 + v * 11) % 40; b.box(t, t + 2, H - 2, H, i % 2 ? 0 : n - 1.5, i % 2 ? 1.5 : n, 0); }
-  return one(b, 40, [n, n]);
+  return one(b, n, [n, n]);
 }
 
 export function steel(v: number): ModelDef {
-  // бронеящик: тёмный металл, светлая рамка-фаска, болты по углам, шов посередине
-  const n = 40, H = 30, b = new Vox(n, H, n);
-  b.box(0, n, 0, H, 0, n, 'gun');
-  b.paint((x, y, z) => {
-    const ex = x < 2.5 || x > n - 2.5, ez = z < 2.5 || z > n - 2.5, ey = y > H - 2.5 || y < 2.5;
-    return (ex && ez) || (ex && ey) || (ez && ey) ? 'gun_l' : undefined;
+  // Стальной блок: светлые листы с фаской (светлая кромка сверху-слева, тёмная снизу-справа), косые блики,
+  // заклёпки по углам листов; крыша — 2×2 листа, борта — по два листа. Стыкуется с соседними блоками.
+  const n = WALL_BLK, H = WALL_H, b = new Vox(n, H, n), P = n / 2;
+  b.box(0, n, 0, H, 0, n, 'stl');
+  // крыша
+  b.fill((x, y, z) => {
+    const lx = x % P, lz = z % P;
+    if (lx < 1 || lz < 1) return 'stl_s';                                        // шов между листами
+    if (lx < 2 || lz < 2) return 'stl_l';                                        // светлая фаска
+    if (lx > P - 1.5 || lz > P - 1.5) return 'stl_d';                            // тёмная фаска
+    const g = lx + lz;
+    if ((g > 8 && g < 10) || (g > 11.5 && g < 12.5)) return 'stl_l';             // косые блики
+    return undefined;
+  }, 0, n, H - 1, H, 0, n);
+  // заклёпки по углам листов: светлая шляпка и тень под ней
+  for (const cx of [3, P - 4, P + 3, n - 4]) for (const cz of [3, P - 4, P + 3, n - 4]) { b.set(cx, H - 1, cz, 'stl_r'); b.set(cx + 1, H - 1, cz + 1, 'stl_d'); }
+  // борта
+  b.fill((x, y, z) => {
+    const ux = x < 1 || x > n - 1, uz = z < 1 || z > n - 1;
+    if (y > H - 1 || (!ux && !uz)) return undefined;
+    const u = ux ? z : x, lu = u % P;
+    if (lu < 1) return 'stl_s';
+    if (y > H - 2) return 'stl_l';
+    if (y < 1.5) return 'stl_d';
+    if (lu < 2) return 'stl_l';
+    if (lu > P - 1.5) return 'stl_d';
+    if (y > H - 4 && y < H - 3 || y > 3 && y < 4) { const r = (lu - 3) % 5; if (r >= 0 && r < 1) return 'stl_r'; }
+    if (y > H - 5 && y < H - 4 || y > 2 && y < 3) { const r = (lu - 4) % 5; if (r >= 0 && r < 1) return 'stl_d'; }
+    const g = lu - (H - y) * 0.5;
+    if (y > H - 12 && g > 2.5 && g < 4) return 'stl_l';                        // короткий косой блик
+    return undefined;
   });
-  b.box(6, n - 6, H - 1, H, 6, n - 6, 'steel_d');
-  b.box(n / 2 - 0.5, n / 2 + 0.5, H - 1, H + 0.01, 6, n - 6, 'gun_d'); b.box(6, n - 6, H - 1, H + 0.01, n / 2 - 0.5, n / 2 + 0.5, 'gun_d');
-  for (const [x, z] of [[3, 3], [n - 5, 3], [3, n - 5], [n - 5, n - 5]]) b.box(x, x + 2, H, H + 1, z, z + 2, 'gold');
-  for (const y of [5, H - 7]) for (const [x, z] of [[3, -0.01], [n - 5, -0.01], [-0.01, 3], [-0.01, n - 5]]) b.box(x < 0 ? 0 : x, x < 0 ? 0.6 : x + 2, y, y + 2, z < 0 ? 0 : z, z < 0 ? 0.6 : z + 2, 'gold');
-  b.paint((x, y, z) => ((Math.abs(x - n / 2) < 0.6 && (z < 0.6 || z > n - 0.6)) || (Math.abs(z - n / 2) < 0.6 && (x < 0.6 || x > n - 0.6)) ? 'gun_d' : undefined), 0, n, 4, H - 4, 0, n);
-  void v;
-  return one(b, 40, [n, n]);
+  // v = 1 — усиленная стена (способность на 5-м уровне): золотые кромки и заклёпки
+  if (v === 1) b.paint((x, y, z, c) => (c === mi('stl_l') ? 'gold' : c === mi('stl_r') ? 'yel_l' : undefined));
+  return one(b, n, [n, n]);
 }
 
 export function bush(v: number): ModelDef {
@@ -273,12 +302,5 @@ export function hq(): ModelDef {
   return one(b, n, [n, n]);
 }
 
-export function steelWall(v: number): ModelDef {
-  const n = 12, b = new Vox(n, 10, n);
-  b.box(0, n, 0, 10, 0, n, v ? 'gold' : 'steel');
-  b.box(1, n - 1, 9, 10, 1, n - 1, v ? 'yel_l' : 'steel_l');
-  b.paint((x, y) => (y < 2 ? 'steel_d' : undefined));
-  return one(b, n, [n, n]);
-}
 
 export { gun };

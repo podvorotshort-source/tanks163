@@ -62,10 +62,10 @@ export class Screen {
     // Панель инструмента настройки (?dev=tune) занимает место слева.
     const panel = document.getElementById('tune')?.offsetWidth ?? 0;
     const sw = Math.max(320, Math.round((window.innerWidth - panel) * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
-    // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, высота ≈ 480 строк
-    // (1080p → 540, 1440p → 480, 4K → 540, телефон 1080 → 540).
-    // Крупный пиксель мира: ~360 строк (как у пиксель-арт игр), чётные размеры — центр кадра на границе пикселей.
-    const kw = Math.max(1, Math.round(sh / 360));
+    // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, ~540 строк
+    // (1080p → 540, 1440p → 480, 4K → 540): камера отдалена, чтобы двое игроков помещались в один кадр.
+    // Чётные размеры — центр кадра на границе пикселей.
+    const kw = Math.max(1, Math.round(sh / 540));
     this.wpixel = kw;
     this.wh = Math.floor(sh / kw) & ~1;
     this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2)) & ~1;

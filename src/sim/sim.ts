@@ -4,7 +4,7 @@ import { Rng } from '../core/rng';
 import { clamp, dist2 } from '../core/math';
 import {
   type SimEvent, type ClassId, type WeaponId, type AbilityId, type PowerupId,
-  DT, TANK_BASE, TANK_SIZE, STAGE_GROWTH, STAGES, powerOf, stageUnit,
+  DT, TANK_BASE, TANK_SIZE, STAGE_GROWTH, STAGES, VIEW_H, powerOf, stageUnit,
 } from './types';
 import { Player, Enemy, Shot, Mine, Zone, Pickup, Drone, type WeaponInst } from './entities';
 import { CLASSES, ABILITIES, BOSS_ABILITY } from './content/classes';
@@ -314,9 +314,9 @@ export class Sim {
 
   /** Половина видимой области (игровая, 16:9). */
   viewHalf(): [number, number] {
-    // Изометрическая камера (1 пиксель на единицу, 640×360): видимая область — повёрнутый прямоугольник ~±320×±360 ед.;
-    // берём квадрат с той же диагональю (по ней — кольцо появления врагов).
-    const r = 345 * (this.size / TANK_SIZE);
+    // Изометрическая камера (1 пиксель на единицу, кадр VIEW_W×VIEW_H): видимая область — повёрнутый прямоугольник;
+    // берём квадрат с той же диагональю (по ней — кольцо появления врагов). Для 640×360 это было ±345 ед.
+    const r = 345 * (VIEW_H / 360) * (this.size / TANK_SIZE);
     return [r, r];
   }
 

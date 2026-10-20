@@ -30,7 +30,7 @@ export const BOSSES: Record<string, Builder> = {
   bossGeneral: () => heroII('heavy', 'glow_r', true), bossTyrant: s1.bossTyrant, bossVacuum: s2.bossVacuum, bossFridge: s3.bossFridge, bossRoller: s4.bossRoller, bossSky: s5.bossSky, bossTitan: s6.bossTitan, bossEater: s6.bossEater,
 };
 export const PROPS: Record<string, PropBuilder> = {
-  brick: s0.brick, steel: s0.steel, bush: s0.bush, water: () => s0.water(), crate: () => army.crate(), hq: () => army.hq(), steelWall: s0.steelWall,
+  brick: s0.brick, steel: s0.steel, bush: s0.bush, water: () => s0.water(), crate: () => army.crate(), hq: () => army.hq(), steelWall: s0.steel,
   block: s1.block, book: s1.book, crayon: s1.crayon, furnitureLeg: () => s1.furnitureLeg(), marble: s1.marble, slipper: s2.slipper, pillow: s2.pillow,
   bed: () => s2.bed(), wardrobe: () => s2.wardrobe(), desk: () => s2.desk(), shelf: () => s2.shelf(), box: s2.box, bookStack: s2.bookStack, toyDebris: s2.toyDebris,
   clutter: s3.clutter, houseWall: () => s3.houseWall(), sofa: s3.sofa, table: () => s3.table(), fridge: () => s3.fridge(), tvStand: () => s3.tvStand(), plant: s3.plant, armchair: s3.armchair, stove: () => s3.stove(),
@@ -51,8 +51,8 @@ function fallback(col: string, n = 12): ModelDef {
 
 /** Упрощённая модель крошечного препятствия (реликвии, вид издалека): одна-две краски, без мелочи. */
 const MINI: Record<string, [string, string]> = {
-  brick: ['brick', 'brick_l'], steel: ['steel', 'steel_l'], bush: ['leaf', 'leaf_l'], crate: ['wood', 'wood_l'], hq: ['army', 'army_l'],
-  steelWall: ['steel', 'steel_l'], block: ['red', 'toy_y'], book: ['fabric_b', 'paper'], crayon: ['red', 'paper'], marble: ['water_l', 'white'],
+  brick: ['brk', 'brk_l'], steel: ['stl', 'stl_l'], bush: ['leaf', 'leaf_l'], crate: ['wood', 'wood_l'], hq: ['army', 'army_l'],
+  steelWall: ['stl', 'stl_l'], block: ['red', 'toy_y'], book: ['fabric_b', 'paper'], crayon: ['red', 'paper'], marble: ['water_l', 'white'],
   furnitureLeg: ['wood_d', 'wood'], slipper: ['pink', 'cream'], pillow: ['white', 'fabric_y'],
 };
 function mini(kind: string, v: number): ModelDef {

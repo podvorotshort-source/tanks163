@@ -22,6 +22,8 @@ export class Screen {
   h = 360;
   /** Во сколько раз браузер увеличивает пиксель интерфейса. */
   pixel = 3;
+  /** Телефон (сенсорный экран, невысокий): интерфейс крупнее — высота 200–250 пикселей вместо 330–495. */
+  compact = false;
   /** Пикселей интерфейса на «базовый» пиксель (h / BASE_H). */
   unit = 1;
   /** Размер мира (виртуальные пиксели). */
@@ -75,7 +77,12 @@ export class Screen {
     this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2)) & ~1;
     this.wunit = this.wh / BASE_H;
     // Интерфейс: целый коэффициент, высота 330..~495, растянут на ту же область, что и мир.
-    const k = Math.max(1, Math.floor(sh / 330));
+    // На телефоне — крупнее: высота ~200–250 (на плотных экранах коэффициент целый, иначе дробный).
+    let coarse = false;
+    try { coarse = matchMedia('(pointer: coarse)').matches; } catch { /* старый браузер */ }
+    this.compact = coarse && Math.min(window.innerWidth, window.innerHeight) < 600;
+    let k = Math.max(1, Math.floor(sh / 330));
+    if (this.compact) { k = sh / 220; if (k >= 3) k = Math.round(k); }
     this.pixel = k;
     this.h = Math.round((this.wh * kw) / k);
     this.w = Math.round((this.ww * kw) / k);

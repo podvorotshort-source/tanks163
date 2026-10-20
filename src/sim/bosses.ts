@@ -7,7 +7,7 @@ import type { EnemyDef } from './content/enemies';
 import { powerOf, type ArmorClass } from './types';
 import { rotateTowards, angleDiff } from '../core/math';
 import { damagePlayer } from './combat';
-import { moveGround, lobAt, beamZone, blastZone } from './enemyRun';
+import { moveGround, lobAt, beamZone, blastZone, ENEMY_SHOT_K } from './enemyRun';
 import { spawnEnemy } from './director';
 
 export interface BossDef {
@@ -105,7 +105,7 @@ function shot(sim: Sim, e: Enemy, a: number, kind: string, spK: number, dmgK = 1
   s.team = 1; s.owner = -1; s.w = kind; s.kind = kind;
   const L = e.size * from;
   s.x = s.px = e.x + Math.cos(a) * L; s.y = s.py = e.y + Math.sin(a) * L;
-  const sp = sim.size * spK;
+  const sp = sim.size * spK * ENEMY_SHOT_K;
   s.vx = Math.cos(a) * sp; s.vy = Math.sin(a) * sp;
   s.dmg = e.dmg * dmgK;
   s.life = (sim.size * 16) / sp;

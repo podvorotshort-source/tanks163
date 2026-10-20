@@ -11,12 +11,26 @@ export interface TouchState {
   x: number;
   y: number;
   down: { a1: boolean; a2: boolean; a3: boolean; pause: boolean };
+  /** Нажатие с прошлого опроса (быстрый тап может начаться и закончиться между кадрами). */
+  hit: { a1: boolean; a2: boolean; a3: boolean; pause: boolean };
+}
+
+/** Способность на кнопке: значок и перезарядка. */
+export interface TouchAbility {
+  id: string;
+  /** Доля оставшейся перезарядки 0..1 (0 — готова). */
+  left: number;
+  /** Секунд до готовности. */
+  sec: number;
+  /** Эффект сейчас действует. */
+  active: boolean;
+  charges: number;
 }
 
 const STICK_R = 56;            // ход стика, css-пиксели
 
 class TouchUI {
-  readonly st: TouchState = { active: false, x: 0, y: 0, down: { a1: false, a2: false, a3: false, pause: false } };
+  readonly st: TouchState = { active: false, x: 0, y: 0, down: { a1: false, a2: false, a3: false, pause: false }, hit: { a1: false, a2: false, a3: false, pause: false } };
   private root!: HTMLDivElement;
   private zone!: HTMLDivElement;
   private base!: HTMLDivElement;
@@ -28,6 +42,8 @@ class TouchUI {
   private want = false;
   private shown = false;
   private icons = ['', '', ''];
+  /** Слои индикатора перезарядки на кнопках способностей. */
+  private cdEl: { ic: HTMLDivElement; cd: HTMLDivElement; n: HTMLDivElement; c: HTMLDivElement; last: string; left: number }[] = [];
   onAny: (() => void) | null = null;
 
   install(): void {
@@ -45,7 +61,16 @@ class TouchUI {
       #touch .b { position: absolute; border-radius: 50%; pointer-events: auto; box-sizing: border-box; border: 3px solid #1a1124;
         background: radial-gradient(circle at 40% 32%, #4c5a84, #232a44 72%); box-shadow: 0 3px 0 rgba(0,0,0,.45);
         display: flex; align-items: center; justify-content: center; color: #fbe9a8; font: bold 18px monospace; }
-      #touch .b canvas { image-rendering: pixelated; width: 60%; height: 60%; }
+      #touch .b .ic { width: 60%; height: 60%; display: flex; }
+      #touch .b canvas { image-rendering: pixelated; width: 100%; height: 100%; }
+      #touch .b .cd, #touch .b .n { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+      #touch .b .n { display: flex; align-items: center; justify-content: center; font: bold 22px monospace; color: #fbe9a8;
+        text-shadow: 0 2px 0 #07060b, 0 0 4px #07060b; }
+      #touch .b .c { position: absolute; right: -4px; top: -4px; min-width: 20px; height: 20px; border-radius: 10px; pointer-events: none;
+        background: #fbcd4a; color: #1a1124; border: 2px solid #1a1124; box-sizing: border-box; font: bold 12px/16px monospace; text-align: center; display: none; }
+      #touch .b.act { box-shadow: 0 0 0 3px #fbcd4a, 0 3px 0 rgba(0,0,0,.45); }
+      #touch .b.rdy { animation: tready .45s ease-out; }
+      @keyframes tready { 0% { filter: brightness(2.2); transform: scale(1.14); } 100% { filter: none; transform: none; } }
       #touch .b.p { background: radial-gradient(circle at 40% 32%, #e8b84a, #b07818 72%); }
       #touch .b.d { transform: translateY(2px) scale(.94); filter: brightness(1.35); }
       #touch .b.pause { width: 44px; height: 44px; right: 14px; top: 12px; border-radius: 12px; font-size: 16px; }
@@ -62,6 +87,8 @@ class TouchUI {
     for (const [k, r, b, s] of place) {
       const d = this.btns[k] = this.el(root, 'b' + (k === 'a1' ? ' p' : ''));
       Object.assign(d.style, { right: r + 'px', bottom: b + 'px', width: s + 'px', height: s + 'px' });
+      this.cdEl.push({ ic: this.el(d, 'ic'), cd: this.el(d, 'cd'), n: this.el(d, 'n'), c: this.el(d, 'c'), last: '', left: 0 });
+      if (s < 70) this.cdEl[this.cdEl.length - 1].n.style.fontSize = '17px';
       this.hold(d, k);
     }
     const p = this.btns.pause = this.el(root, 'b pause');
@@ -94,6 +121,8 @@ class TouchUI {
     this.zone.addEventListener('touchend', end);
     this.zone.addEventListener('touchcancel', end);
     addEventListener('touchstart', () => this.touched(), { passive: true });
+    // во весь экран — по отпусканию пальца (touchstart браузеры не считают жестом пользователя)
+    addEventListener('touchend', () => this.fullscreen(), { passive: true });
     addEventListener('resize', () => this.orient());
     if (coarse) this.st.active = true;
     this.orient();
@@ -107,7 +136,7 @@ class TouchUI {
   }
 
   private hold(d: HTMLDivElement, k: 'a1' | 'a2' | 'a3' | 'pause'): void {
-    d.addEventListener('touchstart', e => { e.preventDefault(); this.touched(); this.st.down[k] = true; d.classList.add('d'); }, { passive: false });
+    d.addEventListener('touchstart', e => { e.preventDefault(); this.touched(); this.st.down[k] = true; this.st.hit[k] = true; d.classList.add('d'); }, { passive: false });
     const up = (e: TouchEvent) => { e.preventDefault(); this.st.down[k] = false; d.classList.remove('d'); };
     d.addEventListener('touchend', up, { passive: false });
     d.addEventListener('touchcancel', up, { passive: false });
@@ -137,20 +166,24 @@ class TouchUI {
     this.base.style.display = this.knob.style.display = 'none';
   }
 
-  private first = true;
   private touched(): void {
     this.st.active = true;
     this.onAny?.();
-    if (this.first) {
-      this.first = false;
-      // во весь экран и альбомно (где браузер позволяет; на iPhone — нет, тогда просто игра в окне)
-      try {
-        const de = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
-        if (!document.fullscreenElement) { if (de.requestFullscreen) de.requestFullscreen().catch(() => {}); else de.webkitRequestFullscreen?.(); }
-        (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.('landscape').catch(() => {});
-      } catch { /* не поддерживается */ }
-    }
     this.orient();
+  }
+
+  /** Пока ни разу не удалось — просимся во весь экран и в альбомную ориентацию
+   *  (где браузер позволяет; на iPhone — нет, тогда игра просто в окне). Вышел сам — больше не навязываем. */
+  private fullDone = false;
+  private fullscreen(): void {
+    if (this.fullDone) return;
+    if (document.fullscreenElement) { this.fullDone = true; return; }
+    try {
+      const de = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+      const lock = () => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })?.lock?.('landscape').catch(() => {});
+      if (de.requestFullscreen) de.requestFullscreen({ navigationUI: 'hide' }).then(() => { this.fullDone = true; lock(); }).catch(() => {});
+      else { de.webkitRequestFullscreen?.(); this.fullDone = true; }
+    } catch { this.fullDone = true; /* не поддерживается */ }
   }
 
   private orient(): void {
@@ -161,18 +194,41 @@ class TouchUI {
 
   /** Начало кадра: сцена боя должна снова попросить кнопки (want), иначе они скрываются. */
   begin(): void { this.want = false; }
-  /** Бой идёт — показать стик и кнопки; ids — способности 1P (значки на кнопках). */
-  show(ids: string[]): void {
+  /** Бой идёт — показать стик и кнопки; abs — способности 1P (значки и перезарядка на кнопках). */
+  show(abs: TouchAbility[]): void {
     this.want = true;
     for (let i = 0; i < 3; i++) {
-      const id = ids[i] ?? '';
-      if (id === this.icons[i]) continue;
-      this.icons[i] = id;
+      const ab = abs[i];
+      const id = ab?.id ?? '';
       const b = this.btns[(['a1', 'a2', 'a3'] as const)[i]];
-      b.textContent = '';
-      if (id) { const c = iconCanvas('a_' + id, 2), img = document.createElement('canvas'); img.width = c.width; img.height = c.height; img.getContext('2d')!.drawImage(c, 0, 0); b.appendChild(img); }
-      b.style.opacity = id ? '1' : '0.35';
+      const el = this.cdEl[i];
+      if (id !== this.icons[i]) {
+        this.icons[i] = id;
+        el.ic.textContent = '';
+        if (id) { const c = iconCanvas('a_' + id, 2), img = document.createElement('canvas'); img.width = c.width; img.height = c.height; img.getContext('2d')!.drawImage(c, 0, 0); el.ic.appendChild(img); }
+        b.style.opacity = id ? '1' : '0.35';
+        el.left = 0;
+      }
+      this.cooldown(b, el, ab);
     }
+  }
+
+  /** Перезарядка: тёмный сектор убывает по часовой стрелке, в центре — секунды; при готовности кнопка вспыхивает. */
+  private cooldown(b: HTMLDivElement, el: TouchUI['cdEl'][number], ab: TouchAbility | undefined): void {
+    const left = ab ? ab.left : 0;
+    const deg = Math.round(left * 72) * 5;           // шаг 5°, чтобы не трогать стиль каждый кадр
+    const key = `${deg}|${left > 0 ? ab!.sec : ''}|${ab?.active ? 1 : 0}|${ab && ab.charges > 1 ? ab.charges : ''}`;
+    if (key === el.last) return;
+    el.last = key;
+    el.cd.style.background = deg > 0 ? `conic-gradient(rgba(7,6,11,.74) ${deg}deg, rgba(7,6,11,.18) 0)` : 'none';
+    el.n.textContent = left > 0 ? String(ab!.sec) : '';
+    el.ic.style.opacity = left > 0 ? '0.55' : '1';
+    b.classList.toggle('act', !!ab?.active);
+    const ch = ab && ab.charges > 1 ? String(ab.charges) : '';
+    el.c.textContent = ch;
+    el.c.style.display = ch ? 'block' : 'none';
+    if (el.left > 0 && left === 0) { b.classList.remove('rdy'); void b.offsetWidth; b.classList.add('rdy'); }
+    el.left = left;
   }
   /** Конец кадра: применить видимость. */
   end(): void {

@@ -8,6 +8,8 @@ import { UI } from '../gfx/palette';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
 import { keyHint } from './hud';
+import { app } from '../app';
+import { buttonRow, clickedRect } from '../ui/widgets';
 
 const RARITY_COL = [UI.common, UI.rare, UI.epic, UI.legendary];
 const RARITY_NAME = ['обычное', 'редкое', 'эпическое', 'легендарное'];
@@ -49,13 +51,21 @@ export class LevelUpUI {
     if (m.moved || m.clicked) {
       const hit = this.hitTest(sim, m.x, m.y);
       if (hit && !lu.done[hit[0]]) {
-        if (this.cursor[hit[0]] !== hit[1]) { this.cursor[hit[0]] = hit[1]; audio.play('select'); }
-        if (m.clicked && sim.choose(hit[0], hit[1])) audio.play('confirm');
+        // касанием: первый тап — выбрать карту, повторный — взять; мышью — сразу
+        const was = this.cursor[hit[0]] === hit[1];
+        if (!was) { this.cursor[hit[0]] = hit[1]; audio.play('select'); }
+        if (m.clicked && (was || !m.touch) && sim.choose(hit[0], hit[1])) audio.play('confirm');
       }
     }
+    // Кнопки на телефоне: переброс / взять / исключить (за 1P).
+    const b = lu.done[0] ? -1 : clickedRect(this.btns);
+    if (b === 0) { if (sim.reroll(0)) audio.play('confirm'); else audio.play('deny'); }
+    if (b === 1 && sim.choose(0, this.cursor[0])) audio.play('confirm');
+    if (b === 2) { if (sim.banish(0, this.cursor[0])) audio.play('confirm'); else audio.play('deny'); }
   }
 
   private rects: { p: number; c: number; x: number; y: number; w: number; h: number }[] = [];
+  private btns: [number, number, number, number][] = [];
 
   private hitTest(_sim: Sim, x: number, y: number): [number, number] | null {
     for (const r of this.rects) if (x >= r.x && y >= r.y && x < r.x + r.w && y < r.y + r.h) return [r.p, r.c];
@@ -66,6 +76,7 @@ export class LevelUpUI {
     const lu = sim.levelUp;
     if (!lu) return;
     this.rects = [];
+    this.btns = [];
     const a = Math.min(1, this.t * 6);
     ctx.globalAlpha = 0.78 * a;
     ctx.fillStyle = '#07060b';
@@ -93,7 +104,11 @@ export class LevelUpUI {
       this.card(ctx, c, x, y0 - (sel ? 3 : 0), cw, ch, sel, UI.p1, pulse, 'v');
       this.rects.push({ p: 0, c: i, x, y: y0, w: cw, h: ch });
     });
-    this.hints(ctx, sim, 0, W / 2, y0 + ch + 10, 'center');
+    if (app.screen.compact) {
+      const p = sim.players[0];
+      this.btns = buttonRow(ctx, [`ПЕРЕБРОС (${p.rerolls})`, 'ВЗЯТЬ ▶', `ИСКЛЮЧИТЬ (${p.banishes})`], W / 2, y0 + ch + 6, 104, 22,
+        [p.rerolls > 0 ? UI.text : UI.faint, UI.gold, p.banishes > 0 ? UI.text : UI.faint]);
+    } else this.hints(ctx, sim, 0, W / 2, y0 + ch + 10, 'center');
   }
 
   private drawDuo(ctx: CanvasRenderingContext2D, sim: Sim, W: number, H: number, pulse: number): void {

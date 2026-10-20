@@ -3,7 +3,7 @@
 import type { Scene } from '../app';
 import { app } from '../app';
 import type { Sim } from '../sim/sim';
-import { drawText } from '../gfx/font';
+import { drawText, textWidth, wrapText } from '../gfx/font';
 import { UI } from '../gfx/palette';
 import { panel, VMenu, menuBackground } from './widgets';
 import { save } from '../meta/save';
@@ -91,13 +91,19 @@ export class ResultsScene implements Scene {
       ctx.fillStyle = done ? UI.gold : cur ? UI.red : '#272336';
       ctx.fillRect(x - 3, py, 7, 7);
       if (i < 7) { ctx.fillStyle = i < sim.maxStage ? UI.gold : '#272336'; ctx.fillRect(x + 4, py + 3, Math.round(pw / 7) - 7, 1); }
-      if (cur || (done && i === sim.maxStage)) drawText(ctx, STAGE_DEFS[i].name.toUpperCase(), x, py + 11, { align: 'center', color: cur ? UI.red : UI.gold, font: 'main' });
+      if (cur || (done && i === sim.maxStage)) {
+        // подпись не вылезает за край экрана
+        const name = STAGE_DEFS[i].name.toUpperCase(), hw = textWidth(name) / 2 + 4;
+        drawText(ctx, name, Math.max(hw, Math.min(W - hw, x)), py + 11, { align: 'center', color: cur ? UI.red : UI.gold, font: 'main' });
+      }
     }
     // Игроки.
     const n = sim.players.length;
-    const cw = Math.min(260, Math.floor((W - 30) / n));
+    // телефон (невысокий экран): панели игроков слева, награда и меню — справа
+    const side = H < 300;
+    const cw = side ? Math.min(240, Math.floor((W - 30) / 2 / n)) : Math.min(260, Math.floor((W - 30) / n));
     sim.players.forEach((p, i) => {
-      const x = Math.round(W / 2 - (n * cw + (n - 1) * 10) / 2 + i * (cw + 10)), y = 70;
+      const x = side ? 10 + i * (cw + 6) : Math.round(W / 2 - (n * cw + (n - 1) * 10) / 2 + i * (cw + 10)), y = 70;
       panel(ctx, x, y, cw, 118, i ? UI.p2 : UI.p1);
       drawText(ctx, `${i ? '2P' : '1P'} · ${p.cls.name.toUpperCase()}`, x + 8, y + 6, { color: i ? UI.p2 : UI.p1 });
       const rows: [string, string][] = [
@@ -115,18 +121,21 @@ export class ResultsScene implements Scene {
       });
     });
     // Награда.
-    const ry = 196;
-    drawText(ctx, `+${this.scrap} ДЕТАЛЕЙ`, W / 2, ry, { align: 'center', color: UI.gold, scale: 2 });
+    const left = side ? 10 + n * (cw + 6) : 0, cx = side ? Math.round((left + W) / 2) : W / 2, colW = side ? W - left - 10 : W - 20;
+    const ry = side ? 72 : 196;
+    drawText(ctx, `+${this.scrap} ДЕТАЛЕЙ`, cx, ry, { align: 'center', color: UI.gold, scale: 2 });
     let ly = ry + 20;
-    if (this.newTrophies.length) { drawText(ctx, 'НОВЫЕ ТРОФЕИ: ' + this.newTrophies.map(b => BOSSES[b]?.name ?? b).join(', '), W / 2, ly, { align: 'center', color: UI.purple }); ly += 11; }
-    if (this.newThreat) { drawText(ctx, `ОТКРЫТ НОВЫЙ УРОВЕНЬ УГРОЗЫ: ${THREATS[save.data.threatUnlocked].name.toUpperCase()}`, W / 2, ly, { align: 'center', color: UI.red }); ly += 11; }
-    if (this.newRecord) { drawText(ctx, 'НОВЫЙ РЕКОРД: ДАЛЬШЕ ВСЕГО!', W / 2, ly, { align: 'center', color: UI.green }); ly += 11; }
+    const line = (s: string, color: string) => { for (const l of wrapText(s, colW)) { drawText(ctx, l, cx, ly, { align: 'center', color }); ly += 11; } };
+    if (this.newTrophies.length) line('НОВЫЕ ТРОФЕИ: ' + this.newTrophies.map(b => BOSSES[b]?.name ?? b).join(', '), UI.purple);
+    if (this.newThreat) line(`ОТКРЫТ НОВЫЙ УРОВЕНЬ УГРОЗЫ: ${THREATS[save.data.threatUnlocked].name.toUpperCase()}`, UI.red);
+    if (this.newRecord) line('НОВЫЙ РЕКОРД: ДАЛЬШЕ ВСЕГО!', UI.green);
     if (!this.win) {
       // Поражение — часть пути: подсказываем, что прокачать.
-      if (this.affordable > 0) { drawText(ctx, `В МАСТЕРСКОЙ ДОСТУПНО УЛУЧШЕНИЙ: ${this.affordable}`, W / 2, ly, { align: 'center', color: UI.gold }); ly += 11; }
-      drawText(ctx, this.tip, W / 2, ly, { align: 'center', color: UI.dim }); ly += 11;
+      if (this.affordable > 0) line(`В МАСТЕРСКОЙ ДОСТУПНО УЛУЧШЕНИЙ: ${this.affordable}`, UI.gold);
+      line(this.tip, UI.dim);
     }
-    this.menu.draw(ctx, W / 2, Math.max(ly + 8, H - 80), 200, 20, this.t);
+    if (side) this.menu.draw(ctx, cx, Math.max(ly + 8, H - 82), Math.min(200, colW), 22, this.t);
+    else this.menu.draw(ctx, W / 2, Math.max(ly + 8, H - 80), 200, 20, this.t);
   }
 }
 

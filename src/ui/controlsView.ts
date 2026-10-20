@@ -3,8 +3,10 @@
 import { drawText } from '../gfx/font';
 import { UI } from '../gfx/palette';
 import { input } from '../input/input';
+import { app } from '../app';
 
 export function drawControls(ctx: CanvasRenderingContext2D, W: number, H: number, y0 = 40): void {
+  if (app.screen.compact) { drawTouchControls(ctx, W, y0); return; }
   const colW = Math.min(200, Math.floor((W - 30) / 3));
   const x0 = Math.round(W / 2 - (colW * 3 + 20) / 2);
   const cols: { title: string; col: string; rows: [string, string][] }[] = [
@@ -36,4 +38,30 @@ export function drawControls(ctx: CanvasRenderingContext2D, W: number, H: number
   const pt = pads.length ? 'Геймпады: ' + pads.map(p => `${p.name}${input.solo ? '' : input.padOf[0] === p.index ? ' → 1P' : input.padOf[1] === p.index ? ' → 2P' : ' (нажмите кнопку)'}`).join(', ') : 'Геймпады не подключены — нажмите любую кнопку на геймпаде';
   drawText(ctx, pt, Math.round(W / 2), y + lines.length * 11 + 8, { align: 'center', color: UI.dim });
   void H;
+}
+
+/** Телефон: сенсорное управление. */
+function drawTouchControls(ctx: CanvasRenderingContext2D, W: number, y0: number): void {
+  const rows: [string, string][] = [
+    ['Движение', 'палец на левой половине экрана'],
+    ['Способность 1', 'большая жёлтая кнопка'],
+    ['Способности 2 и 3', 'малые кнопки рядом'],
+    ['Пауза', 'кнопка II вверху справа'],
+  ];
+  const w = Math.min(380, W - 24), x = Math.round(W / 2 - w / 2);
+  ctx.fillStyle = 'rgba(21,19,32,0.9)';
+  ctx.fillRect(x, y0, w, 20 + rows.length * 13);
+  drawText(ctx, 'СЕНСОРНОЕ УПРАВЛЕНИЕ', W / 2, y0 + 5, { align: 'center', color: UI.p1 });
+  rows.forEach(([a, b], j) => {
+    drawText(ctx, a, x + 8, y0 + 20 + j * 13, { color: UI.dim });
+    drawText(ctx, b, x + w - 8, y0 + 20 + j * 13, { color: UI.text, align: 'right' });
+  });
+  const lines = [
+    'Оружие наводится и стреляет само.',
+    'Ваша задача — ездить, уклоняться и жать способности.',
+    'Переросших врагов и препятствия можно давить.',
+    'Тормозит? Включите «Слабый телефон» в настройках.',
+  ];
+  const y = y0 + 30 + rows.length * 13;
+  lines.forEach((l, i) => drawText(ctx, '• ' + l, Math.round(W / 2), y + i * 11, { align: 'center', color: UI.text }));
 }

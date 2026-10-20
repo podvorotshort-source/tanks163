@@ -18,6 +18,8 @@ const tmpP: Prop[] = [];
 
 /** Порог давки препятствий (доля размера танка). */
 export const PROP_CRUSH = 0.27;
+/** Общий множитель скорости танков игроков: чтобы уклоняться от снарядов было не слишком легко. */
+export const PLAYER_SPEED_K = 0.85;
 
 export function updatePlayers(sim: Sim, cmds: PlayerCmd[], dt: number): void {
   for (const p of sim.players) {
@@ -128,7 +130,7 @@ function unstick(sim: Sim, p: Player): boolean {
 
 function movePlayer(sim: Sim, p: Player, cmd: PlayerCmd, dt: number): void {
   const size = sim.size;
-  let speed = p.cls.speed * p.stats.speed * size;
+  let speed = p.cls.speed * p.stats.speed * size * PLAYER_SPEED_K;
   if (p.overdriveT > 0) speed *= 1.5;
   if (p.slowT > 0) speed *= 1 - p.slowAmt;
   let mx = cmd.mx, my = cmd.my;

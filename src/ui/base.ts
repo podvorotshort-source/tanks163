@@ -5,7 +5,7 @@ import type { Scene } from '../app';
 import { app } from '../app';
 import { drawText, wrapText } from '../gfx/font';
 import { UI } from '../gfx/palette';
-import { panel, menuBackground, showcaseTank, showcaseModel } from './widgets';
+import { panel, menuBackground, showcaseTank, showcaseModel, buttonRow } from './widgets';
 import { input } from '../input/input';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
@@ -102,11 +102,18 @@ export class BaseScene implements Scene {
     // Мышь.
     const m = input.mouse;
     if (m.moved || m.clicked || m.wheel) {
-      if (m.wheel) this.scroll = Math.max(0, this.scroll + m.wheel);
+      // колесо / протяжка пальцем — прокрутка списка (выбор едет вместе с ним)
+      if (m.wheel && rows.length) { this.sel = Math.max(0, Math.min(rows.length - 1, this.sel + m.wheel)); this.scroll = Math.max(0, this.scroll + m.wheel); }
       for (const r of this.hit) if (m.x >= r.x && m.y >= r.y && m.x < r.x + r.w && m.y < r.y + r.h) {
         if (r.kind === 'tab' && m.clicked) { this.tab = r.i; this.sel = 0; this.scroll = 0; audio.play('select'); }
-        if (r.kind === 'row') { if (this.sel !== r.i) { this.sel = r.i; audio.play('select'); } if (m.clicked) this.tryBuy(this.rows()[r.i]); }
+        if (r.kind === 'row') {
+          // касанием: первый тап — выбрать (видно описание), повторный — купить; мышью — сразу
+          const was = this.sel === r.i;
+          if (!was) { this.sel = r.i; audio.play('select'); }
+          if (m.clicked && (was || !m.touch)) this.tryBuy(this.rows()[r.i]);
+        }
         if (r.kind === 'play' && m.clicked) { app.set(new SetupScene()); return; }
+        if (r.kind === 'back' && m.clicked) { audio.play('select'); app.set(new TitleScene()); return; }
       }
     }
   }
@@ -168,7 +175,7 @@ export class BaseScene implements Scene {
       drawText(ctx, r.status, x0 + listW - 6, y + 5, { align: 'right', color: r.owned ? UI.green : r.can ? UI.gold : UI.faint });
       this.hit.push({ x: x0, y, w: listW, h: rh - 2, kind: 'row', i });
     });
-    if (rows.length > visible) drawText(ctx, `${this.scroll + 1}–${Math.min(rows.length, this.scroll + visible)} из ${rows.length}`, x0 + listW, H - 26, { align: 'right', color: UI.faint });
+    if (rows.length > visible) drawText(ctx, `${this.scroll + 1}–${Math.min(rows.length, this.scroll + visible)} из ${rows.length}`, x0 + listW, app.screen.compact ? y0 + visible * rh + 1 : H - 26, { align: 'right', color: UI.faint });
     // Описание выбранного.
     const r = rows[this.sel];
     const dx = x0 + listW + 10, dw = W - dx - 10;
@@ -188,6 +195,13 @@ export class BaseScene implements Scene {
   }
 
   private footer(ctx: CanvasRenderingContext2D, W: number, H: number): void {
+    if (app.screen.compact) {
+      const [bx, by, bw, bh] = buttonRow(ctx, ['◀ НАЗАД'], 10 + 37, H - 22, 74, 18)[0];
+      this.hit.push({ x: bx, y: by, w: bw, h: bh, kind: 'back', i: 0 });
+      drawText(ctx, 'ТАП — ВЫБРАТЬ · ЕЩЁ ТАП — КУПИТЬ', W / 2 + 40, H - 16, { align: 'center', color: UI.dim });
+      if (this.msgT > 0) drawText(ctx, this.msg, W / 2 + 40, H - 28, { align: 'center', color: this.msg === 'Готово!' ? UI.green : UI.red });
+      return;
+    }
     drawText(ctx, '◀ ▶ ВКЛАДКИ · ▲▼ ВЫБОР · ПРОБЕЛ/ENTER/✕ КУПИТЬ · ESC НАЗАД', W / 2, H - 12, { align: 'center', color: UI.dim });
     if (this.msgT > 0) drawText(ctx, this.msg, W / 2, H - 26, { align: 'center', color: this.msg === 'Готово!' ? UI.green : UI.red });
   }
@@ -195,18 +209,18 @@ export class BaseScene implements Scene {
   private drawTrophies(ctx: CanvasRenderingContext2D, W: number, H: number): void {
     const d = save.data;
     const ids = STAGE_DEFS.map(s => s.boss);
-    const cols = 4, cw = Math.min(140, Math.floor((W - 30) / cols)), ch = 70;
+    const small = app.screen.compact, cols = 4, cw = Math.min(140, Math.floor((W - 30) / cols)), ch = small ? 44 : 70;
     ids.forEach((id, i) => {
       const x = 10 + (i % cols) * (cw + 4), y = 56 + Math.floor(i / cols) * (ch + 4);
       const n = d.trophies[id] ?? 0;
       panel(ctx, x, y, cw, ch, n ? UI.gold : UI.line);
       const def = BOSSES[id];
       if (n) {
-        showcaseModel(`boss:${def.art}`, x + cw / 2, y + 24, 48, this.t * 0.5 + i);
+        showcaseModel(`boss:${def.art}`, x + cw / 2, y + (small ? 15 : 24), small ? 28 : 48, this.t * 0.5 + i);
         drawText(ctx, def.name.toUpperCase(), x + cw / 2, y + ch - 20, { align: 'center', color: UI.gold });
         drawText(ctx, `Побед: ${n}`, x + cw / 2, y + ch - 10, { align: 'center', color: UI.dim });
       } else {
-        drawText(ctx, '?', x + cw / 2, y + 20, { align: 'center', color: UI.faint, scale: 3 });
+        drawText(ctx, '?', x + cw / 2, y + (small ? 6 : 20), { align: 'center', color: UI.faint, scale: small ? 2 : 3 });
         drawText(ctx, `СТУПЕНЬ ${i + 1}`, x + cw / 2, y + ch - 14, { align: 'center', color: UI.faint });
       }
     });

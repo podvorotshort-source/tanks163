@@ -10,6 +10,8 @@ import { spawnEnemy } from './director';
 
 /** Множитель перезарядки вражеского оружия (базовая сложность). */
 export const ENEMY_FIRE_K = 1.5;
+/** Множитель скорости прямых вражеских снарядов (и боссов): медленнее — успеть увидеть и увернуться. Дальность не меняется. */
+export const ENEMY_SHOT_K = 0.7;
 
 const tmpE: Enemy[] = [];
 const tmpP: Prop[] = [];
@@ -197,7 +199,7 @@ export function fireAt(sim: Sim, e: Enemy, tgt: Player): void {
   const lobKinds = ['mortar', 'toast', 'icbm', 'orbital', 'rocketLob', 'bomb'];
   if (lobKinds.includes(kind)) { lobAt(sim, e, tgt.x + tgt.vx * 0.9, tgt.y + tgt.vy * 0.9, kind); return; }
   if (kind === 'beam') { beam(sim, e, tgt); return; }
-  const sp = (e.def.shotSpeed ?? 8) * e.size;
+  const sp = (e.def.shotSpeed ?? 8) * e.size * ENEMY_SHOT_K;
   const d = Math.hypot(tgt.x - e.x, tgt.y - e.y);
   const t = Math.min(1, d / Math.max(1, sp));
   let a = Math.atan2(tgt.y + tgt.vy * t * 0.5 - e.y, tgt.x + tgt.vx * t * 0.5 - e.x);

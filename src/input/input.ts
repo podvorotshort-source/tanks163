@@ -130,7 +130,8 @@ class InputManager {
   onAnyInput: (() => void) | null = null;
   /** Новое нажатие на незакреплённом геймпаде (для присоединения игрока). */
   onPadJoin: ((padIndex: number) => void) | null = null;
-  mouse = { x: 0, y: 0, down: false, clicked: false, moved: false, wheel: 0 };
+  /** touch — щелчок пришёл касанием (тап): списки сначала выбирают пункт, действие — повторным тапом. */
+  mouse = { x: 0, y: 0, down: false, clicked: false, moved: false, wheel: 0, touch: false };
   /** Подмена getGamepads для тестов. */
   padSource: (() => (Gamepad | null)[]) | null = null;
 
@@ -147,13 +148,48 @@ class InputManager {
     addEventListener('blur', () => this.keysDown.clear());
     el.addEventListener('mousemove', e => {
       const [x, y] = toVirtual(e.clientX, e.clientY);
-      this.mouse.x = x; this.mouse.y = y; this.mouse.moved = true; this.lastDevice = 'mouse';
+      this.mouse.x = x; this.mouse.y = y; this.mouse.moved = true; this.lastDevice = 'mouse'; this.mouse.touch = false;
     });
     el.addEventListener('mousedown', e => {
       const [x, y] = toVirtual(e.clientX, e.clientY);
-      this.mouse.x = x; this.mouse.y = y; this.mouse.down = true; this.mouse.clicked = true; this.lastDevice = 'mouse';
+      this.mouse.x = x; this.mouse.y = y; this.mouse.down = true; this.mouse.clicked = true; this.lastDevice = 'mouse'; this.mouse.touch = false;
       this.onAnyInput?.();
     });
+    // Касания (меню на телефоне): тап — щелчок сразу, без задержки и «эмуляции мыши» браузером;
+    // протяжка пальцем по вертикали — прокрутка списков (как колесо мыши).
+    let tid: number | null = null, ty = 0, drag = 0, tx0 = 0, ty0 = 0;
+    const find = (e: TouchEvent) => Array.from(e.changedTouches).find(t => t.identifier === tid);
+    el.addEventListener('touchstart', e => {
+      e.preventDefault();
+      this.onAnyInput?.();
+      if (tid !== null) return;
+      const t = e.changedTouches[0];
+      tid = t.identifier;
+      [tx0, ty0] = toVirtual(t.clientX, t.clientY);
+      ty = ty0; drag = 0;
+    }, { passive: false });
+    el.addEventListener('touchmove', e => {
+      const t = find(e);
+      if (!t) return;
+      e.preventDefault();
+      const [x, y] = toVirtual(t.clientX, t.clientY);
+      drag = Math.max(drag, Math.hypot(x - tx0, y - ty0));
+      const step = 14;
+      while (y - ty > step) { this.mouse.wheel -= 1; ty += step; }
+      while (ty - y > step) { this.mouse.wheel += 1; ty -= step; }
+    }, { passive: false });
+    const end = (e: TouchEvent) => {
+      const t = find(e);
+      if (!t) return;
+      e.preventDefault();
+      tid = null;
+      if (e.type !== 'touchend' || drag > 10) return;
+      const [x, y] = toVirtual(t.clientX, t.clientY);
+      this.mouse.x = x; this.mouse.y = y; this.mouse.moved = true; this.mouse.clicked = true; this.mouse.touch = true;
+      this.lastDevice = 'mouse';
+    };
+    el.addEventListener('touchend', end, { passive: false });
+    el.addEventListener('touchcancel', end, { passive: false });
     addEventListener('mouseup', () => { this.mouse.down = false; });
     el.addEventListener('wheel', e => { this.mouse.wheel += Math.sign(e.deltaY); e.preventDefault(); }, { passive: false });
     el.addEventListener('contextmenu', e => e.preventDefault());
@@ -236,10 +272,11 @@ class InputManager {
       if (s === 0 && touch.st.active) {
         const t = touch.st;
         if (t.x || t.y) { mx = t.x; my = t.y; this.lastDevice = 'pad'; }
-        if (t.down.a1) down.a1 = true;
-        if (t.down.a2) down.a2 = true;
-        if (t.down.a3) down.a3 = true;
-        if (t.down.pause) down.pause = true;
+        if (t.down.a1 || t.hit.a1) down.a1 = true;
+        if (t.down.a2 || t.hit.a2) down.a2 = true;
+        if (t.down.a3 || t.hit.a3) down.a3 = true;
+        if (t.down.pause || t.hit.pause) down.pause = true;
+        t.hit.a1 = t.hit.a2 = t.hit.a3 = t.hit.pause = false;
       }
       const m = Math.hypot(mx, my);
       if (m > 1) { mx /= m; my /= m; }

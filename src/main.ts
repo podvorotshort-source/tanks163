@@ -19,6 +19,7 @@ const worldCanvas = document.getElementById('world') as HTMLCanvasElement;
 const app = new App(canvas, worldCanvas, document.getElementById('hi') as HTMLCanvasElement, document.getElementById('gl') as HTMLCanvasElement);
 setApp(app);
 settings.load();
+settings.onApply(() => { app.maxFps = settings.data.lowSpec ? 30 : 0; });
 save.load();
 input.onAnyInput = () => audio.unlock();
 touch.install();

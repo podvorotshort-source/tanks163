@@ -197,7 +197,7 @@ export class Fx {
 
   /** Плотность новых эффектов: при сотнях частиц (массовая гибель врагов) — меньше частиц на событие. */
   density(): number {
-    return Math.max(0.25, Math.min(1, 1 - (this.parts.length - 500) / 1200));
+    return Math.max(0.25, Math.min(1, 1 - (this.parts.length - this.max * 0.23) / (this.max * 0.55)));
   }
 
   spawn(kind: PKind, x: number, y: number): Particle {

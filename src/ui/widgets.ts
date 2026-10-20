@@ -75,7 +75,12 @@ export class VMenu {
       this.rects.forEach((r, i) => {
         if (m.x >= r[0] && m.x < r[0] + r[2] && m.y >= r[1] && m.y < r[1] + r[3]) {
           if (this.sel !== i) { this.sel = i; audio.play('select'); }
-          if (m.clicked) this.activate(i);
+          if (m.clicked) {
+            // ползунок: щелчок/тап по левой половине строки — уменьшить, по правой — увеличить
+            const it = this.items[i];
+            if (it?.adj && !it.act) it.adj(m.x < r[0] + r[2] / 2 ? -1 : 1);
+            else this.activate(i);
+          }
         }
       });
     }
@@ -88,27 +93,40 @@ export class VMenu {
     if (it.act) { audio.play('confirm'); it.act(); } else if (it.adj) it.adj(1);
   }
 
-  draw(ctx: CanvasRenderingContext2D, cx: number, y0: number, w: number, step = 18, t = 0): void {
+  /** cols — колонок (на телефоне длинные меню в две колонки, чтобы строки были крупными). */
+  draw(ctx: CanvasRenderingContext2D, cx: number, y0: number, w: number, step = 18, t = 0, cols = 1, gap = 8): void {
     this.rects = [];
+    const rows = Math.ceil(this.items.length / cols);
     this.items.forEach((it, i) => {
-      const y = y0 + i * step;
+      const col = Math.floor(i / rows);
+      const x = Math.round(cx + (col - (cols - 1) / 2) * (w + gap));
+      const y = y0 + (i % rows) * step;
       const sel = i === this.sel;
       const dis = it.disabled?.() ?? false;
       const label = typeof it.label === 'function' ? it.label() : it.label;
+      const rx = Math.round(x - w / 2), rh = step - 3, ty = y;
+      if (cols > 1 || it.adj) { ctx.fillStyle = 'rgba(21,19,32,0.7)'; ctx.fillRect(rx, ty - 4, w, rh); }
       if (sel) {
         ctx.fillStyle = '#1f1c2e';
-        ctx.fillRect(Math.round(cx - w / 2), y - 4, w, step - 3);
+        ctx.fillRect(rx, ty - 4, w, rh);
         ctx.fillStyle = UI.gold;
-        ctx.fillRect(Math.round(cx - w / 2), y - 4, 2, step - 3);
+        ctx.fillRect(rx, ty - 4, 2, rh);
       }
       const bob = sel ? Math.round(Math.sin(t * 8) * 0.6) : 0;
-      drawText(ctx, (sel ? '▶ ' : '') + label, cx + bob, y, { align: 'center', color: dis ? UI.faint : sel ? UI.gold : UI.text });
-      this.rects.push([Math.round(cx - w / 2), y - 4, w, step - 3]);
+      const ly = y + Math.round((rh - 15) / 2);
+      drawText(ctx, (sel && !it.adj ? '▶ ' : '') + label, x + bob, ly, { align: 'center', color: dis ? UI.faint : sel ? UI.gold : UI.text });
+      // ползунок: стрелки по краям строки (тап по половине — меньше/больше)
+      if (it.adj) {
+        const c = sel ? UI.gold : UI.dim;
+        drawText(ctx, '◀', rx + 6, ly, { color: c });
+        drawText(ctx, '▶', rx + w - 6, ly, { color: c, align: 'right' });
+      }
+      this.rects.push([rx, ty - 4, w, rh]);
     });
     // Подсказка выбранного пункта — под всем меню.
     const cur = this.items[this.sel];
     const sub = cur?.sub ? (typeof cur.sub === 'function' ? cur.sub() : cur.sub) : '';
-    if (sub) drawText(ctx, sub, cx, y0 + this.items.length * step + 2, { align: 'center', color: UI.dim });
+    if (sub) drawText(ctx, sub, cx, y0 + rows * step + 2, { align: 'center', color: UI.dim });
   }
 }
 
@@ -146,4 +164,23 @@ export function showcaseModel(key: string, x: number, y: number, size: number, a
   s.hiUsed = true;
   const px = Math.round(size * k);
   s.hctx.drawImage(portrait(key, px, a), Math.round(x * k - px / 2), Math.round(y * k - px / 2));
+}
+
+/** Ряд кнопок по центру (диалоги «ДА / НЕТ» — для мыши и касаний). Возвращает их прямоугольники. */
+export function buttonRow(ctx: CanvasRenderingContext2D, labels: string[], cx: number, y: number, w = 90, h = 22, colors: string[] = []): [number, number, number, number][] {
+  const gap = 12, total = labels.length * w + (labels.length - 1) * gap;
+  return labels.map((l, i) => {
+    const x = Math.round(cx - total / 2 + i * (w + gap));
+    const col = colors[i] ?? UI.text;
+    panel(ctx, x, y, w, h, col, 'rgba(31,28,46,0.95)');
+    drawText(ctx, l, x + w / 2, y + Math.round((h - 7) / 2), { align: 'center', color: col });
+    return [x, y, w, h];
+  });
+}
+
+/** Индекс прямоугольника под щелчком/тапом в этом кадре (или −1). */
+export function clickedRect(rects: [number, number, number, number][]): number {
+  const m = input.mouse;
+  if (!m.clicked) return -1;
+  return rects.findIndex(r => m.x >= r[0] && m.x < r[0] + r[2] && m.y >= r[1] && m.y < r[1] + r[3]);
 }

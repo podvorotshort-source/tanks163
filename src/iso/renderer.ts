@@ -162,6 +162,8 @@ export class IsoRenderer {
   readonly gu: Record<string, THREE.IUniform>;
   private shadowPlane: THREE.Mesh;
   w = 2; h = 2;
+  /** Режим для слабых телефонов: без карты теней (второй проход всей геометрии). */
+  private low = false;
 
   /** transparent — прозрачный фон (витрины моделей поверх интерфейса). */
   constructor(canvas: HTMLCanvasElement, private transparent = false) {
@@ -197,6 +199,17 @@ export class IsoRenderer {
       res: { value: new THREE.Vector2(2, 2) }, shake: { value: new THREE.Vector2() }, bg: { value: new THREE.Color('#120e1a') },
     };
     this.bgScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: this.gu, vertexShader: POST_VS, fragmentShader: GROUND_FS, depthTest: false, depthWrite: false })));
+  }
+
+  /** Включить/выключить тени (режим для слабых телефонов). Материалам нужна перекомпиляция шейдеров. */
+  setLow(on: boolean): void {
+    if (on === this.low) return;
+    this.low = on;
+    this.gl.shadowMap.enabled = !on;
+    this.sun.castShadow = !on;
+    const seen = new Set<THREE.Material>([this.litMat, this.glowMat]);
+    this.scene.traverse(o => { const m = (o as THREE.Mesh).material; if (m) for (const x of Array.isArray(m) ? m : [m]) seen.add(x); });
+    for (const m of seen) m.needsUpdate = true;
   }
 
   private makeTarget(w: number, h: number): THREE.WebGLRenderTarget {
@@ -267,7 +280,7 @@ export class IsoRenderer {
     this.gl.clear();
     const ground = !this.transparent && ((this.gu.aA.value as number) > 0 || (this.gu.aB.value as number) > 0);
     if (ground) this.gl.render(this.bgScene, this.postCam);
-    this.shadowPlane.visible = ground;
+    this.shadowPlane.visible = ground && !this.low;
     this.gl.render(this.scene, this.cam3);
     this.gl.setRenderTarget(null);
     this.gl.clear();

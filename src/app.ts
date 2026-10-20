@@ -24,6 +24,8 @@ export class App {
   readonly screen: Screen;
   private stack: Scene[] = [];
   private last = 0;
+  /** Предел частоты кадров (0 — без предела): в режиме для слабых телефонов — 30. */
+  maxFps = 0;
   time = 0;
   fps = 60;
   private fpsAcc = 0;
@@ -67,6 +69,8 @@ export class App {
   start(): void {
     this.last = performance.now();
     const loop = (now: number) => {
+      // предел кадров: пропускаем вызовы, пока не прошло 1/maxFps (с запасом на дрожание vsync)
+      if (this.maxFps && now - this.last < 1000 / this.maxFps - 3) { requestAnimationFrame(loop); return; }
       const real = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
       this.last = now;
       try {

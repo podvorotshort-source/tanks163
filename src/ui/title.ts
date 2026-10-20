@@ -22,7 +22,7 @@ export class TitleScene implements Scene {
 
   constructor() {
     this.menu = new VMenu([
-      { label: 'ИГРАТЬ', sub: 'Один или вдвоём на одном компьютере', act: () => app.set(new SetupScene()) },
+      { label: 'ИГРАТЬ', sub: () => (app.screen.compact ? 'Новый забег' : 'Один или вдвоём на одном компьютере'), act: () => app.set(new SetupScene()) },
       { label: 'БАЗА', sub: () => `Мастерская, арсенал, исследования · деталей: ${save.data.scrap}`, act: () => app.set(new BaseScene()) },
       { label: 'НАСТРОЙКИ', sub: 'Звук, тряска, числа урона', act: () => app.set(new SettingsScene(() => new TitleScene())) },
       { label: 'УПРАВЛЕНИЕ', sub: 'Клавиатура для двоих и геймпады', act: () => app.set(new ControlsScene(() => new TitleScene())) },
@@ -54,11 +54,12 @@ export class TitleScene implements Scene {
     const ty = Math.round(H * 0.58);
     showcaseTank(ctx, 'assault', 'gold', 'he', [], Math.round(W * 0.16), ty, 2, -Math.PI / 2 + Math.sin(this.t) * 0.2);
     showcaseTank(ctx, 'heavy', 'lime', 'flame', [], Math.round(W * 0.84), ty, 2, -Math.PI / 2 - Math.sin(this.t) * 0.2);
-    this.menu.draw(ctx, W / 2, Math.round(H * 0.45), 200, 22, this.t);
+    const compact = app.screen.compact;
+    this.menu.draw(ctx, W / 2, Math.round(H * (compact ? 0.4 : 0.45)), 200, compact ? 21 : 22, this.t);
     const s = save.data.stats;
     const info = s.runs ? `Забегов: ${s.runs} · Лучший результат: ступень ${s.bestStage + 1}/8 · Побед: ${s.wins}` : 'Добро пожаловать, командир!';
-    drawText(ctx, info, W / 2, H - 22, { align: 'center', color: UI.dim });
-    drawText(ctx, 'ПРОБЕЛ / ENTER / ✕ — ВЫБОР', W / 2, H - 11, { align: 'center', color: UI.faint });
+    drawText(ctx, info, W / 2, H - (compact ? 12 : 22), { align: 'center', color: UI.dim });
+    if (!compact) drawText(ctx, 'ПРОБЕЛ / ENTER / ✕ — ВЫБОР', W / 2, H - 11, { align: 'center', color: UI.faint });
     if (this.noticeT > 0 && this.notice) {
       ctx.globalAlpha = Math.min(1, this.noticeT);
       drawText(ctx, this.notice, W / 2, Math.round(H * 0.38), { align: 'center', color: UI.red, outline: '#07060b' });

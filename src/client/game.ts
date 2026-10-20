@@ -13,7 +13,9 @@ import { Hud } from './hud';
 import { LevelUpUI } from './levelup';
 import { drawWorld, drawWorldLabels, type RenderCtx } from './render';
 import { input } from '../input/input';
-import { touch } from '../input/touch';
+import { touch, type TouchAbility } from '../input/touch';
+import { abilityCooldown } from '../sim/abilities';
+import { PLAYER_SPEED_K } from '../sim/playerRun';
 import { audio } from '../audio/audio';
 import { music } from '../audio/music';
 import { STAGE_DEFS } from '../sim/content/stages';
@@ -105,11 +107,20 @@ export class GameScene implements Scene {
     audio.stopEngines();
   }
 
+  private lagT = 0;
+  private lagHinted = false;
+  /** Игра тормозит (меньше 32 кадров/с дольше 6 с) — один раз подсказать режим для слабых телефонов. */
+  private lagHint(dt: number): void {
+    if (this.lagHinted || settings.data.lowSpec || this.sim.state !== 'play' || this.pause.open) return;
+    this.lagT = app.fps < 32 ? this.lagT + dt : 0;
+    if (this.lagT > 6) { this.lagHinted = true; this.hud.banner('ИГРА ТОРМОЗИТ?', UI.gold, 4.5, 'Пауза → «Режим для слабых телефонов»'); }
+  }
+
   private engineSound(): void {
     const sim = this.sim;
     const running = sim.state === 'play' && !this.pause.open;
     sim.players.forEach((p, i) => {
-      const sp = Math.hypot(p.vx, p.vy) / Math.max(1, p.cls.speed * sim.size);
+      const sp = Math.hypot(p.vx, p.vy) / Math.max(1, p.cls.speed * PLAYER_SPEED_K * sim.size);
       audio.engine(i, sp, tierOf(sim.stageIdx), running && p.state === 'alive', this.pan(p.x));
     });
   }
@@ -182,6 +193,8 @@ export class GameScene implements Scene {
     this.cam.setScreen(s.ww, s.wh);
     this.time += dt;
     this.hud.update(dt);
+    this.fx.max = settings.data.lowSpec ? 800 : 2200;
+    this.lagHint(dt);
     if (this.pause.open) {
       this.engineSound();
       const r = this.pause.update(dt);
@@ -233,7 +246,14 @@ export class GameScene implements Scene {
     }
     this.bossLanding();
     // сенсорные стик и кнопки — только пока идёт бой (в выборе улучшений и паузе касания — как щелчки)
-    if (sim.state === 'play' || sim.state === 'transition') touch.show(sim.players[0].abilities.map(a => a.id));
+    if (sim.state === 'play' || sim.state === 'transition') {
+      const p = sim.players[0];
+      touch.show(p.abilities.map((a, i): TouchAbility => {
+        const cd = abilityCooldown(p, i);
+        const left = a.charges <= 0 && cd > 0 ? Math.max(0, Math.min(1, a.t / cd)) : 0;
+        return { id: a.id, left, sec: Math.ceil(a.t), active: a.active > 0, charges: a.charges };
+      }));
+    }
     this.iso.pump(sim.state === 'transition' ? 6 : 3);
     this.cam.update(dt, settings.data.shake);
     this.engineSound();

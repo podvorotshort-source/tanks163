@@ -4,6 +4,7 @@
 // камера отъезжает вчетверо; под старой ареной проступает земля следующей ступени, где старая арена
 // заново нарисована «реликвией» в новом масштабе, а затем старая картинка гаснет.
 
+import { settings } from '../meta/settings';
 import * as THREE from 'three';
 import type { Camera } from '../client/camera';
 import { ISO_X, ISO_Y } from '../client/camera';
@@ -80,6 +81,7 @@ export class IsoWorld {
 
   constructor(canvas: HTMLCanvasElement) {
     this.r = new IsoRenderer(canvas);
+    settings.onApply(() => this.r.setLow(settings.data.lowSpec));
     this.r.scene.add(this.units);
     const dg = new THREE.CircleGeometry(1, 12); dg.rotateX(-Math.PI / 2);
     this.decals = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }), this.decalMax);

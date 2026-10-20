@@ -5,7 +5,7 @@ import type { Scene } from '../app';
 import { app } from '../app';
 import { drawText, wrapText } from '../gfx/font';
 import { UI } from '../gfx/palette';
-import { panel, menuBackground, showcaseTank } from './widgets';
+import { panel, menuBackground, showcaseTank, buttonRow } from './widgets';
 import { input, padName } from '../input/input';
 import { audio } from '../audio/audio';
 import { save } from '../meta/save';
@@ -34,6 +34,8 @@ export class SetupScene implements Scene {
   }
 
   enter(): void {
+    // телефон: играем одни (второй игрок — только с клавиатуры/геймпада)
+    if (app.screen.compact) { this.players = 1; this.ready[1] = false; }
     input.solo = false;
     input.autoAssignPads();
     input.onPadJoin = (idx: number) => {
@@ -87,6 +89,9 @@ export class SetupScene implements Scene {
         if (r.act === 'next') this.sel[r.p] = (this.sel[r.p] + 1) % n;
         if (r.act === 'ready') this.ready[r.p] = !this.ready[r.p];
         if (r.act === 'join') this.join();
+        if (r.act === 'threatPrev') this.threat = Math.max(0, this.threat - 1);
+        if (r.act === 'threatNext') this.threat = Math.min(save.data.threatUnlocked, this.threat + 1);
+        if (r.act === 'back') { audio.play('select'); app.set(new TitleScene()); return; }
         audio.play('select');
       }
     }
@@ -106,6 +111,7 @@ export class SetupScene implements Scene {
     const { w: W, h: H } = app.screen;
     menuBackground(ctx, W, H, this.t);
     this.rects = [];
+    if (app.screen.compact) { this.renderCompact(ctx, W, H); return; }
     drawText(ctx, 'ПОДГОТОВКА К БОЮ', W / 2, 10, { align: 'center', color: UI.gold, scale: 2 });
     const cols = 2;
     const cw = Math.min(280, Math.floor((W - 30) / cols));
@@ -157,4 +163,48 @@ export class SetupScene implements Scene {
       ctx.fillRect(0, 0, W, H);
     }
   }
+
+  /** Телефон: один игрок, всё крупно — танк слева, описание справа, кнопки «Назад» / «Угроза» / «В бой» внизу. */
+  private renderCompact(ctx: CanvasRenderingContext2D, W: number, H: number): void {
+    drawText(ctx, 'ПОДГОТОВКА К БОЮ', W / 2, 6, { align: 'center', color: UI.gold, scale: 2 });
+    const x = 8, y = 26, w = W - 16, h = H - y - 30;
+    const ready = this.ready[0];
+    panel(ctx, x, y, w, h, ready ? UI.p1 : UI.line);
+    const v = this.available[this.sel[0]];
+    const c = CLASSES[v.cls];
+    // выбор варианта: крупные стрелки по краям левой части
+    const lw = Math.min(170, Math.floor(w * 0.38));
+    drawText(ctx, v.name.toUpperCase(), x + lw / 2, y + 8, { align: 'center', color: UI.p1 });
+    drawText(ctx, '◀', x + 10, y + h / 2, { color: UI.gold, scale: 2 });
+    drawText(ctx, '▶', x + lw - 10, y + h / 2, { color: UI.gold, scale: 2, align: 'right' });
+    this.rects.push({ x, y, w: 40, h, p: 0, act: 'prev' }, { x: x + lw - 40, y, w: 40, h, p: 0, act: 'next' });
+    showcaseTank(ctx, v.cls, 'gold', v.main, v.aux, x + lw / 2, y + h / 2 + 6, Math.min(3.4, h / 46), this.t * 0.8);
+    // описание
+    const tx = x + lw + 6, tw = w - lw - 14;
+    let ty = y + 8;
+    for (const l of wrapText(c.desc, tw)) { drawText(ctx, l, tx, ty, { color: UI.text }); ty += 9; }
+    ty += 3;
+    drawText(ctx, `Орудие: ${WEAPONS[v.main].name}`, tx, ty, { color: UI.gold }); ty += 10;
+    if (v.aux.length) { for (const l of wrapText(`Системы: ${v.aux.map(a => WEAPONS[a].name).join(', ')}`, tw)) { drawText(ctx, l, tx, ty, { color: UI.gold }); ty += 10; } }
+    for (const p of c.perks) { if (ty > y + h - 12) break; drawText(ctx, '• ' + p, tx, ty, { color: UI.dim }); ty += 9; }
+    // кнопки внизу
+    const by = H - 25, bh = 21;
+    const back = buttonRow(ctx, ['◀ НАЗАД'], x + 38, by, 76, bh)[0];
+    this.rects.push({ x: back[0], y: back[1], w: back[2], h: back[3], p: 0, act: 'back' });
+    const go = buttonRow(ctx, [ready ? 'ГОТОВ!' : 'В БОЙ ▶'], W - x - 50, by, 100, bh, [UI.gold])[0];
+    this.rects.push({ x: go[0], y: go[1], w: go[2], h: go[3], p: 0, act: 'ready' });
+    if (save.data.threatUnlocked > 0) {
+      const th = THREATS[this.threat], tw2 = W - 2 * x - 76 - 100 - 24, cx = x + 76 + 12 + tw2 / 2;
+      panel(ctx, cx - tw2 / 2, by, tw2, bh, this.threat ? UI.red : UI.line, 'rgba(31,28,46,0.95)');
+      drawText(ctx, '◀', cx - tw2 / 2 + 6, by + 7, { color: UI.dim });
+      drawText(ctx, '▶', cx + tw2 / 2 - 6, by + 7, { color: UI.dim, align: 'right' });
+      drawText(ctx, 'УГРОЗА: ' + th.name.toUpperCase(), cx, by + 7, { align: 'center', color: this.threat ? UI.red : UI.text });
+      this.rects.push({ x: cx - tw2 / 2, y: by, w: tw2 / 2, h: bh, p: 0, act: 'threatPrev' }, { x: cx, y: by, w: tw2 / 2, h: bh, p: 0, act: 'threatNext' });
+    }
+    if (this.startT >= 0) {
+      ctx.fillStyle = `rgba(7,6,11,${Math.min(1, this.startT / 0.6)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
 }

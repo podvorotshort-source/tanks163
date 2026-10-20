@@ -5,7 +5,9 @@ import type { Sim } from '../sim/sim';
 import type { SimEvent } from '../sim/types';
 import type { Camera } from './camera';
 import type { Fx } from './fx';
-import type { GroundLayer } from './groundLayer';
+import type { Decal } from '../iso/world';
+/** Куда класть следы на земле (воронки, гарь, обломки). */
+export interface DecalSink { addDecal(d: Decal): void }
 import { RAMPS } from '../gfx/palette';
 
 type Ev<T extends SimEvent['t']> = Extract<SimEvent, { t: T }>;
@@ -48,7 +50,7 @@ export function emitShot(fx: Fx, sim: Sim, e: Ev<'shot'>, cam: Camera): void {
   } else if (e.w === 'tesla') fx.light(e.x, e.y, e.size * 1.2, '#62cfac', 0.8, 0.1);
 }
 
-export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, ground: GroundLayer, dens = 1): void {
+export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, ground: DecalSink, dens = 1): void {
   const r = e.r;
   if (!cam.visible(e.x, e.y, r * 1.5)) {
     if (e.kind !== 'tesla') ground.addDecal({ x: e.x, y: e.y, r: r * 0.5, kind: 'scorch', col: '#1a1724', seed: (e.x * 13 + e.y * 7) | 0, a: 0 });
@@ -148,7 +150,7 @@ function fmtDmg(v: number): string {
   return v.toFixed(1);
 }
 
-export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: GroundLayer): void {
+export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: DecalSink): void {
   if (!cam.visible(e.x, e.y, e.size)) return;
   const sz = e.size;
   const dens = fx.density(), zp = (sz * cam.zoom) / (cam.h / 360);
@@ -182,7 +184,7 @@ export function emitKill(fx: Fx, sim: Sim, e: Ev<'kill'>, cam: Camera, ground: G
   if (sz * cam.zoom > 20) cam.addShake(Math.min(8, sz * cam.zoom * 0.06));
 }
 
-export function emitPropBreak(fx: Fx, sim: Sim, e: Ev<'propBreak'>, cam: Camera, ground: GroundLayer): void {
+export function emitPropBreak(fx: Fx, sim: Sim, e: Ev<'propBreak'>, cam: Camera, ground: DecalSink): void {
   const cols = MAT_COL[e.mat] ?? MAT_COL.concrete;
   const sz = Math.max(e.w, e.h);
   ground.addDecal({ x: e.x, y: e.y, r: sz * 0.5, kind: 'rubble', col: cols[0], seed: (e.x + e.y * 3) | 0, a: 0 });

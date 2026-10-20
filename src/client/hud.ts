@@ -182,7 +182,7 @@ export class Hud {
     if (sim.boss && !sim.boss.dead) targets.push([sim.boss.x, sim.boss.y, UI.red]);
     for (const p of sim.pickups) targets.push([p.x, p.y, '#bdf3dc']);
     for (const [wx, wy, col] of targets) {
-      const sx = cam.sxOf(wx), sy = cam.syOf(wy);
+      const sx = cam.sxOf(wx, wy), sy = cam.syOf(wx, wy);
       if (sx > 8 && sy > 8 && sx < W - 8 && sy < H - 8) continue;
       const cx = W / 2, cy = H / 2;
       const a = Math.atan2(sy - cy, sx - cx);

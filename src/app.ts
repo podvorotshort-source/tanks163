@@ -34,8 +34,8 @@ export class App {
   private worldDirty = true;
   readonly perf = { update: 0, world: 0, ui: 0, peakFrame: 0 };
 
-  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement) {
-    this.screen = new Screen(canvas, world, hi);
+  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement, gl: HTMLCanvasElement) {
+    this.screen = new Screen(canvas, world, hi, gl);
     input.attach(canvas, (cx, cy) => {
       const r = canvas.getBoundingClientRect();
       return [((cx - r.left) / r.width) * this.screen.w, ((cy - r.top) / r.height) * this.screen.h];

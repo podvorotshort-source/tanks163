@@ -5,7 +5,7 @@ import { app } from '../app';
 import { Sim, type RunConfig, type PlayerCmd, TRANSITION_SWITCH, TRANSITION_TIME } from '../sim/sim';
 import { DT, TANK_BASE, STAGE_GROWTH, type SimEvent } from '../sim/types';
 import { Camera } from './camera';
-import { GroundLayer, type Relic } from './groundLayer';
+import { IsoWorld } from '../iso/world';
 import { Fx } from './fx';
 import { Hud } from './hud';
 import { LevelUpUI } from './levelup';
@@ -19,10 +19,6 @@ import { POWERUP_INFO } from '../sim/powerups';
 import { WEAPONS } from '../sim/content/weapons';
 import { UI } from '../gfx/palette';
 import { drawText } from '../gfx/font';
-import { makeCanvas } from '../gfx/screen';
-import { groundAt } from '../gfx/art/ground';
-import { propDef } from '../gfx/art/props';
-import { rasterize } from '../gfx/raster';
 import { easeInOutCubic, clamp } from '../core/math';
 import { setDisplayTier, tierOf, TIER_NAMES, TIER_ROMAN } from './tiers';
 import { PauseMenu } from './pause';
@@ -31,54 +27,14 @@ import { emitExplosion, emitKill, emitPropBreak, emitShot, emitHit, emitAbility 
 import { Ending } from './ending';
 import { extFrames } from '../gfx/ext';
 
-/** Постепенная отрисовка картинки поверхности (чтобы не было подвисаний). */
-class Painter {
-  canvas: HTMLCanvasElement;
-  private img: ImageData;
-  private d: Uint32Array;
-  private row = 0;
-  done = false;
-  constructor(public w: number, public h: number, private fn: (x: number, y: number) => number, private after?: (ctx: CanvasRenderingContext2D) => void) {
-    this.canvas = makeCanvas(w, h);
-    this.img = this.canvas.getContext('2d')!.createImageData(w, h);
-    this.d = new Uint32Array(this.img.data.buffer);
-  }
-  step(budgetMs: number): void {
-    if (this.done) return;
-    const end = performance.now() + budgetMs;
-    while (this.row < this.h && performance.now() < end) {
-      const o = this.row * this.w;
-      for (let x = 0; x < this.w; x++) this.d[o + x] = this.fn(x, this.row);
-      this.row++;
-    }
-    if (this.row >= this.h) {
-      const ctx = this.canvas.getContext('2d')!;
-      ctx.putImageData(this.img, 0, 0);
-      this.after?.(ctx);
-      this.done = true;
-    }
-  }
-  finish(): void {
-    this.step(1e9);
-  }
-}
-
 interface TransitionFx {
   from: number;
-  /** Снимок старой арены (1 px = G старых единиц) — без препятствий (реликвия). */
-  snap: Painter;
-  /** Снимок с препятствиями — для кинематографичного отъезда. */
-  snapFull: HTMLCanvasElement | null;
-  /** Обзор нового мира (1 px = 4 новых единицы). */
-  overview: Painter;
-  ovX0: number;
-  ovY0: number;
-  ovW: number;
-  ovH: number;
   startZoom: number;
   evolved: boolean;
   titled: boolean;
   revealed: boolean;
+  prepared: boolean;
+  switchedCam?: boolean;
 }
 
 export class GameScene implements Scene {
@@ -87,7 +43,11 @@ export class GameScene implements Scene {
   cam = new Camera();
   /** Та же камера в пикселях интерфейса (для подписей, указателей). */
   ucam = new Camera();
-  ground = new GroundLayer();
+  /** Изометрический 3D-мир (создаётся при первом кадре на холсте #gl). */
+  private isoWorld: IsoWorld | null = null;
+  get iso(): IsoWorld { return (this.isoWorld ??= new IsoWorld(app.screen.gl)); }
+  /** Следы на земле — в 3D-мир. */
+  readonly ground = { addDecal: (d: Parameters<IsoWorld['addDecal']>[0]) => this.iso.addDecal(d) };
   fx = new Fx();
   hud = new Hud();
   levelUI = new LevelUpUI();
@@ -109,7 +69,6 @@ export class GameScene implements Scene {
     this.sim = new Sim(cfg);
     input.solo = cfg.players.length === 1;
     setDisplayTier(this.sim.stageIdx);
-    this.ground.reset(this.sim.stageIdx, null);
     this.hud.showFps = settings.data.showFps;
   }
 
@@ -117,7 +76,6 @@ export class GameScene implements Scene {
     const s = app.screen;
     this.cam.setScreen(s.ww, s.wh);
     this.syncCamera(1);
-    this.ground.prewarm(this.cam, this.cam.zoom);
     this.hud.banner(STAGE_DEFS[this.sim.stageIdx].title + ' · ' + STAGE_DEFS[this.sim.stageIdx].subtitle.toUpperCase(), UI.gold, 3.5, 'Модель ' + TIER_ROMAN[this.sim.stageIdx] + ': ' + TIER_NAMES[this.sim.stageIdx], true);
     music.play('stage' + this.sim.stageIdx);
   }
@@ -239,8 +197,9 @@ export class GameScene implements Scene {
   // События симуляции → эффекты и звук
   // -------------------------------------------------------------------------
 
-  private pan(x: number): number {
-    return clamp((this.cam.sxOf(x) / this.cam.w) * 2 - 1, -0.9, 0.9) * 0.6;
+  /** Панорама звука по экранному положению (изометрия: x − y). */
+  private pan(x: number, y = this.cam.cy): number {
+    return clamp((this.cam.sxOf(x, y) / this.cam.w) * 2 - 1, -0.9, 0.9) * 0.6;
   }
 
   private handleEvents(evs: SimEvent[]): void {
@@ -401,43 +360,7 @@ export class GameScene implements Scene {
   // -------------------------------------------------------------------------
 
   private startTransitionFx(): TransitionFx {
-    const sim = this.sim;
-    const from = sim.transition!.from;
-    const old = STAGE_DEFS[from], next = STAGE_DEFS[from + 1];
-    const G = STAGE_GROWTH;
-    const ground = this.ground;
-    // Снимок старой арены: 1 px = G старых ед. (= 1 новая единица).
-    const sw = Math.round(old.w / G), sh = Math.round(old.h / G);
-    const relicPrev = ground.relic;
-    const props = sim.props.props.filter(p => !p.dead);
-    const fx: TransitionFx = { snapFull: null } as unknown as TransitionFx;
-    const snap = new Painter(sw, sh, (x, y) => {
-      return groundAt(from, (x + 0.5) * G, (y + 0.5) * G, 1 / G);
-    }, ctx => {
-      ctx.imageSmoothingEnabled = false;
-      if (relicPrev) ctx.drawImage(relicPrev.canvas, relicPrev.x0 / G, relicPrev.y0 / G, relicPrev.w / G, relicPrev.h / G);
-      // Воронки и гарь прежней арены остаются на «реликвии».
-      ground.drawDecalsInto(snap.canvas, 1 / G);
-      // Для кинематографичного отъезда — копия с препятствиями (в игре они станут настоящими).
-      const full = makeCanvas(sw, sh);
-      const fc = full.getContext('2d')!;
-      fc.imageSmoothingEnabled = false;
-      fc.drawImage(snap.canvas, 0, 0);
-      for (const p of props) {
-        const img = rasterize(propDef(p.kind, p.w, p.h, p.v), 1 / G, 0, 0);
-        const c = makeCanvas(img.w, img.h);
-        c.getContext('2d')!.putImageData(new ImageData(new Uint8ClampedArray(img.data.buffer as ArrayBuffer), img.w, img.h), 0, 0);
-        fc.drawImage(c, Math.round(p.x / G - img.w / 2), Math.round(p.y / G - img.h / 2));
-      }
-      fx.snapFull = full;
-      void ctx;
-    });
-    // Обзор нового мира вокруг: 1 px = 4 новых ед.
-    const ovW = next.w * 1.5, ovH = next.h * 1.5;
-    const ovX0 = next.w / 2 - ovW / 2, ovY0 = next.h / 2 - ovH / 2;
-    const k = 4;
-    const overview = new Painter(Math.round(ovW / k), Math.round(ovH / k), (x, y) => groundAt(from + 1, ovX0 + (x + 0.5) * k, ovY0 + (y + 0.5) * k, 1 / k));
-    return Object.assign(fx, { from, snap, overview, ovX0, ovY0, ovW, ovH, startZoom: this.cam.zoom, evolved: false, titled: false, revealed: false });
+    return { from: this.sim.transition!.from, startZoom: this.cam.zoom, evolved: false, titled: false, revealed: false, prepared: false };
   }
 
   private transitionCamera(dt: number): void {
@@ -448,15 +371,13 @@ export class GameScene implements Scene {
       audio.play('whoosh');
     }
     const T = this.trans;
-    // Готовим картинки в фоне.
-    if (!T.snap.done) T.snap.step(5);
-    else if (!T.overview.done) T.overview.step(5);
+    // Мир следующей ступени собираем заранее, пока камера отъезжает (без рывка в момент переключения).
+    if (!T.prepared && tr.t > 1.4) { T.prepared = true; this.iso.prebuild(T.from + 1); }
     const G = STAGE_GROWTH;
     const t = tr.t;
     const old = STAGE_DEFS[T.from], next = STAGE_DEFS[T.from + 1];
     if (!tr.switched) {
       // Фаза A–B: отъезд в старых координатах.
-      if (t > TRANSITION_SWITCH - 0.3) { T.snap.finish(); T.overview.finish(); }
       const u = clamp((t - 1.2) / (TRANSITION_SWITCH - 1.2), 0, 1);
       const zEnd = T.startZoom / 24;
       this.cam.zoom = T.startZoom * Math.pow(zEnd / T.startZoom, easeInOutCubic(u));
@@ -465,10 +386,9 @@ export class GameScene implements Scene {
       this.cam.y += ((u > 0 ? ty * easeInOutCubic(u) + sim.viewY * (1 - easeInOutCubic(u)) : sim.viewY) - this.cam.y) * Math.min(1, dt * 4);
       if (u > 0.4 && !T.revealed) { T.revealed = true; audio.play('reveal'); }
     } else {
-      // Переключились: новые единицы. Сброс поверхности с реликвией.
-      if (this.ground.stage !== sim.stageIdx) {
-        const relic: Relic = { canvas: T.snap.canvas, x0: next.relicX - old.w / G / 2, y0: next.relicY - old.h / G / 2, w: old.w / G, h: old.h / G };
-        this.ground.reset(sim.stageIdx, relic);
+      // Переключились: новые единицы (3D-мир сменит ступень в ближайшем кадре — внешний мир становится ареной).
+      if (!T.switchedCam) {
+        T.switchedCam = true;
         this.cam.zoom *= G;
         this.cam.x = next.relicX + (this.cam.x - old.w / 2) / G;
         this.cam.y = next.relicY + (this.cam.y - old.h / 2) / G;
@@ -483,11 +403,6 @@ export class GameScene implements Scene {
           this.hud.banner('МИР ОКАЗАЛСЯ БОЛЬШЕ!', UI.text, 2.4, undefined, false);
           setTimeout(() => this.hud.banner(st.title + ' · ' + st.subtitle.toUpperCase(), UI.gold, 3.2, undefined, true), 900);
         }
-        // Готовим куски поверхности для конечного масштаба.
-        const saveZ = this.cam.zoom, sx = this.cam.x, sy = this.cam.y;
-        this.cam.zoom = target; this.cam.x = sim.viewX; this.cam.y = sim.viewY;
-        this.ground.prewarmStep(this.cam, target, 6);
-        this.cam.zoom = saveZ; this.cam.x = sx; this.cam.y = sy;
       } else {
         const u = clamp((t - hold1) / (zin1 - hold1), 0, 1);
         const zWide = (T.startZoom / 24) * G;
@@ -517,43 +432,27 @@ export class GameScene implements Scene {
   // Отрисовка
   // -------------------------------------------------------------------------
 
-  /** Мир — в холсте высокого разрешения. */
+  /** Мир: 3D-изометрия (холст #gl) + 2D-слой эффектов в той же пиксельной сетке (холст мира). */
   renderWorld(ctx: CanvasRenderingContext2D): void {
     const s = app.screen;
     const W = s.ww, H = s.wh;
-    ctx.fillStyle = '#07060b';
-    ctx.fillRect(0, 0, W, H);
-    if (this.ending && this.endT > 2.5) return;
+    ctx.clearRect(0, 0, W, H);
+    if (this.ending && this.endT > 2.5) { ctx.fillStyle = '#07060b'; ctx.fillRect(0, 0, W, H); return; }
     const sim = this.sim;
-    const tr = sim.transition;
-    const T = this.trans;
-    const cinematic = !!(tr && T && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
-    if (cinematic && T) this.drawTransitionBackdrop(ctx, T);
-    const groundAlpha = cinematic && T ? this.chunkAlpha(T) : 1;
     const t0 = performance.now();
-    if (groundAlpha > 0) {
-      ctx.globalAlpha = groundAlpha;
-      this.ground.draw(ctx, this.cam, cinematic ? 2 : 4, cinematic && !(tr?.switched));
-      ctx.globalAlpha = 1;
-    }
+    this.iso.render(sim, this.cam, this.alpha, this.time);
     const t1 = performance.now();
-    const rc: RenderCtx = { sim, cam: this.cam, fx: this.fx, alpha: this.alpha, time: this.time, hideProps: cinematic && groundAlpha < 0.5 };
+    const rc: RenderCtx = { sim, cam: this.cam, fx: this.fx, alpha: this.alpha, time: this.time };
     drawWorld(ctx, rc);
-    const t2 = performance.now();
-    this.fx.drawLights(ctx, this.cam, add => {
-      for (const p of sim.players) if (p.state === 'alive' && (sim.helmetT > 0 || p.fortressT > 0)) add(p.x, p.y, sim.size * 2, '#68a6f0', 0.25);
-      for (const pu of sim.pickups) add(pu.x, pu.y, sim.size * 1.6, '#fbcd4a', 0.25);
-    });
-    vignette(ctx, W, H);
-    const t3 = performance.now(), pf = this.perf;
-    pf.ground += (t1 - t0 - pf.ground) * 0.05; pf.world += (t2 - t1 - pf.world) * 0.05; pf.lights += (t3 - t2 - pf.lights) * 0.05;
+    const t2 = performance.now(), pf = this.perf;
+    pf.ground += (t1 - t0 - pf.ground) * 0.05; pf.world += (t2 - t1 - pf.world) * 0.05;
   }
 
   /** Камера мира в пикселях интерфейса. */
   private syncUiCamera(): Camera {
     const s = app.screen, k = s.w2u, c = this.ucam, w = this.cam;
     c.setScreen(s.w, s.h);
-    c.x = w.x; c.y = w.y; c.zoom = w.zoom * k; c.sx = w.sx * k; c.sy = w.sy * k;
+    c.x = w.x; c.y = w.y; c.cx = w.cx; c.cy = w.cy; c.zoom = w.zoom * k; c.sx = w.sx * k; c.sy = w.sy * k;
     return c;
   }
 
@@ -593,53 +492,6 @@ export class GameScene implements Scene {
 
   private lastEndDraw = 0;
 
-  private chunkAlpha(T: TransitionFx): number {
-    const tr = this.sim.transition!;
-    if (!tr.switched) {
-      const k = this.cam.zoom / T.startZoom;
-      return clamp((k - 0.12) / 0.25, 0, 1);
-    }
-    const target = this.gameplayZoom();
-    const k = this.cam.zoom / target;
-    return clamp((k - 0.55) / 0.35, 0, 1);
-  }
-
-  /** Фон кинематографичного отъезда: обзор нового мира + снимок старой арены. */
-  private drawTransitionBackdrop(ctx: CanvasRenderingContext2D, T: TransitionFx): void {
-    const tr = this.sim.transition!;
-    const G = STAGE_GROWTH;
-    const old = STAGE_DEFS[T.from], next = STAGE_DEFS[T.from + 1];
-    const cam = this.cam;
-    ctx.imageSmoothingEnabled = false;
-    // Перевод «новых» координат в текущие.
-    const toCur = (x: number, y: number): [number, number] => (tr.switched ? [x, y] : [old.w / 2 + (x - next.relicX) * G, old.h / 2 + (y - next.relicY) * G]);
-    const k = tr.switched ? 1 : G;
-    if (T.overview.done) {
-      const [x0, y0] = toCur(T.ovX0, T.ovY0);
-      ctx.drawImage(T.overview.canvas, Math.round(cam.sxOf(x0)), Math.round(cam.syOf(y0)), Math.round(T.ovW * k * cam.zoom), Math.round(T.ovH * k * cam.zoom));
-    }
-    if (T.snap.done) {
-      const [x0, y0] = toCur(next.relicX - old.w / G / 2, next.relicY - old.h / G / 2);
-      const w = (old.w / G) * k * cam.zoom, h = (old.h / G) * k * cam.zoom;
-      ctx.drawImage(T.snapFull ?? T.snap.canvas, Math.round(cam.sxOf(x0)), Math.round(cam.syOf(y0)), Math.round(w), Math.round(h));
-      // Подсветка прежней арены, пока она мала.
-      if (w < cam.w * 0.6) {
-        ctx.globalAlpha = 0.6 + 0.4 * Math.sin(this.time * 4);
-        ctx.strokeStyle = '#fbcd4a';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(Math.round(cam.sxOf(x0)) - 1.5, Math.round(cam.syOf(y0)) - 1.5, Math.round(w) + 3, Math.round(h) + 3);
-        ctx.globalAlpha = 1;
-      }
-    }
-  }
-}
-
-function vignette(ctx: CanvasRenderingContext2D, W: number, H: number): void {
-  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.72);
-  g.addColorStop(0, 'rgba(7,6,11,0)');
-  g.addColorStop(1, 'rgba(7,6,11,0.45)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
 }
 
 export { drawText };

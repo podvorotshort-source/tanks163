@@ -1,6 +1,7 @@
 import { App, setApp } from './app';
 import { GalleryScene } from './debug/gallery';
 import { ArtViewScene } from './debug/artView';
+import { ModelsScene } from './debug/models';
 import { GameScene } from './client/game';
 import { input } from './input/input';
 import { audio } from './audio/audio';
@@ -12,14 +13,11 @@ import { TitleScene } from './ui/title';
 import { ResultsScene } from './ui/results';
 import { VARIANTS } from './meta/meta';
 import { loadExt } from './gfx/ext';
-import { mountTunePanel, startTune } from './debug/tune';
 
-// Инструмент настройки масштабов графики: панель слева, игра справа.
-const tunePanel = new URLSearchParams(location.search).get('dev') === 'tune' ? mountTunePanel() : null;
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
 const worldCanvas = document.getElementById('world') as HTMLCanvasElement;
-const app = new App(canvas, worldCanvas, document.getElementById('hi') as HTMLCanvasElement);
+const app = new App(canvas, worldCanvas, document.getElementById('hi') as HTMLCanvasElement, document.getElementById('gl') as HTMLCanvasElement);
 setApp(app);
 settings.load();
 save.load();
@@ -35,10 +33,10 @@ function boot(): void {
 
   if (dev === 'gallery') {
     app.set(new GalleryScene());
+  } else if (dev === 'models') {
+    app.set(new ModelsScene(params));
   } else if (dev === 'art') {
     app.set(new ArtViewScene());
-  } else if (dev === 'tune' && tunePanel) {
-    startTune(app, tunePanel, params);
   } else if (dev === 'play') {
     // Прямой запуск боя (для тестов): ?dev=play&cls=assault,heavy&stage=0&seed=7
     const cls = (params.get('cls') ?? 'assault').split(',') as ClassId[];

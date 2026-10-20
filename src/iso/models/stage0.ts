@@ -1,0 +1,272 @@
+// Ступень I «Игрушечный полигон»: заводные игрушки, солдатики, блоки «Танчиков».
+import { Vox, type ModelDef } from '../vox';
+import { tankSpec, wheel, gun, rotor, figure, one, tracks } from './kit';
+
+// ---------------------------------------------------------------- враги
+
+export function soldier(): ModelDef {
+  const v = new Vox(12, 14, 9);
+  figure(v, 5, 4.5, 'army', 'army_d', 'army_l', 'army_d', 1, 'army_d');
+  return one(v, 9);
+}
+
+export function toyTank(): ModelDef {
+  return tankSpec({
+    L: 26, W: 20, tH: 6, hH: 4, body: 'red', dark: 'red_d', light: 'red_l', wheel: 'white',
+    tr: 5, tH2: 4, turret: 'red', barrel: 10, bR: 1.1,
+    extra: (h, t, c) => {
+      for (const zz of [c.zc - 4, c.zc + 3]) h.box(c.x0 + 2, c.x1 - 3, c.yT - 1, c.yT, zz, zz + 1, 'white');     // гоночные полосы
+      t.cylY(c.tcx - 1, c.tcz, 2, 4, 5, 'white');
+      h.cylX(c.yT - 2, c.zc, 1, c.x0 - 3, c.x0, 'gold'); h.cylZ(c.x0 - 3, c.yT - 2, 2.2, c.zc - 2.5, c.zc - 1.5, 'gold'); h.cylZ(c.x0 - 3, c.yT - 2, 2.2, c.zc + 1.5, c.zc + 2.5, 'gold'); // заводной ключ
+    },
+  });
+}
+
+export function jeep(): ModelDef {
+  const v = new Vox(26, 12, 16), zc = 8;
+  for (const x of [6, 19]) { wheel(v, x, 3, 3, 0, 3); wheel(v, x, 3, 3, 13, 16); }
+  v.box(2, 24, 3, 6, 3, 13, 'army');
+  v.box(16, 24, 6, 8, 3.5, 12.5, 'army_l');            // капот
+  v.box(23, 24, 3, 7, 4, 12, 'army_d');                // решётка
+  v.box(4, 15, 6, 7, 3, 13, 'army_d');                 // пол кабины
+  v.box(8, 11, 6, 9, 4, 7, 'rubber'); v.box(8, 11, 6, 9, 9, 12, 'rubber'); // сиденья
+  v.box(15, 16, 7, 11, 3, 13, 'army_d'); v.box(15, 16, 8, 10, 4.5, 11.5, 'glass');
+  v.box(23.5, 24.5, 4, 6, 4, 5, 'lamp'); v.box(23.5, 24.5, 4, 6, 11, 12, 'lamp');
+  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) v.set(20 + a, 8, zc + b, 'white');
+  const t = new Vox(12, 8, 6);
+  t.box(2, 5, 0, 4, 1.5, 4.5, 'gun'); gun(t, 4, 11, 3, 3, 0.7);
+  return { size: 20, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [3.5, 0, 3], at: [-4, 7, 0] }] };
+}
+
+export function heli(): ModelDef {
+  const v = new Vox(30, 12, 12), zc = 6;
+  v.ell(20, 5.5, zc, 6, 4.5, 4, 'army');
+  v.fill((x, y, z, c) => (c && x > 22 && y > 5 ? 'glass' : undefined));
+  v.box(4, 16, 4, 7, zc - 1.5, zc + 1.5, 'army');
+  v.box(1, 5, 7, 11, zc - 1, zc + 1, 'army_d');
+  v.box(10, 26, 0, 1, 1, 2, 'gun'); v.box(10, 26, 0, 1, 10, 11, 'gun');
+  for (const x of [13, 23]) { v.box(x, x + 1, 1, 3, 1, 2, 'gun'); v.box(x, x + 1, 1, 3, 10, 11, 'gun'); }
+  v.box(17, 21, 9, 11, zc - 1, zc + 1, 'gun_d');
+  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) { v.set(15 + a, 6 + b, 1, 'white'); v.set(15 + a, 6 + b, 10, 'white'); }
+  v.set(26, 2, zc, 'lamp_r');
+  return { size: 26, parts: [{ name: 'body', vox: v, pivot: [15, 0, 6] }, { name: 'rotor', vox: rotor(13, 'gun_d', 2), pivot: [14, 0, 14], at: [4, 11, 0] }] };
+}
+
+export function armorToy(): ModelDef {
+  return tankSpec({
+    L: 32, W: 24, tH: 7, hH: 5, body: 'red_d', dark: 'rubber', light: 'red', wheel: 'gun', round: false,
+    tr: 6, tH2: 5, turret: 'red_d', barrel: 12, bR: 1.5,
+    extra: (h, t, c) => {
+      for (const zz of [c.zc - 13, c.zc + 12]) h.box(c.x0 + 3, c.x1 - 5, 4, c.yT - 1, zz, zz + 1, 'gun');     // броневые листы
+      for (let i = 0; i < 4; i++) for (const zz of [c.zc - 13, c.zc + 12]) h.set(c.x0 + 5 + i * 6, c.yT - 2, zz, 'steel_l');
+      t.box(c.tcx - 2, c.tcx + 1, c.TH, c.TH + 2, c.tcz - 2, c.tcz + 1, 'gun');
+    },
+  });
+}
+
+export function mortar(): ModelDef {
+  const v = new Vox(24, 6, 20);
+  v.box(2, 22, 0, 2, 2, 18, 'army_d'); v.box(4, 20, 2, 4, 4, 16, 'army');
+  for (const [x, z] of [[2, 2], [21, 2], [2, 17], [21, 17]]) v.box(x, x + 1, 0, 1, z, z + 1, 'gun');
+  const t = new Vox(18, 18, 12);
+  t.box(2, 10, 0, 3, 2, 10, 'army_l');
+  t.seg([5, 2, 6], [14, 14, 6], 2.6, 'gun'); t.seg([13, 13, 6], [15, 15.5, 6], 2.9, 'gun_d');
+  t.seg([4, 1, 3], [9, 7, 3], 0.7, 'gun_d'); t.seg([4, 1, 9], [9, 7, 9], 0.7, 'gun_d');
+  return { size: 22, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [6, 0, 6], at: [0, 4, 0] }] };
+}
+
+export function bigToy(): ModelDef {
+  return tankSpec({
+    L: 44, W: 34, tH: 10, hH: 6, body: 'white', dark: 'white_d', light: 'white', wheel: 'red', round: true,
+    tr: 9, tH2: 6, turret: 'red', barrel: 16, bR: 2.1, twin: true, wheels: 5,
+    extra: (h, t, c) => {
+      // батарейка на корме: медный плюс, чёрный корпус
+      h.cylZ(c.x0 + 8, c.yT + 4, 4, c.zc - 10, c.zc + 10, 'black');
+      h.cylZ(c.x0 + 8, c.yT + 4, 4.05, c.zc - 10, c.zc - 6, 'copper');
+      h.cylZ(c.x0 + 8, c.yT + 4, 1.6, c.zc + 10, c.zc + 12, 'chrome');
+      for (const zz of [c.zc - 16, c.zc + 15]) h.box(c.x0 + 3, c.x1 - 4, c.yT - 2, c.yT, zz, zz + 1, 'red');
+      t.box(c.tcx - 3, c.tcx + 3, c.TH, c.TH + 2, c.tcz - 3, c.tcz + 3, 'red_d');
+      t.set(c.tcx, c.TH + 2, c.tcz, 'lamp_r');
+    },
+  });
+}
+
+export function toyBunker(): ModelDef {
+  const v = new Vox(34, 28, 34);
+  v.box(1, 33, 0, 20, 1, 33, 'cardboard');
+  v.box(1, 33, 19, 20, 1, 33, 'cardboard_d');
+  v.box(-1, 35, 19, 21, 0, 4, 'cardboard'); // клапаны
+  v.box(-1, 35, 19, 21, 30, 34, 'cardboard');
+  v.box(1, 33, 0, 20, 16, 18, 'cardboard_d');                       // скотч
+  v.box(32.5, 33.5, 2, 12, 12, 22, 'black');                           // дверь
+  v.box(32.5, 33.5, 12, 16, 6, 10, 'glass'); v.box(32.5, 33.5, 12, 16, 24, 28, 'glass');
+  for (let z = 3; z < 31; z += 5) v.box(33, 34, 16, 18, z, z + 2, 'red');                 // бойницы
+  v.seg([6, 20, 6], [6, 28, 6], 0.6, 'gun'); v.box(6.5, 13, 23, 27, 5.5, 6.5, 'red');        // флаг
+  v.box(26, 28, 20, 24, 25, 27, 'gun'); v.set(27, 24, 26, 'lamp_r');                         // антенна-маяк
+  return one(v, 34);
+}
+
+// ---------------------------------------------------------------- босс: Заводной генерал
+// Огромный жестяной заводной танк. Слабое место — золотой ключ на корме (крутится).
+export function windupGeneral(): ModelDef {
+  const L = 96, W = 72, NX = L + 24, NZ = W + 8, zc = NZ / 2, x0 = 14, x1 = x0 + L;
+  const h = new Vox(NX, 46, NZ);
+  // гусеницы с жестяными колёсами
+  tracks(h, x0, x1, 20, zc - W / 2, zc - W / 2 + 14, 6, 'gold', 'red_d');
+  tracks(h, x0, x1, 20, zc + W / 2 - 14, zc + W / 2, 6, 'gold', 'red_d');
+  // корпус: жесть, литография (полосы, звёзды)
+  const yT = 34;
+  h.box(x0 + 2, x1 - 2, 4, 20, zc - W / 2 + 14, zc + W / 2 - 14, 'gun_d');
+  h.box(x0, x1, 18, yT, zc - W / 2 - 2, zc + W / 2 + 2, 'red');
+  h.cut(1, 1.2, 0, x1 - 4 + 1.2 * yT, x1 - 22, x1 + 2, 18, yT + 1);
+  h.cut(-1, 1.6, 0, -x0 - 2 + 1.6 * yT, x0 - 2, x0 + 12, 18, yT + 1);
+  h.paint((x, y) => (y > yT - 2 ? 'red_l' : y < 21 ? 'red_d' : undefined), x0, x1, 18, yT, 0, NZ);
+  // золотые канты и заклёпки
+  for (const zz of [zc - W / 2 - 2, zc + W / 2 + 1]) {
+    h.box(x0 + 2, x1 - 10, 22, 24, zz, zz + 1, 'gold');
+    h.box(x0 + 2, x1 - 10, 30, 31, zz, zz + 1, 'gold');
+    for (let x = x0 + 6; x < x1 - 12; x += 6) h.set(x, 27, zz, 'gold_d');
+    // звезда на борту
+    const sx = x0 + 40, sy = 27;
+    for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [1, -1], [-1, -1]]) h.set(sx + a, sy + b, zz, 'white');
+  }
+  // жёлто-красная полоса по крыше
+  for (let x = x0 + 6; x < x1 - 20; x++) h.box(x, x + 1, yT - 1, yT, zc - 3, zc + 3, (x >> 2) % 2 ? 'gold' : 'red_d');
+  // спонсоны с пушками по бортам
+  for (const zs of [-1, 1]) {
+    const zz = zc + zs * (W / 2 + 4);
+    h.cylY(x0 + 66, zz, 6, 20, 30, 'red_d');
+    h.cylY(x0 + 66, zz, 6.6, 29, 31, 'gold');
+    gun(h, x0 + 70, x0 + 86, 25, zz, 1.8, 'gun', 'gun_d');
+  }
+  // фары-глаза и решётка радиатора спереди
+  for (const zz of [zc - 22, zc + 22]) { h.cylX(26, zz, 4, x1 - 6, x1 - 2, 'chrome'); h.cylX(26, zz, 3, x1 - 2, x1 - 1, 'lamp'); }
+  for (let z = zc - 12; z < zc + 12; z += 3) h.box(x1 - 4, x1 - 2, 20, 28, z, z + 1, 'gun_d');
+  // пружинный механизм на корме (вал ключа)
+  h.cylX(27, zc, 4, x0 - 6, x0 + 2, 'gold_d');
+  h.cylX(27, zc, 5.5, x0 - 2, x0, 'gold');
+
+  // башня: генерал в люке, двойная пушка, медали
+  const T = new Vox(70, 44, 56), tcx = 24, tcz = 28;
+  T.cylY(tcx, tcz, 22, 0, 12, 'red', 19);
+  T.cylY(tcx, tcz, 23, 0, 2, 'gold');
+  T.cylY(tcx, tcz, 19.5, 11, 13, 'gold');
+  T.paint((x, y) => (y > 9 ? 'red_l' : undefined), 0, 70, 9, 11, 0, 56);
+  for (const bz of [tcz - 6, tcz + 6]) gun(T, tcx + 16, tcx + 46, 6, bz, 3.2, 'gun', 'gun_d');
+  T.box(tcx + 14, tcx + 22, 1, 12, tcz - 11, tcz + 11, 'red_d');                     // маска
+  for (const bz of [tcz - 6, tcz + 6]) T.cylX(6, bz, 3.8, tcx + 33, tcx + 36, 'gold');
+  // генерал: мундир, эполеты, фуражка, усы
+  const gx = tcx - 6, gz = tcz;
+  T.cylY(gx, gz, 8, 13, 15, 'gun_d');                                                 // люк
+  T.ell(gx, 21, gz, 6, 7, 7, 'green_d');                                              // мундир
+  for (const zz of [gz - 6, gz + 6]) T.ell(gx, 25, zz, 2.6, 1.6, 2.6, 'gold');        // эполеты
+  for (let i = 0; i < 3; i++) T.set(gx + 5, 22 - i * 2, gz - 2 + i, i % 2 ? 'red' : 'gold'); // медали
+  T.ell(gx, 31, gz, 5, 5, 5, 'flesh');                                                // голова
+  T.box(gx + 4, gx + 6, 29, 30, gz - 4, gz + 4, 'black');                            // усы
+  T.set(gx + 5, 32, gz - 2, 'black'); T.set(gx + 5, 32, gz + 2, 'black');             // глаза
+  T.cylY(gx, gz, 6.5, 35, 37, 'green_d'); T.cylY(gx, gz, 4.5, 37, 40, 'green_d');      // фуражка
+  T.box(gx + 3, gx + 8, 35, 36, gz - 4, gz + 4, 'black');                            // козырёк
+  T.box(gx + 5, gx + 6, 37, 39, gz - 1, gz + 1, 'gold');                             // кокарда
+  T.seg([tcx - 16, 12, tcz - 14], [tcx - 16, 30, tcz - 14], 0.8, 'gun');               // антенна
+  T.set(tcx - 16, 30, tcz - 14, 'lamp_r');
+  // огромный заводной ключ (вращается вокруг оси x) — слабое место
+  const K = new Vox(8, 40, 40), kc = 20;
+  K.box(1, 7, kc - 3, kc + 3, kc - 3, kc + 3, 'gold_d');
+  for (const s of [-1, 1]) {
+    K.fill((x, y, z) => { const dy = y - kc, dz = z - (kc + s * 10); return Math.abs(Math.sqrt(dy * dy + dz * dz) - 7) < 2.4 ? 'gold' : undefined; }, 2, 6, 0, 40, 0, 40);
+  }
+  K.box(2, 6, kc - 2, kc + 2, kc - 12, kc + 12, 'gold');
+  return {
+    size: 104,
+    parts: [
+      { name: 'hull', vox: h, pivot: [NX / 2, 0, NZ / 2] },
+      { name: 'turret', vox: T, pivot: [tcx, 0, tcz], at: [x0 + L * 0.5 - NX / 2, yT, 0] },
+      { name: 'key', vox: K, pivot: [4, kc, kc], at: [x0 - 10 - NX / 2, 27, 0], axis: 'x' },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------- препятствия ступени I
+
+export function brick(v: number): ModelDef {
+  const n = 14, H = 12, b = new Vox(n, H, n);
+  b.box(0, n, 0, H, 0, n, 'brick');
+  b.fill((x, y, z) => {
+    const row = Math.floor(y / 3), off = (row % 2) * 2;
+    const edge = x < 1 || x > n - 1 || z < 1 || z > n - 1;
+    if (!edge || y > H - 1) return undefined;
+    if (Math.floor(y) % 3 === 2) return 'mortar';
+    const along = x < 1 || x > n - 1 ? z : x;
+    if (Math.floor(along + off) % 4 === 3 && y < H - 1) return 'mortar';
+    return (Math.floor(along / 4) + row + v) % 3 === 0 ? 'brick_l' : (Math.floor(along / 4) + row) % 4 === 1 ? 'brick_d' : 'brick';
+  });
+  b.fill((x, y, z) => {
+    const r = Math.floor(z / 3.5), k = Math.floor(x + (r % 2) * 2);
+    if (Math.floor(z) % 4 === 3 || k % 5 === 4) return 'mortar';
+    return (Math.floor(k / 5) + r + v) % 3 === 0 ? 'brick_l' : 'brick';
+  }, 0, n, H - 1, H, 0, n);
+  return one(b, 14, [n, n]);
+}
+
+export function steel(v: number): ModelDef {
+  const n = 14, H = 11, b = new Vox(n, H, n);
+  b.box(0, n, 0, H, 0, n, 'steel');
+  b.box(2, n - 2, H - 1, H, 2, n - 2, 'steel_l');
+  b.box(3, n - 3, H - 1, H, 3, n - 3, 'steel');
+  for (const [x, z] of [[1, 1], [n - 2, 1], [1, n - 2], [n - 2, n - 2]]) b.box(x, x + 1, H, H + 0, z, z + 1, 'steel_l');
+  b.paint((x, y, z) => ((x < 1 || x > n - 1 || z < 1 || z > n - 1) && (Math.floor(x) === 2 || Math.floor(x) === n - 3 || Math.floor(z) === 2 || Math.floor(z) === n - 3) && Math.floor(y) % 4 === 2 ? 'steel_l' : undefined));
+  b.paint((x, y) => (y < 1 ? 'steel_d' : undefined));
+  void v;
+  return one(b, 14, [n, n]);
+}
+
+export function bush(v: number): ModelDef {
+  const n = 22, b = new Vox(n, 14, n);
+  const blobs: [number, number, number, number][] = [[11, 6, 11, 6.5], [6, 4, 7, 4.2], [16, 4.5, 8, 4.5], [7, 4.5, 15, 4.5], [15, 4, 16, 4.6], [11, 9, 9, 3.6]];
+  for (const [x, y, z, r] of blobs) b.ell(x, y, z, r, r * 0.85, r, 'leaf');
+  b.paint((x, y, z) => { const h = Math.sin(x * 2.1 + z * 1.3 + v) * Math.cos(z * 1.7 - y); return h > 0.55 ? 'leaf_l' : h < -0.6 ? 'leaf_d' : undefined; });
+  b.paint((x, y) => (y > 9 ? 'leaf_l' : y < 2 ? 'leaf_d' : undefined));
+  for (let i = 0; i < 4; i++) b.paint(() => 'berry', 4 + i * 4, 5 + i * 4, 6 + (i % 2) * 2, 7 + (i % 2) * 2, 3 + ((i * 5) % 14), 4 + ((i * 5) % 14));
+  return one(b, n, [n, n]);
+}
+
+export function water(): ModelDef {
+  const nx = 26, nz = 20, b = new Vox(nx, 2, nz);
+  b.fill((x, y, z) => {
+    const ex = Math.min(x, nx - x), ez = Math.min(z, nz - z);
+    if (ex < 1.5 || ez < 1.5) return y < 2 ? ((Math.floor(x + z) % 3) ? 'stone' : 'stone_l') : undefined;
+    if (y > 1) return undefined;
+    if (ex < 2.6 || ez < 2.6) return 'foam';
+    return Math.sin(x * 0.9 + z * 0.4) > 0.85 ? 'water_l' : (x + z) % 9 < 1 ? 'water_d' : 'water';
+  });
+  return one(b, nx, [nx, nz]);
+}
+
+export function crate(): ModelDef {
+  const n = 12, b = new Vox(n, 11, n);
+  b.box(0, n, 0, 11, 0, n, 'wood');
+  b.paint((x, y, z) => ((x < 1 || x > n - 1 || z < 1 || z > n - 1 || y > 10) && (Math.floor(y) % 3 === 0 || Math.floor(x) % 11 === 0 || Math.floor(z) % 11 === 0) ? 'wood_d' : undefined));
+  for (const [a, b2] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) b.set(6 + a, 10, 6 + b2, 'red');
+  return one(b, n, [n, n]);
+}
+
+export function hq(): ModelDef {
+  const n = 20, b = new Vox(n, 22, n);
+  b.box(0, n, 0, 10, 0, n, 'concrete');
+  b.box(2, n - 2, 10, 13, 2, n - 2, 'concrete_l');
+  b.box(n - 1, n, 2, 7, 7, 13, 'black');
+  for (let z = 2; z < n - 2; z += 4) b.box(n - 1, n, 7, 8, z, z + 2, 'gun_d');
+  b.seg([5, 13, 5], [5, 21, 5], 0.5, 'gun'); b.box(5.5, 11, 17, 21, 4.5, 5.5, 'red');
+  b.box(13, 16, 13, 15, 13, 16, 'army'); b.set(14, 15, 14, 'lamp_g');
+  return one(b, n, [n, n]);
+}
+
+export function steelWall(v: number): ModelDef {
+  const n = 12, b = new Vox(n, 10, n);
+  b.box(0, n, 0, 10, 0, n, v ? 'gold' : 'steel');
+  b.box(1, n - 1, 9, 10, 1, n - 1, v ? 'yel_l' : 'steel_l');
+  b.paint((x, y) => (y < 2 ? 'steel_d' : undefined));
+  return one(b, n, [n, n]);
+}
+
+export { gun };

@@ -13,6 +13,8 @@ export class Screen {
   /** Слой высокой чёткости поверх интерфейса (размер как у мира): иконки и витрины из внешней графики. */
   readonly hi: HTMLCanvasElement;
   readonly hctx: CanvasRenderingContext2D;
+  /** Холст 3D-мира (изометрия), того же низкого разрешения, что и мир. */
+  readonly gl: HTMLCanvasElement;
   /** В этом кадре что-то рисовали в слой hi (иначе его не надо чистить). */
   hiUsed = false;
   /** Размер интерфейса (виртуальные пиксели). */
@@ -30,12 +32,13 @@ export class Screen {
   wunit = 1.5;
   private listeners: (() => void)[] = [];
 
-  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, world: HTMLCanvasElement, hi: HTMLCanvasElement, gl: HTMLCanvasElement) {
     this.canvas = canvas;
     this.world = world;
     this.hi = hi;
+    this.gl = gl;
     const ctx = canvas.getContext('2d', { alpha: true });
-    const wctx = world.getContext('2d', { alpha: false });
+    const wctx = world.getContext('2d', { alpha: true });
     const hctx = hi.getContext('2d', { alpha: true });
     if (!ctx || !wctx || !hctx) throw new Error('Canvas 2D недоступен');
     this.ctx = ctx;
@@ -59,20 +62,22 @@ export class Screen {
     // Панель инструмента настройки (?dev=tune) занимает место слева.
     const panel = document.getElementById('tune')?.offsetWidth ?? 0;
     const sw = Math.max(320, Math.round((window.innerWidth - panel) * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
-    // Интерфейс: целый коэффициент, высота 330..~495.
-    const k = Math.max(1, Math.floor(sh / 330));
-    this.pixel = k;
-    this.h = Math.floor(sh / k);
-    this.w = Math.max(Math.floor(sw / k), Math.floor(this.h * 1.2));
-    this.unit = this.h / BASE_H;
-    // Мир: высота не больше ~720 (1080p → 540, 1440p → 720, 4K → 720), но не ниже интерфейса.
-    const kw = Math.min(k, Math.max(1, Math.ceil(sh / 720)));
+    // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, высота ≈ 480 строк
+    // (1080p → 540, 1440p → 480, 4K → 540, телефон 1080 → 540).
+    const kw = Math.max(1, Math.round(sh / 480));
     this.wpixel = kw;
     this.wh = Math.floor(sh / kw);
     this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2));
     this.wunit = this.wh / BASE_H;
-    const cssW = (this.w * k) / dpr, cssH = (this.h * k) / dpr;
-    for (const [c, w, h] of [[this.canvas, this.w, this.h], [this.world, this.ww, this.wh], [this.hi, this.ww, this.wh]] as const) {
+    // Интерфейс: целый коэффициент, высота 330..~495, растянут на ту же область, что и мир.
+    const k = Math.max(1, Math.floor(sh / 330));
+    this.pixel = k;
+    this.h = Math.round((this.wh * kw) / k);
+    this.w = Math.round((this.ww * kw) / k);
+    this.unit = this.h / BASE_H;
+    const cssW = (this.ww * kw) / dpr, cssH = (this.wh * kw) / dpr;
+    for (const [c, w, h] of [[this.canvas, this.w, this.h], [this.world, this.ww, this.wh], [this.hi, this.ww, this.wh], [this.gl, 0, 0]] as const) {
+      if (!w) { c.style.width = `${cssW}px`; c.style.height = `${cssH}px`; continue; }
       c.width = w;
       c.height = h;
       c.style.width = `${cssW}px`;

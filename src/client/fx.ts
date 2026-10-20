@@ -189,7 +189,7 @@ export class Fx {
       const top = p.kind === 'fire' || p.kind === 'anim' || p.kind === 'spark' || p.kind === 'ember' || p.kind === 'ring' || p.kind === 'smoke' || p.kind === 'pixel';
       if (layer !== 2 && (layer === 1) !== top) continue;
       const u = p.t / p.life;
-      const sx = cam.sxOf(p.x), sy = cam.syOf(p.y) - p.z * z;
+      const sx = cam.sxOf(p.x, p.y), sy = cam.syOf(p.x, p.y, p.z);
       if (sx < -60 || sy < -60 || sx > cam.w + 60 || sy > cam.h + 60) continue;
       switch (p.kind) {
         case 'fire': case 'ember': {
@@ -224,7 +224,7 @@ export class Fx {
           const s = Math.max(1, Math.round(p.r * z));
           // тень
           ctx.fillStyle = 'rgba(0,0,0,0.3)';
-          ctx.fillRect(Math.round(sx + 1), Math.round(cam.syOf(p.y) + 1), s, Math.max(1, s >> 1));
+          ctx.fillRect(Math.round(sx + 1), Math.round(cam.syOf(p.x, p.y) + 1), s, Math.max(1, s >> 1));
           ctx.fillStyle = p.col;
           if (s <= 2) ctx.fillRect(Math.round(sx), Math.round(sy), s, s);
           else {
@@ -273,7 +273,7 @@ export class Fx {
     lc.clearRect(0, 0, lw, lh);
     lc.globalCompositeOperation = 'lighter';
     const add = (x: number, y: number, r: number, col: string, a: number) => {
-      const sx = cam.sxOf(x) / 2, sy = cam.syOf(y) / 2, rr = Math.min((r * cam.zoom) / 2, Math.max(lw, lh) * 1.5);
+      const sx = cam.sxOf(x, y) / 2, sy = cam.syOf(x, y) / 2, rr = Math.min((r * cam.zoom) / 2, Math.max(lw, lh) * 1.5);
       if (sx + rr < 0 || sy + rr < 0 || sx - rr > lw || sy - rr > lh || rr < 0.5) return;
       lc.globalAlpha = Math.min(1, a);
       lc.drawImage(glowTinted(col), sx - rr, sy - rr, rr * 2, rr * 2);
@@ -313,7 +313,7 @@ export function ringPixels(ctx: CanvasRenderingContext2D, cx: number, cy: number
 function drawArc(ctx: CanvasRenderingContext2D, cam: Camera, pts: number[], col: string, u: number, w: number): void {
   ctx.fillStyle = u < 0.5 ? '#ffffff' : col;
   for (let i = 0; i + 3 < pts.length; i += 2) {
-    const x0 = cam.sxOf(pts[i]), y0 = cam.syOf(pts[i + 1]), x1 = cam.sxOf(pts[i + 2]), y1 = cam.syOf(pts[i + 3]);
+    const x0 = cam.sxOf(pts[i], pts[i + 1]), y0 = cam.syOf(pts[i], pts[i + 1], 6), x1 = cam.sxOf(pts[i + 2], pts[i + 3]), y1 = cam.syOf(pts[i + 2], pts[i + 3], 6);
     const len = Math.hypot(x1 - x0, y1 - y0);
     const n = Math.max(2, Math.ceil(len / 6));
     let px = x0, py = y0;

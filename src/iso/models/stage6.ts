@@ -28,7 +28,7 @@ export function crawler(): ModelDef {
     extra: (h, t, c) => {
       skyline(h, c.x0 + 2, c.x0 + 16, c.zc - 14, c.zc + 14, c.yT, 7, 6);
       t.box(c.tcx - 6, c.tcx + 4, c.TH, c.TH + 3, c.tcz - 4, c.tcz + 4, 'gun_d');
-      t.box(c.tcx + 3, c.tcx + 4.5, c.TH + 1, c.TH + 2, c.tcz - 3, c.tcz + 3, 'glow_c');
+      t.box(c.tcx + 3, c.tcx + 4.5, c.TH + 1, c.TH + 2, c.tcz - 3, c.tcz + 3, 'glow_r');
     },
   });
 }
@@ -67,7 +67,7 @@ export function mobileFort(): ModelDef {
     v.cylY(tx, tz, 4, 36, 39, 'roof', 1); gun(v, tx + 4, tx + 14, 30, tz, 1.4);
   }
   v.box(c - 8, c + 8, 24, 32, c - 8, c + 8, 'gun');
-  v.box(c - 2, c + 2, 32, 34, c - 2, c + 2, 'lamp_r');
+  v.box(c - 2, c + 2, 32, 34, c - 2, c + 2, 'glow_r');
   return one(v, 58);
 }
 
@@ -90,8 +90,8 @@ export function megaWalker(): ModelDef {
   const T = new Vox(70, 30, 56), tc = 28;
   cbox(T, 6, 50, 0, 18, tc - 20, tc + 20, 'steel_d', 4, 3);
   seams(T, 6, 50, 0, 18, tc - 20, tc + 20, 11, 0, 10, 'gun');
-  T.box(44, 52, 6, 14, tc - 8, tc + 8, 'gun_d'); T.box(51.5, 53, 8, 12, tc - 6, tc + 6, 'glow_p');
-  for (const s of [-1, 1]) { gun(T, 40, 68, 9, tc + s * 14, 3.2, 'gun', 'gun_d'); T.cylX(9, tc + s * 14, 1.6, 66, 68.5, 'glow_p'); }
+  T.box(44, 52, 6, 14, tc - 8, tc + 8, 'gun_d'); T.box(51.5, 53, 8, 12, tc - 6, tc + 6, 'glow_r');
+  for (const s of [-1, 1]) { gun(T, 40, 68, 9, tc + s * 14, 3.2, 'gun', 'gun_d'); T.cylX(9, tc + s * 14, 1.6, 66, 68.5, 'glow_r'); }
   for (const zz of [tc - 8, tc, tc + 8]) pipe(T, 12, zz, 2.4, 18, 26, 'gun', 'gun_d');
   return { size: 76, parts: [{ name: 'hull', vox: h }, { name: 'turret', vox: T, pivot: [28, 0, tc], at: [0, 44, 0] }] };
 }
@@ -172,11 +172,11 @@ export function meteorite(): ModelDef {
 
 export function contCrawler(): ModelDef {
   return tankSpec({
-    L: 50, W: 40, tH: 11, hH: 9, body: 'alien_d', dark: 'void', light: 'alien', wheel: 'glow_p', tr: 11, tH2: 8, turret: 'alien_d', barrel: 22, bR: 2.4, wheels: 6,
+    L: 50, W: 40, tH: 11, hH: 9, body: 'alien_d', dark: 'void', light: 'alien', wheel: 'glow_r', tr: 11, tH2: 8, turret: 'alien_d', barrel: 22, bR: 2.4, wheels: 6,
     extra: (h, t, c) => {
-      for (const zz of [c.zc - 22, c.zc + 21]) for (let x = c.x0 + 4; x < c.x1 - 10; x += 7) h.box(x, x + 3, c.yT - 5, c.yT - 2, zz, zz + 1, 'glow_p');
-      t.cylX(c.TH * 0.5, c.tcz, 1.4, c.tcx + 30, c.tcx + 34, 'glow_p');
-      t.sphere(c.tcx - 3, c.TH + 1, c.tcz, 3, 'glow_c');
+      for (const zz of [c.zc - 22, c.zc + 21]) for (let x = c.x0 + 4; x < c.x1 - 10; x += 7) h.box(x, x + 3, c.yT - 5, c.yT - 2, zz, zz + 1, 'glow_r');
+      t.cylX(c.TH * 0.5, c.tcz, 1.4, c.tcx + 30, c.tcx + 34, 'glow_r');
+      t.sphere(c.tcx - 3, c.TH + 1, c.tcz, 3, 'glow_r');
     },
   });
 }
@@ -184,7 +184,7 @@ export function contCrawler(): ModelDef {
 export function orbitalSat(): ModelDef {
   const v = new Vox(24, 12, 44), c = 22;
   cbox(v, 6, 18, 2, 10, c - 4, c + 4, 'gold', 1, 1);
-  v.box(16, 20, 4, 8, c - 2, c + 2, 'gun_d'); v.box(19.5, 21, 5, 7, c - 1, c + 1, 'eye_r');
+  v.box(16, 20, 4, 8, c - 2, c + 2, 'gun_d'); v.box(19.5, 21, 5, 7, c - 1, c + 1, 'glow_r');
   for (const s of [-1, 1]) { v.box(11, 13, 5.5, 6.5, c + s * 4, c + s * 7, 'steel'); v.box(4, 20, 5.6, 6.4, c + s * 7, c + s * 21, 'blue_d'); v.paint((x, y, z) => (Math.floor(x) % 4 === 0 || Math.floor(z) % 4 === 0 ? 'steel_l' : undefined), 4, 20, 5, 7, s > 0 ? c + 7 : c - 21, s > 0 ? c + 21 : c - 7); }
   v.seg([12, 10, c], [12, 12, c], 0.5, 'steel_l');
   return one(v, 30);
@@ -194,9 +194,9 @@ export function voidSpider(): ModelDef {
   const v = new Vox(40, 18, 40), c = 20;
   for (const s of [-1, 1]) for (let i = 0; i < 4; i++) { const x = 13 + i * 5; leg(v, [x, 8, c + s * 4], [x + (i - 1.5) * 3, 14, c + s * 13], [x + (i - 1.5) * 6, 0.5, c + s * 19], 1.1, 'void', 'alien'); }
   v.ell(14, 8, c, 8, 5, 6.5, 'alien_d');
-  v.ell(13, 10, c, 5, 2.6, 4, 'glow_p');
+  v.ell(13, 10, c, 5, 2.6, 4, 'glow_r');
   v.ell(26, 7, c, 5, 3.6, 4.2, 'void');
-  for (const [y, z] of [[9, c - 2], [9, c + 2], [8, c - 1], [8, c + 1]]) v.set(30, y, z, 'eye_r');
+  for (const [y, z] of [[9, c - 2], [9, c + 2], [8, c - 1], [8, c + 1]]) v.set(30, y, z, 'glow_r');
   v.seg([30, 5, c - 2], [34, 3, c - 3], 0.6, 'alien_l'); v.seg([30, 5, c + 2], [34, 3, c + 3], 0.6, 'alien_l');
   return one(v, 34);
 }
@@ -209,7 +209,7 @@ export function lance(): ModelDef {
   t.seg([6, 0, tc], [18, 30, tc], 3, 'steel');
   t.cylZ(18, 30, 4, tc - 4, tc + 4, 'gun_d');
   t.cylX(30, tc, 3.6, 10, 46, 'steel_l', 1.6);
-  for (let x = 14; x < 44; x += 6) t.cylX(30, tc, 4.6, x, x + 1.4, 'glow_c');
+  for (let x = 14; x < 44; x += 6) t.cylX(30, tc, 4.6, x, x + 1.4, 'glow_r');
   t.cylX(30, tc, 1.4, 45, 49, 'lamp');
   return { size: 40, parts: [{ name: 'body', vox: b }, { name: 'turret', vox: t, pivot: [6, 0, tc], at: [0, 8, 0] }] };
 }
@@ -221,7 +221,7 @@ export function moonlet(): ModelDef {
   for (const [x, y, z, r] of craters) { v.fill((xx, yy, zz) => (Math.hypot(xx - x, yy - y, zz - z) < r ? 0 : undefined)); v.paint((xx, yy, zz) => (Math.hypot(xx - x, yy - y, zz - z) < r + 1.4 ? 'stone_d' : undefined)); }
   v.paint((x, y) => (y < 8 ? 'stone_d' : undefined));
   for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const tx = c + a * 16, tz = c + b * 16; v.cylY(tx, tz, 4, 44, 50, 'gun_d'); gun(v, tx + 3, tx + 13, 47, tz, 1.4); }
-  v.box(c - 3, c + 3, 52, 55, c - 3, c + 3, 'glow_p');
+  v.box(c - 3, c + 3, 52, 55, c - 3, c + 3, 'glow_r');
   return one(v, 54);
 }
 
@@ -236,14 +236,14 @@ export function starTitan(): ModelDef {
   T.ell(28, 18, tc, 20, 18, 18, 'alien_d');
   T.paint((x, y, z) => (y > 28 ? 'alien' : undefined));
   seams(T, 0, 70, 0, 50, 0, 72, 0, 7, 0, 'void');
-  T.ell(44, 22, tc, 5, 6, 8, 'void'); T.ell(47, 23, tc, 3, 3, 6, 'glow_c');
+  T.ell(44, 22, tc, 5, 6, 8, 'void'); T.ell(47, 23, tc, 3, 3, 6, 'glow_r');
   for (const s of [-1, 1]) {
     T.ell(26, 26, tc + s * 22, 10, 9, 9, 'alien');
     for (let i = 0; i < 3; i++) T.seg([26, 32, tc + s * (20 + i * 3)], [20 - i * 2, 46, tc + s * (24 + i * 4)], 1.2, 'alien_l');
     gun(T, 30, 66, 16, tc + s * 24, 3.6, 'void', 'alien_d');
-    T.cylX(16, tc + s * 24, 1.8, 64, 66.5, 'glow_p');
+    T.cylX(16, tc + s * 24, 1.8, 64, 66.5, 'glow_r');
   }
-  T.sphere(28, 34, tc, 4, 'glow_p');
+  T.sphere(28, 34, tc, 4, 'glow_r');
   return { size: 78, parts: [{ name: 'hull', vox: h }, { name: 'turret', vox: T, pivot: [28, 0, tc], at: [0, 44, 0] }] };
 }
 

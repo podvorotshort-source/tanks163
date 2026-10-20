@@ -19,8 +19,8 @@ export function walker(): ModelDef {
   h.cylY(15, zc, 4, 16, 20, 'gun_d');
   const t = new Vox(32, 16, 24), tc = 12;
   cbox(t, 4, 24, 0, 10, tc - 7, tc + 7, 'teal', 2, 2);
-  t.box(20, 25, 4, 8, tc - 4, tc + 4, 'glass_d'); t.box(24, 25.5, 5, 7, tc - 3, tc + 3, 'glow_c');
-  for (const s of [-1, 1]) { t.box(8, 18, 2, 7, tc + s * 9 - 2, tc + s * 9 + 2, 'teal_d'); gun(t, 16, 30, 4.5, tc + s * 9, 1.2, 'gun', 'gun_d'); t.cylX(4.5, tc + s * 9, 0.8, 29, 30.5, 'glow_c'); }
+  t.box(20, 25, 4, 8, tc - 4, tc + 4, 'glass_d'); t.box(24, 25.5, 5, 7, tc - 3, tc + 3, 'glow_r');
+  for (const s of [-1, 1]) { t.box(8, 18, 2, 7, tc + s * 9 - 2, tc + s * 9 + 2, 'teal_d'); gun(t, 16, 30, 4.5, tc + s * 9, 1.2, 'gun', 'gun_d'); t.cylX(4.5, tc + s * 9, 0.8, 29, 30.5, 'glow_r'); }
   return { size: 30, parts: [{ name: 'hull', vox: h }, { name: 'turret', vox: t, pivot: [14, 0, tc], at: [0, 20, 0] }] };
 }
 
@@ -29,7 +29,7 @@ export function superTank(): ModelDef {
     L: 48, W: 38, tH: 11, hH: 8, body: 'steel_d', dark: 'gun', light: 'steel', wheel: 'gun_l', tr: 11, tH2: 8, turret: 'steel_d', barrel: 30, bR: 2.6, round: false, wheels: 6,
     extra: (h, t, c) => {
       seams(h, c.x0, c.x1, c.yT - 8, c.yT, 0, 60, 8, 0, 0, 'gun');
-      for (const zz of [c.zc - 20, c.zc + 19]) h.box(c.x0 + 4, c.x1 - 10, c.yT - 4, c.yT - 3, zz, zz + 1, 'lamp_o');
+      for (const zz of [c.zc - 20, c.zc + 19]) h.box(c.x0 + 4, c.x1 - 10, c.yT - 4, c.yT - 3, zz, zz + 1, 'glow_r');
       t.box(c.tcx - 15, c.tcx - 9, 1, 7, c.tcz - 9, c.tcz + 9, 'gun');
       for (const s of [-1, 1]) { t.box(c.tcx - 6, c.tcx + 2, c.TH, c.TH + 3, c.tcz + s * 6 - 2, c.tcz + s * 6 + 2, 'gun_d'); gun(t, c.tcx, c.tcx + 10, c.TH + 1.5, c.tcz + s * 6, 0.6); }
     },
@@ -66,10 +66,10 @@ export function droneCarrier(): ModelDef {
   const v = new Vox(56, 16, 56), c = 28;
   v.fill((x, y, z) => (Math.abs(x - c) + Math.abs(z - c) < 24 && y > 3 && y < 10 - Math.abs(x - c) * 0.08 ? 'gun' : undefined));
   v.box(c - 6, c + 10, 9, 13, c - 5, c + 5, 'gun_d');
-  v.box(c + 8, c + 10.5, 10, 12, c - 4, c + 4, 'glow_c');
+  v.box(c + 8, c + 10.5, 10, 12, c - 4, c + 4, 'glow_r');
   v.box(c - 18, c + 6, 9.5, 10, c - 1, c + 1, 'yel');                               // взлётная полоса
   for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { v.cylY(c + a * 20, c + b * 20, 5.6, 5, 9, 'gun_d'); v.cylY(c + a * 20, c + b * 20, 4.6, 8.5, 9.2, 'black'); }
-  v.box(c - 3, c + 3, 2, 4, c - 3, c + 3, 'lamp_r');
+  v.box(c - 3, c + 3, 2, 4, c - 3, c + 3, 'glow_r');
   const parts: PartDef[] = [{ name: 'body', vox: v }];
   for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) parts.push({ name: 'rotor', vox: rotor(4.6, 'steel_l', 3), at: [a * 20, 8.5, b * 20] });
   return { size: 52, parts };
@@ -80,7 +80,7 @@ export function kamikazeDrone(): ModelDef {
   v.fill((x, y, z) => (Math.abs(z - zc) < (x - 2) * 0.55 && x < 18 && y > 2 && y < 4 ? 'gun' : undefined));
   v.ell(10, 3.5, zc, 7, 1.8, 2, 'gun_d');
   v.ell(17, 3.5, zc, 2.4, 1.5, 1.5, 'red');
-  v.box(1, 3, 2, 5, zc - 1, zc + 1, 'lamp_o');
+  v.box(1, 3, 2, 5, zc - 1, zc + 1, 'glow_r');
   return one(v, 18);
 }
 
@@ -95,13 +95,13 @@ export function mechTitan(): ModelDef {
   cbox(T, 10, 44, 0, 28, tc - 16, tc + 16, 'steel_d', 4, 3);
   seams(T, 10, 44, 0, 28, tc - 16, tc + 16, 9, 9, 0, 'gun');
   T.box(38, 46, 14, 24, tc - 7, tc + 7, 'gun_d');
-  T.box(45, 46.5, 17, 21, tc - 6, tc + 6, 'glow_c');
+  T.box(45, 46.5, 17, 21, tc - 6, tc + 6, 'glow_r');
   T.box(18, 32, 28, 32, tc - 6, tc + 6, 'gun');
   for (const s of [-1, 1]) {
     cbox(T, 14, 40, 10, 30, tc + s * 23 - 7, tc + s * 23 + 7, 'steel', 3, 3);
     gun(T, 34, 60, 16, tc + s * 23, 4, 'gun', 'gun_d');
-    T.cylX(16, tc + s * 23, 2.2, 58, 60.5, 'glow_p');
-    for (let i = 0; i < 3; i++) T.cylX(16, tc + s * 23, 4.8, 38 + i * 6, 39 + i * 6, 'glow_p');
+    T.cylX(16, tc + s * 23, 2.2, 58, 60.5, 'glow_r');
+    for (let i = 0; i < 3; i++) T.cylX(16, tc + s * 23, 4.8, 38 + i * 6, 39 + i * 6, 'glow_r');
   }
   for (const zz of [tc - 8, tc + 8]) pipe(T, 14, zz, 2.6, 26, 34, 'gun', 'gun_d');
   return { size: 60, parts: [{ name: 'hull', vox: h }, { name: 'turret', vox: T, pivot: [28, 0, tc], at: [0, 38, 0] }] };

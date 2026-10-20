@@ -13,6 +13,7 @@ import { STAGE_DEFS, type StageDef } from '../sim/content/stages';
 import { STAGE_GROWTH } from '../sim/types';
 import { Rng } from '../core/rng';
 import { cellAt } from './ground';
+import { STAGE_SAMPLERS, RL, stampR, arenaEdge, relicEdge, roofRelic, earthRelic, spaceX } from './grounds';
 import { PAL } from './vox';
 import type { GroundLayer } from './renderer';
 
@@ -58,8 +59,9 @@ const PRINT: number[][] = [
   ramp('#c49a5a', '#d6ae72', '#e6c48c'),   // 8 песок
 ];
 const FLOWERS = ['#e8484a', '#f6d24a', '#f4f2f8', '#ec74ae', '#9a72e0'].map(pack);
+const WINDOW = pack('#3a5a8a'), WINDOW_LIT = pack('#f2d27a');
 
-const enum Mt { VOID = 0, GRASS, DIRT, TILE, WATER, RIM, WOOD, CARPET, GENERIC, PRINT }
+const enum Mt { VOID = 0, GRASS, DIRT, TILE, WATER, RIM, WOOD, CARPET, GENERIC, PRINT, R }
 const RAMPS: Record<number, number[]> = { [Mt.GRASS]: GRASS, [Mt.DIRT]: DIRT, [Mt.TILE]: TILE, [Mt.WATER]: WATER, [Mt.RIM]: STONE, [Mt.WOOD]: WOOD };
 
 // ---------------------------------------------------------------- шум
@@ -127,8 +129,8 @@ function pondsOf(s: number, seed: number): Ponds {
   return p;
 }
 
-const RELICS: (Rect | null)[] = Array.from({ length: 9 }, (_, s) => {
-  if (s < 1 || s > 7) return null;
+const RELICS: (Rect | null)[] = Array.from({ length: STAGE_DEFS.length }, (_, s) => {
+  if (s < 1) return null;
   const st = STAGE_DEFS[s], pv = STAGE_DEFS[s - 1];
   return { x0: st.relicX - pv.w / G / 2, y0: st.relicY - pv.h / G / 2, x1: st.relicX + pv.w / G / 2, y1: st.relicY + pv.h / G / 2 };
 });
@@ -237,12 +239,17 @@ function sample(s: number, x: number, y: number, seed: number, o: Smp): void {
   const rr = relicRect(s);
   if (rr && inRect(rr, x, y)) {
     // I ступень, увиденная из II, — детский коврик (прозрение: «это были игрушки»); глубже — как было
-    if (s === 1) playmat((x - rr.x0) * G, (y - rr.y0) * G, pondsOf(0, seed), o);
-    else sample(s - 1, (x - rr.x0) * G, (y - rr.y0) * G, seed, o);
+    // прозрение: прежний мир — предмет нового (коврик; квартира — крыша дома; континенты — планета)
+    const lx = (x - rr.x0) * G, ly = (y - rr.y0) * G;
+    if (s === 1) playmat(lx, ly, pondsOf(0, seed), o);
+    else if (s === 4) roofRelic(lx, ly, o);
+    else if (s === 9) { if (!earthRelic(lx, ly, o)) spaceX(x, y, o); }
+    else sample(s - 1, lx, ly, seed, o);
     return;
   }
   o.a = 0;
   if (s === 0) toy(x, y, pondsOf(0, seed), o);
+  else if (STAGE_SAMPLERS[s]) STAGE_SAMPLERS[s](x, y, o);
   else if (s === 1) nursery(x, y, o);
   else {
     const c = cellAt(Math.min(s, 8), x, y);
@@ -285,7 +292,7 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
       if (x >= 0 && y >= 0 && x < W && y < H) sample(s, x, y, seed, o);
       else if ((outer[k] = 1) && (x < -OUTER || y < -OUTER || x > W + OUTER || y > H + OUTER)) { o.m = Mt.VOID; o.t = 0; o.a = 0; }
       else if (next) sample(s + 1, next.relicX + (x - W / 2) / G, next.relicY + (y - H / 2) / G, seed, o);
-      else { const n = fbm(x / 260, y / 160, 1); o.m = Mt.WOOD; o.t = n > 0.6 ? 4 : 3; o.a = 0; }
+      else spaceX(x / G, y / G, o);
       mat[k] = o.m; tone[k] = o.t; aux[k] = o.a;
     }
     if (j % 60 === 59) yield;
@@ -315,6 +322,20 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
     const k = j * w + i;
     if (only !== undefined && mat[k] !== only) return;
     ov[k] = c;
+  };
+  const sctx = {
+    put: (i: number, j: number, d: number, rid: number) => {
+      if (i < 0 || j < 0 || i >= w || j >= h) return;
+      const k = j * w + i;
+      if (mat[k] !== Mt.R || aux[k] !== rid) return;
+      tone[k] = Math.max(0, Math.min(RL[rid].length - 1, tone[k] + d));
+    },
+    paint: (i: number, j: number, c: number, rid: number) => {
+      if (i < 0 || j < 0 || i >= w || j >= h) return;
+      const k = j * w + i;
+      if (mat[k] !== Mt.R || aux[k] !== rid) return;
+      ov[k] = c;
+    },
   };
   for (let j = 2; j < h - 2; j++) {
     for (let i = 2; i < w - 2; i++) {
@@ -349,16 +370,17 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
         if (r < 0.0015) { put(i, j, -2, Mt.TILE); put(i + 1, j + 1, -2, Mt.TILE); put(i + 2, j + 1, -2, Mt.TILE); }
       } else if (m === Mt.WOOD) {
         if (r < 0.002) put(i, j, -2, Mt.WOOD);
-      }
+      } else if (m === Mt.R) stampR(aux[k], i, j, r, sctx);
     }
     if (j % 120 === 119) yield;
   }
   // 4. боковые грани приподнятых областей (арена над миром следующей ступени, реликвия над полом) и их тени
   const relic = relicRect(s);
-  const raised: { r: Rect; side: number; top: number[]; edge: number[] }[] = [
-    { r: { x0: 0, y0: 0, x1: W, y1: H }, side: 7, top: [GRASS[4], GRASS[2]], edge: [DIRT[3], DIRT[3], DIRT[2], DIRT[2], DIRT[1]] },
-  ];
-  if (relic) raised.push(s === 1 ? { r: relic, side: 2, top: [PRINT[6][2]], edge: [PRINT[6][0]] } : { r: relic, side: 3, top: [GRASS[5]], edge: [GRASS[2], GRASS[1]] });
+  const raised: { r: Rect; side: number; top: number[]; edge: number[]; windows?: boolean }[] = [];
+  const ae = s === 0 ? { side: 7, top: [GRASS[4], GRASS[2]], edge: [DIRT[3], DIRT[3], DIRT[2], DIRT[2], DIRT[1]] } : arenaEdge(s);
+  if (ae) raised.push({ r: { x0: 0, y0: 0, x1: W, y1: H }, ...ae });
+  const re = s === 1 ? { side: 2, top: [PRINT[6][2]], edge: [PRINT[6][0]] } : relicEdge(s);
+  if (relic && re) raised.push({ r: relic, ...re });
   for (const R of raised) {
     const near = 2 + (R.side + 6) * KV;
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
@@ -375,6 +397,11 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
           const right = R.r.x1 - xa < R.r.y1 - ya;               // правая грань — в тени
           const layers = [...R.top, ...R.edge];
           let c = layers[Math.min(layers.length - 1, q - 1 < R.top.length ? q - 1 : R.top.length + Math.floor((q - 1 - R.top.length) * R.edge.length / Math.max(1, R.side - R.top.length)))];
+          // стены дома-реликвии: ряды окон (у некоторых горит свет)
+          if (R.windows && q > 4 && q < R.side - 2) {
+            const along = right ? ya : xa, fl = Math.floor((q - 5) / 7), wq = (q - 5) % 7;
+            if (wq < 4 && ((along % 22) + 22) % 22 < 12) c = hash(Math.floor(along / 22), fl, 7) < 0.25 ? WINDOW_LIT : WINDOW;
+          }
           if (right) c = darken(c);
           ov[k] = c; mat[k] = 255;
         } else shade[k] = Math.max(shade[k], 6 - (q - R.side));
@@ -394,6 +421,7 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
       if (m === Mt.PRINT) { const r = PRINT[aux[k]]; let t = tone[k]; if (((k % w) + 2 * Math.floor(k / w)) % 5 === 0) t = Math.max(0, t - 1); c = r[Math.max(0, Math.min(2, t))]; }
       else if (m === Mt.CARPET) { const r = CARPET[aux[k]]; let t = tone[k]; if (((k % w) + 2 * Math.floor(k / w)) % 4 === 0) t = Math.max(0, t - 1); c = r[Math.max(0, Math.min(2, t))]; }
       else if (m === Mt.GENERIC) c = genRamps[aux[k]][Math.max(0, Math.min(4, tone[k]))];
+      else if (m === Mt.R) { const r = RL[aux[k]]; c = r[Math.max(0, Math.min(r.length - 1, tone[k]))]; }
       else { const r = RAMPS[m] ?? GRASS; c = r[Math.max(0, Math.min(r.length - 1, tone[k]))]; }
     }
     if (shade[k]) c = mixc(c, SHADOW, Math.min(0.45, shade[k] * 0.09));

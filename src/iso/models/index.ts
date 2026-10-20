@@ -32,7 +32,7 @@ export const ENEMIES: Record<string, Builder> = {
   meteorite: s6.meteorite, contCrawler: s6.contCrawler, orbitalSat: s6.orbitalSat, voidSpider: s6.voidSpider, lance: s6.lance, moonlet: s6.moonlet, starTitan: s6.starTitan,
 };
 export const BOSSES: Record<string, Builder> = {
-  bossGeneral: () => heroII('heavy', 'glow_r', true), bossTyrant: () => formTyrant('heavy', 'glow_r', true), bossVacuum: () => formVacuum('heavy', 'glow_r', true), bossFridge: () => formFridge('heavy', 'glow_r', true), bossCommandarm: () => formCommandarm('heavy', 'glow_r', true), bossMole: () => formMole('heavy', 'glow_r', true), bossSky: () => formSky('heavy', 'glow_r', true), bossGroza: () => formGroza('heavy', 'glow_r', true), bossTitan: () => formTitan('heavy', 'glow_r', true), bossEater: s6.bossEater,
+  bossGeneral: () => heroII('heavy', 'glow_r', true), bossTyrant: () => formTyrant('heavy', 'glow_r', true), bossVacuum: () => formVacuum('heavy', 'glow_r', true), bossFridge: () => formFridge('heavy', 'glow_r', true), bossCommandarm: () => formCommandarm('heavy', 'glow_r', true), bossMole: () => formMole('heavy', 'glow_r', true), bossSky: () => formSky('heavy', 'glow_r', true), bossGroza: () => formGroza('heavy', 'glow_r', true), bossTitan: () => formTitan('heavy', 'glow_r', true), bossEater: fresh.eaterBoss,
 };
 export const PROPS: Record<string, PropBuilder> = {
   brick: s0.brick, steel: s0.steel, bush: s0.bush, water: () => s0.water(), crate: () => army.crate(), hq: () => army.hq(), steelWall: s0.steel,

@@ -456,3 +456,53 @@ export function mlrsM(): ModelDef {
   for (let r = 0; r < 4; r++) for (let c = 0; c < 8; c++) { const y = 5 + 11.4 + r * 2.4, z = 3.5 + c * 2.4; t.box(39.5, 40.2, y - 0.8, y + 0.4, z - 0.6, z + 0.6, 'black'); t.set(40, y, z, (r + c) % 3 ? 'gun' : 'glow_r'); }
   return { size: 60, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [10, 0, tc], at: [-14, 9, 0] }] };
 }
+
+// ============================================================================ X. Пожиратель планет (финальный босс)
+/** Пожиратель планет: космический хищник в хитиновой броне. Шесть суставчатых ног, сегментированное брюхо
+ *  с красными жилами, спина в кристаллических шипах, огромная пасть-воронка из колец зубов,
+ *  в глубине — пылающее ядро (слабое место). Подробность ×2 (как у боссов-обликов). */
+export function eaterBoss(): ModelDef {
+  const L = 150, W = 120, H = 96, v = new Vox(L + 30, H, W), zc = W / 2;
+  const bx = 70, by = 40;
+  // брюхо: сегменты-кольца от головы к хвосту
+  for (let i = 0; i < 6; i++) {
+    const cx = bx - i * 14, r = 34 - i * 4.2;
+    v.ell(cx, by - i * 2, zc, 10, r * 0.75, r, i % 2 ? 'alien_d' : 'void');
+    v.ell(cx + 2, by - i * 2 + r * 0.2, zc, 7, r * 0.55, r * 0.8, 'alien_d');
+  }
+  // жилы: светящиеся линии по бокам сегментов
+  v.paint((x, y, z) => { const d = Math.abs(Math.sin(x * 0.22 + z * 0.08) * 6 - (y - by)); return d < 0.9 && Math.abs(z - zc) > 18 ? 'glow_r' : undefined; }, 0, bx + 12, 10, 70, 0, W);
+  // голова-панцирь: широкий купол с гребнем
+  v.ell(bx + 28, by + 8, zc, 26, 26, 40, 'void');
+  v.paint((x, y, z) => (y > by + 20 ? 'alien_d' : undefined), bx, bx + 56, by, by + 40, 0, W);
+  v.fill((x, y, z) => (Math.abs(z - zc) < 3 && y > by + 18 && y < by + 38 - Math.abs(x - (bx + 22)) * 0.5 ? 'alien_l' : undefined), bx, bx + 50, by, by + 40, 0, W);   // гребень
+  // пасть-воронка: кольца зубов, сходящиеся к ядру
+  const mx = bx + 52, my = by + 2;
+  for (let k = 0; k < 4; k++) {
+    const R = 26 - k * 5.5, x = mx - k * 3.5;
+    for (let i = 0; i < 18 - k * 2; i++) {
+      const a = (i / (18 - k * 2)) * Math.PI * 2 + k * 0.3;
+      const y0 = my + Math.sin(a) * R, z0 = zc + Math.cos(a) * R;
+      v.seg([x, y0, z0], [x + 5 - k, my + Math.sin(a) * (R - 6), zc + Math.cos(a) * (R - 6)], 1.4, k % 2 ? 'bone' : 'white');
+    }
+    v.fill((xx, y, z) => { const r = Math.hypot(y - my, z - zc); return r < R + 1 && r > R - 2 ? 'alien_d' : undefined; }, x - 2, x, my - R - 2, my + R + 2, zc - R - 2, zc + R + 2);
+  }
+  v.fill((x, y, z) => { const r = Math.hypot(y - my, z - zc); return r < 9 ? 'void' : undefined; }, mx - 18, mx - 8, my - 10, my + 10, zc - 10, zc + 10);
+  v.sphere(mx - 14, my, zc, 8, 'glow_r'); v.sphere(mx - 12, my, zc, 4, 'lamp');                              // ядро
+  // глаза: россыпь по панцирю над пастью
+  for (const [dy, dz] of [[24, -14], [24, 14], [30, -6], [30, 6], [20, -24], [20, 24]]) v.sphere(bx + 44, by + dy, zc + dz, 2.6, 'glow_r');
+  // ноги: шесть суставчатых, когти
+  for (let i = 0; i < 3; i++) for (const s of [-1, 1]) {
+    const hx = bx + 20 - i * 26, hz = zc + s * 26;
+    const knee: [number, number, number] = [hx + 6 - i * 4, by + 26, zc + s * 54];
+    const foot: [number, number, number] = [hx + 12 - i * 8, 1, zc + s * 58];
+    v.seg([hx, by, hz], knee, 4.2, 'void'); v.seg(knee, foot, 3.2, 'alien_d');
+    v.sphere(knee[0], knee[1], knee[2], 5, 'alien_d'); v.set(knee[0], knee[1] + 5, knee[2], 'glow_r');
+    v.seg(foot, [foot[0] + 8, 0.5, foot[2] + s * 2], 1.6, 'bone');
+  }
+  // шипы-кристаллы по спине
+  for (let i = 0; i < 9; i++) { const x = bx + 10 - i * 9, s = i % 2 ? 1 : -1; v.seg([x, by + 30 - i * 2, zc + s * 8], [x - 6, by + 50 - i * 2, zc + s * 14], 2.2 - i * 0.12, i % 3 ? 'crystal' : 'glow_p'); }
+  // хвост с жалом
+  v.seg([bx - 80, by - 8, zc], [bx - 100, by + 10, zc], 6, 'alien_d'); v.seg([bx - 100, by + 10, zc], [bx - 104, by + 30, zc], 3, 'bone'); v.sphere(bx - 104, by + 32, zc, 3, 'glow_r');
+  return { size: L + 10, parts: [{ name: 'body', vox: v }] };
+}

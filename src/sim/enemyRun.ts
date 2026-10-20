@@ -59,17 +59,9 @@ export function updateEnemies(sim: Sim, dt: number): void {
 // Движение
 // ---------------------------------------------------------------------------
 
-function inSmoke(sim: Sim, x: number, y: number): boolean {
-  for (const z of sim.zones) if (z.kind === 'smoke' && !z.dead && (z.x - x) ** 2 + (z.y - y) ** 2 < z.r * z.r) return true;
-  return false;
-}
-
 function speedOf(sim: Sim, e: Enemy): number {
   let s = e.speed * (1 + e.hasteAura);
   if (e.slowT > 0) s *= 0.55;
-  if (inSmoke(sim, e.x, e.y)) {
-    for (const z of sim.zones) if (z.kind === 'smoke' && z.n && (z.x - e.x) ** 2 + (z.y - e.y) ** 2 < z.r * z.r) { s *= 0.6; break; }
-  }
   return s;
 }
 
@@ -123,8 +115,7 @@ function flowDir(sim: Sim, e: Enemy, tgt: Player): [number, number] {
 }
 
 function chase(sim: Sim, e: Enemy, tgt: Player, dt: number, mul: number): void {
-  let [dx, dy] = flowDir(sim, e, tgt);
-  if (inSmoke(sim, tgt.x, tgt.y) && inSmoke(sim, e.x, e.y)) { const a = e.frame * 2 + e.id; dx = Math.cos(a); dy = Math.sin(a); }
+  const [dx, dy] = flowDir(sim, e, tgt);
   moveGround(sim, e, dx, dy, speedOf(sim, e) * mul, dt);
 }
 
@@ -208,7 +199,6 @@ export function fireAt(sim: Sim, e: Enemy, tgt: Player): void {
   const t = Math.min(1, d / Math.max(1, sp));
   let a = Math.atan2(tgt.y + tgt.vy * t * 0.5 - e.y, tgt.x + tgt.vx * t * 0.5 - e.x);
   a += sim.rng.range(-1, 1) * (kind === 'bullet' ? 0.16 : 0.1);
-  if (tgt.inSmoke) a += sim.rng.range(-0.7, 0.7);
   const fan = e.def.fan ?? 1;
   for (let i = 0; i < fan; i++) {
     const off = fan > 1 ? (i - (fan - 1) / 2) * (e.def.spreadShot ?? 0.2) : 0;

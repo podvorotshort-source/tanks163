@@ -2,10 +2,12 @@
 
 import type { Scene } from '../app';
 import { app } from '../app';
-import { Sim, type RunConfig, type PlayerCmd, TRANSITION_SWITCH, TRANSITION_TIME } from '../sim/sim';
+import { Sim, type RunConfig, type PlayerCmd, TRANSITION_SWITCH, TRANSITION_TIME, TR_DRIVE1, TR_ABSORB1 } from '../sim/sim';
 import { DT, TANK_BASE, STAGE_GROWTH, type SimEvent } from '../sim/types';
 import { Camera, ISO_X, ISO_Y, ISO_H } from './camera';
-import { IsoWorld } from '../iso/world';
+import { IsoWorld, type TransView } from '../iso/world';
+import { ART_Z } from '../iso/paint';
+import { ABILITIES } from '../sim/content/classes';
 import { Fx } from './fx';
 import { Hud } from './hud';
 import { LevelUpUI } from './levelup';
@@ -17,6 +19,12 @@ import { STAGE_DEFS } from '../sim/content/stages';
 import { BOSSES } from '../sim/bosses';
 import { BOSS_LAND } from './render';
 import { sharedIso } from '../iso/shared';
+
+/** Направление на экране → направление в мире (экранное «вправо» = мировое (1, −1)/√2, «вверх» = (−1, −1)/√2). */
+function screenToWorld(sx: number, sy: number): [number, number] {
+  const k = Math.SQRT1_2;
+  return [(sx + sy) * k, (sy - sx) * k];
+}
 import { POWERUP_INFO } from '../sim/powerups';
 import { WEAPONS } from '../sim/content/weapons';
 import { UI } from '../gfx/palette';
@@ -31,12 +39,11 @@ import { extFrames } from '../gfx/ext';
 
 interface TransitionFx {
   from: number;
-  startZoom: number;
   evolved: boolean;
   titled: boolean;
-  revealed: boolean;
-  prepared: boolean;
-  switchedCam?: boolean;
+  zoomed: boolean;
+  switchedCam: boolean;
+  view: TransView;
 }
 
 export class GameScene implements Scene {
@@ -96,38 +103,31 @@ export class GameScene implements Scene {
     });
   }
 
+  /** Боевой масштаб постоянный: 1 пиксель рисунка = 1 пиксель кадра (чёткий пиксель-арт). */
   private gameplayZoom(): number {
-    return (app.screen.wunit * TANK_BASE) / this.sim.size;
+    return ART_Z;
   }
 
   private syncCamera(k: number): void {
     const sim = this.sim;
     let z = this.gameplayZoom();
     let tx = sim.viewX, ty = sim.viewY;
-    // Бой с боссом: камера отъезжает и держит в кадре и игрока, и босса (при появлении — смотрит на босса).
+    // Бой с боссом: масштаб не меняется (пиксели остаются чёткими) — кадр смещается в сторону босса.
     const b = sim.boss;
     if (b && b.hp > 0) {
       const entering = ((b.brain as { entering?: number } | undefined)?.entering ?? 0) > 0;
-      const w = entering ? 0.55 : 0.32;
+      const w = entering ? 0.5 : 0.3;
       tx = sim.viewX + (b.x - sim.viewX) * w; ty = sim.viewY + (b.y - sim.viewY) * w;
-      // модель босса высокая: центр кадра чуть выше, запас сверху
-      const up = b.size * (b.air ? 1.6 : 0.85) * ISO_H;
-      const sh = (up * 0.5) / (2 * ISO_Y);
-      tx -= sh; ty -= sh;
-      const fit = (ox: number, oy: number, r: number, u: number) => {
-        const ex = Math.abs(ox - oy) * ISO_X + r, ey = Math.abs(ox + oy) * ISO_Y + r * 0.5 + u;
-        return Math.min((this.cam.w * 0.44) / Math.max(1, ex), (this.cam.h * 0.42) / Math.max(1, ey));
-      };
-      const zf = Math.min(fit(b.x - tx, b.y - ty, b.size * 0.6, up * 0.5), fit(sim.viewX - tx, sim.viewY - ty, sim.size * 1.5, 0));
-      z = Math.max(z * 0.32, Math.min(z, zf));
+      const up = b.size * (b.air ? 1.4 : 0.6) * ISO_H, sh = (up * 0.5) / (2 * ISO_Y);
+      tx -= sh * w; ty -= sh * w;
     }
     this.zoomSmooth = k >= 1 ? z : this.zoomSmooth + (z - this.zoomSmooth) * k * 0.6;
     this.cam.zoom = this.zoomSmooth;
     // Центр: плавно к центру видимой области симуляции, с ограничением арены по экрану.
     const s = sim.stage;
-    const hw = this.cam.w / 2 / this.cam.zoom, hh = this.cam.h / 2 / this.cam.zoom;
-    tx = s.w > hw * 2 ? clamp(tx, hw, s.w - hw) : s.w / 2;
-    ty = s.h > hh * 2 ? clamp(ty, hh, s.h - hh) : s.h / 2;
+    // изометрия: край арены может попадать в кадр — там нарисован мир следующей ступени
+    tx = clamp(tx, 220, s.w - 220);
+    ty = clamp(ty, 160, s.h - 160);
     if (k >= 1) { this.cam.x = tx; this.cam.y = ty; } else { this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k; }
   }
 
@@ -188,7 +188,9 @@ export class GameScene implements Scene {
     while (this.acc >= DT && steps < 5) {
       const cmds: PlayerCmd[] = sim.players.map((_, i) => {
         const f = input.players[i];
-        return { mx: f.moveX, my: f.moveY, a: [this.pend[i][0], this.pend[i][1], this.pend[i][2]] };
+        // Управление по экрану: «вправо» — вправо по экрану, «вверх» — вверх (изометрия повёрнута на 45°).
+        const [mx, my] = screenToWorld(f.moveX, f.moveY);
+        return { mx, my, a: [this.pend[i][0], this.pend[i][1], this.pend[i][2]] };
       });
       sim.step(cmds);
       this.handleEvents(sim.events);
@@ -208,6 +210,7 @@ export class GameScene implements Scene {
       this.syncCamera(Math.min(1, dt * 5));
     }
     this.bossLanding();
+    this.iso.pump(sim.state === 'transition' ? 6 : 3);
     this.cam.update(dt, settings.data.shake);
     this.engineSound();
     if (sim.state === 'gameover') {
@@ -308,6 +311,7 @@ export class GameScene implements Scene {
         }
         case 'warn': this.hud.banner(e.text, UI.red, 2.6); audio.play('warn'); break;
         case 'event': this.hud.banner(e.text, UI.orange, 2.8); audio.play('event'); break;
+        case 'abilityGot': this.hud.banner(`${sim.players.length > 1 ? (e.p ? '2P: ' : '1P: ') : ''}ТРОФЕЙ — ${ABILITIES[e.id].name.toUpperCase()}`, UI.gold, 3.4, 'Новая способность босса — в свободном слоте'); break;
         case 'weaponGot': this.hud.banner(`${e.p ? '2P' : '1P'}: ${WEAPONS[e.w].name.toUpperCase()}`, e.p ? UI.p2 : UI.p1, 2); break;
         case 'telegraph': break;
         case 'gameover': this.hud.banner('КОНЕЦ ЗАБЕГА', UI.red, 4, undefined, true); audio.play('gameover'); music.stop(); break;
@@ -403,72 +407,92 @@ export class GameScene implements Scene {
   // -------------------------------------------------------------------------
 
   private startTransitionFx(): TransitionFx {
-    return { from: this.sim.transition!.from, startZoom: this.cam.zoom, evolved: false, titled: false, revealed: false, prepared: false };
+    const tr = this.sim.transition!;
+    return {
+      from: tr.from, evolved: false, titled: false, zoomed: false, switchedCam: false,
+      view: { from: tr.from, switched: false, tankScale: 1, evolved: false, wreck: { x: tr.bx, y: tr.by, size: tr.bsize, angle: tr.bangle, art: tr.bart, k: 1 }, oldAlpha: 1, marginAlpha: 1 },
+    };
   }
 
+  /** Кат-сцена: танк въезжает в обломки босса, поглощает их (облик, сила, размер ×4), камера отъезжает вчетверо,
+   *  старая арена становится реликвией нового, заново нарисованного мира. */
   private transitionCamera(dt: number): void {
     const sim = this.sim;
     const tr = sim.transition!;
-    if (!this.trans || this.trans.from !== tr.from) {
-      this.trans = this.startTransitionFx();
-      audio.play('whoosh');
-    }
-    const T = this.trans;
-    // Мир следующей ступени собираем заранее, пока камера отъезжает (без рывка в момент переключения).
-    if (!T.prepared && tr.t > 1.4) { T.prepared = true; this.iso.prebuild(T.from + 1); }
-    const G = STAGE_GROWTH;
-    const t = tr.t;
-    const old = STAGE_DEFS[T.from], next = STAGE_DEFS[T.from + 1];
+    if (!this.trans || this.trans.from !== tr.from) this.trans = this.startTransitionFx();
+    const T = this.trans, v = T.view;
+    const G = STAGE_GROWTH, t = tr.t;
+    const old = STAGE_DEFS[T.from], next = STAGE_DEFS[Math.min(7, T.from + 1)];
+    this.iso.prebuild(T.from + 1);
+    this.iso.pump(6);
+    const lead = sim.players.find(p => p.state === 'alive') ?? sim.players[0];
+    v.switched = tr.switched;
     if (!tr.switched) {
-      // Фаза A–B: отъезд в старых координатах.
-      const u = clamp((t - 1.2) / (TRANSITION_SWITCH - 1.2), 0, 1);
-      const zEnd = T.startZoom / 24;
-      this.cam.zoom = T.startZoom * Math.pow(zEnd / T.startZoom, easeInOutCubic(u));
-      const tx = old.w / 2 + (next.w / 2 - next.relicX) * G, ty = old.h / 2 + (next.h / 2 - next.relicY) * G;
-      this.cam.x += ((u > 0 ? tx * easeInOutCubic(u) + sim.viewX * (1 - easeInOutCubic(u)) : sim.viewX) - this.cam.x) * Math.min(1, dt * 4);
-      this.cam.y += ((u > 0 ? ty * easeInOutCubic(u) + sim.viewY * (1 - easeInOutCubic(u)) : sim.viewY) - this.cam.y) * Math.min(1, dt * 4);
-      if (u > 0.4 && !T.revealed) { T.revealed = true; audio.play('reveal'); }
+      // поглощение: обломки тают и втягиваются, танк растёт вчетверо и принимает облик босса
+      const ua = clamp((t - TR_DRIVE1) / (TR_ABSORB1 - TR_DRIVE1), 0, 1);
+      v.wreck!.k = 1 - easeInOutCubic(ua);
+      v.tankScale = 1 + (G - 1) * easeInOutCubic(clamp((ua - 0.25) / 0.75, 0, 1));
+      if (ua > 0 && ua < 1) this.absorbFx(dt, lead);
+      if (ua > 0.55 && !T.evolved) this.evolveFx(lead);
+      v.evolved = T.evolved;
+      // отъезд камеры: ×4 (танк остаётся того же размера на экране — он вырос вчетверо)
+      const uz = clamp((t - TR_ABSORB1) / (TRANSITION_SWITCH - TR_ABSORB1), 0, 1);
+      if (uz > 0 && !T.zoomed) { T.zoomed = true; audio.play('whoosh'); }
+      this.cam.zoom = ART_Z / Math.pow(G, easeInOutCubic(uz));
+      v.marginAlpha = 1 - clamp((uz - 0.05) / 0.35, 0, 1);
+      v.oldAlpha = 1 - clamp((uz - 0.7) / 0.3, 0, 1);
+      const fx = t < TR_DRIVE1 ? (lead.x + tr.bx) / 2 : tr.bx, fy = t < TR_DRIVE1 ? (lead.y + tr.by) / 2 : tr.by;
+      this.cam.x += (fx - this.cam.x) * Math.min(1, dt * 3);
+      this.cam.y += (fy - this.cam.y) * Math.min(1, dt * 3);
     } else {
-      // Переключились: новые единицы (3D-мир сменит ступень в ближайшем кадре — внешний мир становится ареной).
       if (!T.switchedCam) {
         T.switchedCam = true;
-        this.cam.zoom *= G;
+        this.cam.zoom = ART_Z;
         this.cam.x = next.relicX + (this.cam.x - old.w / 2) / G;
         this.cam.y = next.relicY + (this.cam.y - old.h / 2) / G;
+        v.tankScale = 1; v.oldAlpha = 0; v.marginAlpha = 0; v.wreck = null;
+        setDisplayTier(sim.stageIdx);
+        audio.power = sim.stageIdx;
         music.play('reveal');
       }
-      const target = this.gameplayZoom();
-      const hold0 = TRANSITION_SWITCH, hold1 = 5.4, zin1 = 7.6;
-      if (t < hold1) {
-        if (!T.titled && t > hold0 + 0.3) {
-          T.titled = true;
-          const st = STAGE_DEFS[sim.stageIdx];
-          this.hud.banner('МИР ОКАЗАЛСЯ БОЛЬШЕ!', UI.text, 2.4, undefined, false);
-          setTimeout(() => this.hud.banner(st.title + ' · ' + st.subtitle.toUpperCase(), UI.gold, 3.2, undefined, true), 900);
-        }
-      } else {
-        const u = clamp((t - hold1) / (zin1 - hold1), 0, 1);
-        const zWide = (T.startZoom / 24) * G;
-        this.cam.zoom = zWide * Math.pow(target / zWide, easeInOutCubic(u));
-        this.cam.x += (sim.viewX - this.cam.x) * Math.min(1, dt * 3);
-        this.cam.y += (sim.viewY - this.cam.y) * Math.min(1, dt * 3);
-        if (u >= 1 && !T.evolved) {
-          T.evolved = true;
-          setDisplayTier(sim.stageIdx);
-          audio.power = sim.stageIdx;
-          audio.play('evolve');
-          this.hud.banner('МОДЕЛЬ ' + TIER_ROMAN[sim.stageIdx] + ': ' + TIER_NAMES[sim.stageIdx].toUpperCase(), UI.gold, 3, 'Танк стал сильнее', true);
-          for (const p of sim.players) {
-            for (let i = 0; i < 30; i++) { const s = this.fx.spawn('spark', p.x, p.y); const a = (i / 30) * Math.PI * 2; s.vx = Math.cos(a) * sim.size * 6; s.vy = Math.sin(a) * sim.size * 6; s.life = 0.6; }
-            const r = this.fx.spawn('ring', p.x, p.y); r.r = sim.size * 0.5; r.r1 = sim.size * 4; r.life = 0.6; r.col = '#fbcd4a';
-            this.fx.light(p.x, p.y, sim.size * 6, '#fff4b0', 1, 0.5);
-          }
-          music.play('stage' + sim.stageIdx);
-        }
+      if (!T.titled && t > TRANSITION_SWITCH + 0.2) {
+        T.titled = true;
+        const st = STAGE_DEFS[sim.stageIdx];
+        this.hud.banner('МИР СТАЛ ВЧЕТВЕРО БОЛЬШЕ', UI.text, 2.2, undefined, false);
+        setTimeout(() => this.hud.banner(st.title + ' · ' + st.subtitle.toUpperCase(), UI.gold, 3.2, undefined, true), 800);
+        music.play('stage' + sim.stageIdx);
       }
-      this.zoomSmooth = this.cam.zoom;
+      this.cam.x += (sim.viewX - this.cam.x) * Math.min(1, dt * 2);
+      this.cam.y += (sim.viewY - this.cam.y) * Math.min(1, dt * 2);
     }
+    this.zoomSmooth = this.cam.zoom;
     void TRANSITION_TIME;
+  }
+
+  /** Поглощение: искры из обломков летят в танк, лёгкая тряска. */
+  private absorbFx(dt: number, p: { x: number; y: number; idx: number }): void {
+    const w = this.trans!.view.wreck!, n = Math.ceil(dt * 90);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, r = w.size * 0.45 * w.k * Math.random();
+      const sx = w.x + Math.cos(a) * r, sy = w.y + Math.sin(a) * r;
+      const s = this.fx.spawn('spark', sx, sy);
+      s.vx = (p.x - sx) * 2.4; s.vy = (p.y - sy) * 2.4; s.life = 0.42; s.drag = 0;
+      s.col = Math.random() < 0.5 ? (p.idx ? '#7cff5a' : '#ffd23a') : '#ff6a3a';
+    }
+    this.cam.addShake(2.5);
+  }
+
+  /** Миг эволюции: вспышка, кольцо, новый облик и надпись. */
+  private evolveFx(p: { x: number; y: number }): void {
+    const T = this.trans!, sim = this.sim;
+    T.evolved = true;
+    const tier = Math.min(7, T.from + 1);
+    audio.play('evolve');
+    this.cam.addShake(14);
+    this.hud.banner('МОДЕЛЬ ' + TIER_ROMAN[tier] + ': ' + TIER_NAMES[tier].toUpperCase(), UI.gold, 3, 'Облик, сила и размер поглощённого босса', true);
+    for (let i = 0; i < 40; i++) { const s = this.fx.spawn('spark', p.x, p.y); const a = (i / 40) * Math.PI * 2; s.vx = Math.cos(a) * sim.size * 9; s.vy = Math.sin(a) * sim.size * 9; s.life = 0.7; }
+    const r = this.fx.spawn('ring', p.x, p.y); r.r = sim.size; r.r1 = sim.size * 7; r.life = 0.7; r.col = '#fff4b0';
+    this.fx.light(p.x, p.y, sim.size * 10, '#fff4b0', 1, 0.6);
   }
 
   // -------------------------------------------------------------------------
@@ -483,7 +507,7 @@ export class GameScene implements Scene {
     if (this.ending && this.endT > 2.5) { this.ending.renderWorld(W, H); return; }
     const sim = this.sim;
     const t0 = performance.now();
-    this.iso.render(sim, this.cam, this.alpha, this.time);
+    this.iso.render(sim, this.cam, this.alpha, this.time, sim.state === 'transition' && this.trans ? this.trans.view : null);
     const t1 = performance.now();
     const rc: RenderCtx = { sim, cam: this.cam, fx: this.fx, alpha: this.alpha, time: this.time };
     drawWorld(ctx, rc);
@@ -507,13 +531,13 @@ export class GameScene implements Scene {
     const tr = sim.transition;
     const ucam = this.syncUiCamera();
     const finale = sim.state === 'victory' && !!this.ending && this.endT > 2.5;
-    const cinematic = finale || !!(tr && this.trans && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
+    const cinematic = finale || !!(tr && this.trans && tr.t > 0.9 && tr.t < TRANSITION_TIME - 0.4);
     if (!cinematic) {
       const rc: RenderCtx = { sim, cam: ucam, fx: this.fx, alpha: this.alpha, time: this.time };
       drawWorldLabels(ctx, rc);
       this.fx.draw(ctx, ucam, 2);
     }
-    if (!finale) this.hud.draw(ctx, sim, ucam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
+    if (!finale) this.hud.draw(ctx, sim, ucam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > TRANSITION_TIME - 0.4)));
     if (sim.state === 'levelup') this.levelUI.draw(ctx, sim, W, H);
     if (this.pause.open) this.pause.draw(ctx, W, H, sim);
     if (sim.state === 'gameover' && this.endT > 1.5) {

@@ -64,10 +64,11 @@ export class Screen {
     const sw = Math.max(320, Math.round((window.innerWidth - panel) * dpr)), sh = Math.max(200, Math.round(window.innerHeight * dpr));
     // Мир (изометрический пиксель-арт): пиксель мира = целое число пикселей экрана, высота ≈ 480 строк
     // (1080p → 540, 1440p → 480, 4K → 540, телефон 1080 → 540).
-    const kw = Math.max(1, Math.round(sh / 480));
+    // Крупный пиксель мира: ~360 строк (как у пиксель-арт игр), чётные размеры — центр кадра на границе пикселей.
+    const kw = Math.max(1, Math.round(sh / 360));
     this.wpixel = kw;
-    this.wh = Math.floor(sh / kw);
-    this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2));
+    this.wh = Math.floor(sh / kw) & ~1;
+    this.ww = Math.max(Math.floor(sw / kw), Math.floor(this.wh * 1.2)) & ~1;
     this.wunit = this.wh / BASE_H;
     // Интерфейс: целый коэффициент, высота 330..~495, растянут на ту же область, что и мир.
     const k = Math.max(1, Math.floor(sh / 330));

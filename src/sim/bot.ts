@@ -42,7 +42,7 @@ export function botCommand(sim: Sim, p: Player, o: BotOpts): PlayerCmd {
   }
   // Опасные зоны.
   for (const z of sim.zones) {
-    if (z.team !== 1 || z.dead || z.kind === 'smoke') continue;
+    if (z.team !== 1 || z.dead) continue;
     if (z.kind === 'hazard' && z.n === 0) continue;
     const dx = p.x - z.x, dy = p.y - z.y, d = Math.hypot(dx, dy) || 1;
     if (d < z.r + p.r * 2) { fx += (dx / d) * 3 * o.skill; fy += (dy / d) * 3 * o.skill; }
@@ -84,8 +84,7 @@ export function botCommand(sim: Sim, p: Player, o: BotOpts): PlayerCmd {
     if (id === 'repair' && p.hp < p.maxHp * 0.6) cmd.a[i] = true;
     else if (id === 'dash' && threat > 2.5) cmd.a[i] = true;
     else if (id === 'fortress' && (threat > 3 || p.hp < p.maxHp * 0.35)) cmd.a[i] = true;
-    else if (id === 'smoke' && (mate || p.hp < p.maxHp * 0.4)) cmd.a[i] = true;
-    else if (!['repair', 'dash', 'fortress', 'smoke'].includes(id) && (threat > 2 || sim.boss)) cmd.a[i] = true;
+    else if (!['repair', 'dash', 'fortress'].includes(id) && (threat > 2 || sim.boss)) cmd.a[i] = true;
   }
   return cmd;
 }

@@ -2,6 +2,7 @@
 // Ось x — нос, y — вверх, z — борт. Части: hull (корпус) и turret (башня, вращается).
 
 import { Vox, type ModelDef } from '../vox';
+import { heroI, heroII } from './hero';
 
 export type TankClass = 'scout' | 'assault' | 'heavy';
 
@@ -37,6 +38,13 @@ export function tracks(v: Vox, x0: number, x1: number, h: number, z0: number, z1
 }
 
 export function tankModel(cls: TankClass, tier: number, pl: 0 | 1): ModelDef {
+  if (tier === 0) return heroI(cls, pl);
+  if (tier === 1) return heroII(cls, pl === 0 ? 'glow_y' : 'glow_g');
+  return legacyTank(cls, tier, pl);
+}
+
+/** Прежние облики (поколения III–VIII ещё не перерисованы). */
+function legacyTank(cls: TankClass, tier: number, pl: 0 | 1): ModelDef {
   const S = SCHEMES[pl][0];
   const k = cls === 'scout' ? 0.88 : cls === 'heavy' ? 1.14 : 1;
   const L = Math.round((30 + tier * 1.5) * k), W = Math.round((24 + tier) * k);
@@ -126,7 +134,6 @@ export function tankModel(cls: TankClass, tier: number, pl: 0 | 1): ModelDef {
   if (cls === 'assault' && tier >= 2) for (const zz of [tcz - TR - 1, tcz + TR]) tur.box(tcx - 2, tcx + 3, 1, TH - 1, zz, zz + 1, S.metal); // дымовые мортирки
   if (tier === 0) tur.set(tcx + 1, TH, tcz + 2, 'lamp_r');
   // звезда/полоса
-  tur.box(tcx - TR + 1, tcx - TR + 3, 1, TH - 1, 0, TNZ, undefined as unknown as string);
 
   const yTop = yT;
   return {

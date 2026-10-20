@@ -26,6 +26,10 @@ export function spawnEnemy(sim: Sim, id: string, x: number, y: number, mul: numb
   if (o.elite) size *= 1.35;
   const pw = powerOf(size * sim.unit);
   const e = new Enemy(sim.newId(), def, size, pw);
+  // Сила — по «силовому» размеру, а на поле враг стоит в тех же пропорциях к танку, что и раньше:
+  // танк в бою не растёт, поэтому все размеры и скорости врага ужимаются вместе.
+  const c = sim.compress;
+  e.size *= c; e.r *= c; e.speed *= c;
   e.x = e.px = x; e.y = e.py = y;
   const p = sim.nearestPlayer(x, y);
   e.angle = e.turret = p ? Math.atan2(p.y - y, p.x - x) : 0;
@@ -138,9 +142,9 @@ export class Director {
     for (const d of roster) {
       if ((d.minTime ?? 0) > st) continue;
       const swarm = d.behavior === 'swarm';
-      const want = s.size * (swarm ? s.rng.range(0.22, 0.42) : s.rng.range(0.45, 1.05));
+      const want = s.vsize * (swarm ? s.rng.range(0.22, 0.42) : s.rng.range(0.45, 1.05));
       const mul = Math.max(1, Math.min(d.maxMul, want / d.size));
-      const rel = (d.size * mul) / s.size;
+      const rel = (d.size * mul) / s.vsize;
       let band = 0;
       if (rel >= 0.17 && rel < 0.3) band = 0.35;
       else if (rel >= 0.3 && rel <= 2.4) band = 1;
@@ -189,7 +193,7 @@ export class Director {
     const d = roster[0];
     if (!d) return;
     const [x, y] = this.spawnPoint(1.1);
-    const mul = Math.max(1, Math.min(d.maxMul * 1.2, (s.size * 1.6) / d.size));
+    const mul = Math.max(1, Math.min(d.maxMul * 1.2, (s.vsize * 1.6) / d.size));
     const e = spawnEnemy(s, d.id, x, y, mul, { elite: true });
     if (e) {
       e.maxHp = e.hp = e.hp * 2.5;
@@ -223,8 +227,8 @@ export class Director {
       case 'supply': {
         const [hw, hh] = s.viewHalf();
         const x = s.viewX + s.rng.range(-hw * 0.6, hw * 0.6), y = s.viewY + s.rng.range(-hh * 0.6, hh * 0.6);
-        const sz = s.size * 0.9;
-        const crate = makeProp('crate', 'wood', x, y, sz, sz, 26 * MATS.wood.hp * powerOf(sz * s.unit) * 2, { v: 2 });
+        const sz = s.size * 0.9, psz = s.vsize * 0.9;
+        const crate = makeProp('crate', 'wood', x, y, sz, sz, 26 * MATS.wood.hp * powerOf(psz * s.unit) * 2, { v: 2 });
         s.props.add(crate);
         s.emit({ t: 'telegraph', x, y, r: sz, dur: 1 });
         break;
@@ -249,7 +253,7 @@ export class Director {
         if (swarmDef) {
           for (let i = 0; i < 46; i++) {
             const [x, y] = this.spawnPoint(1.05);
-            const mul = Math.max(1, Math.min(swarmDef.maxMul, (s.size * 0.3) / swarmDef.size));
+            const mul = Math.max(1, Math.min(swarmDef.maxMul, (s.vsize * 0.3) / swarmDef.size));
             spawnEnemy(s, swarmDef.id, x, y, mul);
           }
         }

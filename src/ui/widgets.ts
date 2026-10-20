@@ -124,7 +124,7 @@ export function menuBackground(ctx: CanvasRenderingContext2D, W: number, H: numb
   if (!showcase || showcase.stage !== stage) showcase = new MenuShowcase(stage, iso.r.litMat, iso.r.glowMat);
   showcase.update(t);
   showcase.frame(bgCam, sc.ww, sc.wh, t);
-  iso.renderScene(showcase.group, bgCam);
+  iso.renderScene(showcase.group, bgCam, stage, 1);
   ctx.fillStyle = 'rgba(7,6,11,0.5)';
   ctx.fillRect(0, 0, W, H);
 }

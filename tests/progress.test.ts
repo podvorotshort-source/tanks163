@@ -10,27 +10,27 @@ import { baseStats } from '../src/sim/entities';
 import { PROP_CRUSH } from '../src/sim/playerRun';
 
 describe('переход между масштабами', () => {
-  it('танк не меняет абсолютный размер, мир становится крупнее', () => {
+  it('танк поглощает босса и растёт вчетверо: в новом мире тот же размер, мир крупнее', () => {
     const sim = makeSim(['assault', 'heavy'], {}, true);
     sim.growE = 0.95;
-    sim.sizeTarget = sim.size = TANK_BASE * Math.pow(STAGE_GROWTH, sim.growE);
-    const absBefore = sim.size * stageUnit(sim.stageIdx);
     const p = sim.players[0];
-    // Напарник подальше: вплотную танки расталкиваются, и позиция сместилась бы.
-    const q = sim.players[1];
-    q.x = q.px = p.x + sim.size * 3;
-    const relBefore = { x: p.x - sim.stage.w / 2, y: p.y - sim.stage.h / 2 };
-    sim.onBossKilled(sim.players[0] as never);
+    const sizeBefore = sim.size;
+    const boss = { x: p.x + 300, y: p.y - 120, size: sim.size * STAGE_GROWTH, angle: 0, def: { art: 'bossGeneral' } };
+    sim.onBossKilled(boss as never);
     expect(sim.state).toBe('transition');
-    step(sim, seconds(10));
-    expect(sim.state).toBe('play');
+    step(sim, seconds(9.5));
+    expect(['play', 'levelup']).toContain(sim.state);
     expect(sim.stageIdx).toBe(1);
-    const absAfter = sim.size * stageUnit(sim.stageIdx);
-    expect(absAfter).toBeCloseTo(absBefore, 6);
-    // Позиция — внутри «реликвии» (прежней арены) нового мира.
+    // Физический размер танка в локальных единицах тот же — а единицы ступени вчетверо крупнее.
+    expect(sim.size).toBe(sizeBefore);
+    expect(stageUnit(1) / stageUnit(0)).toBeCloseTo(STAGE_GROWTH, 6);
+    // Танк подъехал к боссу — и оказался в соответствующей точке «реликвии» нового мира.
     const next = STAGE_DEFS[1];
-    expect(p.x).toBeCloseTo(next.relicX + relBefore.x / STAGE_GROWTH, 1);
-    expect(p.y).toBeCloseTo(next.relicY + relBefore.y / STAGE_GROWTH, 1);
+    expect(p.x).toBeCloseTo(next.relicX + (boss.x - STAGE_DEFS[0].w / 2) / STAGE_GROWTH - sizeBefore * 0.6, 0);
+    expect(p.y).toBeCloseTo(next.relicY + (boss.y - STAGE_DEFS[0].h / 2) / STAGE_GROWTH, 0);
+    // Трофей — способность босса.
+    expect(p.abilities.some(a => a.id === 'magma')).toBe(true);
+    void TANK_BASE;
     // Старые препятствия переехали уменьшенными и давятся танком.
     expect(sim.props.props.some(pr => pr.kind === 'brick')).toBe(true);
     const brick = sim.props.props.find(pr => pr.kind === 'brick')!;

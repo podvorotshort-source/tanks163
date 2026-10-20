@@ -26,7 +26,6 @@ const L: Record<string, () => Layer[]> = {
   a_dash: () => [poly([-7, -4, 3, -4, 3, -7, 7.8, 0, 3, 7, 3, 4, -7, 4], 'sky', 4, { hi: 1 }), ...[-6, -3].map(x => rect(x, 0, 1.4, 6, 'sky', 2, { bevel: 0 }))],
   a_volley: () => [circ(0, 0, 2.6, 'red', 4), ...Array.from({ length: 8 }, (_, i) => { const a = (i / 8) * Math.PI * 2; return cap(Math.cos(a) * 4, Math.sin(a) * 4, Math.cos(a) * 7.4, Math.sin(a) * 7.4, 1, 'fire', 4); })],
   a_fortress: () => [poly([0, -7.6, 6.6, -4.6, 6, 2, 0, 7.6, -6, 2, -6.6, -4.6], 'gold', 4, { hi: 1 }), poly([0, -4.5, 3.6, -2.8, 3.3, 1.3, 0, 4.4, -3.3, 1.3, -3.6, -2.8], 'gold', 2)],
-  a_smoke: () => [circ(-2.5, 1.5, 4.4, 'cream', 3), circ(2.6, 0.5, 4.6, 'cream', 4), circ(0, -3, 3.6, 'cream', 5)],
   a_repair: () => [cap(-5, 5, 3, -3, 1.4, 'steel', 4, { hi: 1 }), ring(4, -4, 1.6, 3.6, 'steel', 4), rect(-3.5, 3.5, 3, 3, 'red', 4, { glow: true })],
   a_airstrike: () => [ring(0, 0, 4.2, 6.2, 'red', 3), rect(0, 0, 16, 1.2, 'red', 4, { bevel: 0 }), rect(0, 0, 1.2, 16, 'red', 4, { bevel: 0 }), circ(0, 0, 1.6, 'fire', 5, { glow: true })],
   a_emp: () => [ring(0, 0, 5.6, 7.4, 'teal', 4, { glow: true }), ring(0, 0, 2.4, 3.8, 'teal', 5, { glow: true }), circ(0, 0, 1.2, 'white', 5, { glow: true })],
@@ -35,6 +34,7 @@ const L: Record<string, () => Layer[]> = {
   a_overdrive: () => [poly([2, -7.8, -5, 1, -0.5, 1, -2.5, 7.8, 5, -1.5, 0.5, -1.5], 'gold', 5, { glow: true })],
   a_drone: () => [...[[1, 1], [1, -1], [-1, 1], [-1, -1]].flatMap(([x, y]) => [cap(0, 0, x * 4.6, y * 4.6, 0.7, 'iron', 2), ring(x * 4.8, y * 4.8, 1.2, 2.6, 'steel', 4)]), rect(0, 0, 5, 4, 'teal', 4, { r: 1 })],
   a_wall: () => [...[-5, 0, 5].flatMap(x => [rect(x, -3, 4.6, 4.6, 'blue', 4, { hi: 1 }), rect(x + 2.5, 2.4, 4.6, 4.6, 'blue', 3, { hi: 1 })])],
+  a_magma: () => [...[-0.5, 0, 0.5].map(t => cap(-6, 4, -6 + Math.cos(-0.5 + t) * 13, 4 + Math.sin(-0.5 + t) * 13, 1.2, 'fire', 4, { glow: true })), rect(-5, 4.5, 7, 5, 'steel', 3, { hi: 1 }), circ(-5, 4.5, 1.6, 'red', 5, { glow: true })],
   a_gravity: () => [circ(0, 0, 2.4, 'ink', 0), ...[0, 1, 2].map(i => ring(0, 0, 3.4 + i * 1.6, 4 + i * 1.6, 'purple', 3 + (i % 2)))],
   // Общие улучшения
   s_caliber: () => [cap(0, 6, 0, -4, 3, 'gold', 4, { hi: 1 }), poly([-3, -4, 0, -8, 3, -4], 'steel', 4), rect(0, 6.5, 7, 1.6, 'rust', 3)],

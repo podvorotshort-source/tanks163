@@ -61,6 +61,8 @@ export interface AbilityDef {
   dur: number;
   /** Только как классовая (не выпадает в улучшениях). */
   classOnly?: boolean;
+  /** Трофей босса: выдаётся за поглощение босса. */
+  trophy?: boolean;
   levels: string[];
   icon: string;
 }
@@ -81,10 +83,10 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
     desc: 'Броня на пределе: полная неуязвимость, тройной урон тараном, отталкивание врагов.',
     levels: ['Длительность +1 с', 'Перезарядка −20%', 'В конце — лечение 25%', 'Длительность +1 с, урон тарана ×1.5'],
   },
-  smoke: {
-    id: 'smoke', name: 'Дымовая завеса', icon: 'smoke', cd: 17, dur: 6,
-    desc: 'Облако дыма: враги внутри теряют цель и мажут, игроки внутри получают вдвое меньше урона. Удобно спасать напарника.',
-    levels: ['Радиус +25%', 'Длительность +2 с', 'Перезарядка −20%', 'Враги в дыму замедлены'],
+  magma: {
+    id: 'magma', name: 'Раскалённый залп', icon: 'magma', cd: 9, dur: 0, classOnly: true, trophy: true,
+    desc: 'Трофей Заводного генерала. Двойная пушка бьёт веером раскалённых снарядов по направлению башни; на месте взрывов остаётся горящая магма.',
+    levels: ['+2 снаряда', 'Урон +30%', 'Перезарядка −20%', 'Магма горит дольше и шире'],
   },
   repair: {
     id: 'repair', name: 'Полевой ремонт', icon: 'repair', cd: 24, dur: 3,
@@ -136,3 +138,6 @@ export const ABILITIES: Record<AbilityId, AbilityDef> = {
 export const ABILITY_IDS = Object.keys(ABILITIES) as AbilityId[];
 export const MAX_ABILITY_LEVEL = 5;
 export const ABILITY_SLOTS = 3;
+
+/** Трофейная способность за поглощение босса ступени (ключ — индекс ступени босса). */
+export const BOSS_ABILITY: Partial<Record<number, AbilityId>> = { 0: 'magma' };

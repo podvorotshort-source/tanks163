@@ -190,7 +190,6 @@ export function breakProp(sim: Sim, pr: Prop): void {
 export function damagePlayer(sim: Sim, p: Player, dmg: number, src = '?'): number {
   if (p.state !== 'alive' || p.invulnT > 0 || p.dashT > 0 || p.fortressT > 0 || sim.helmetT > 0) return 0;
   let k = 1 - p.stats.armor;
-  if (p.inSmoke) k *= 0.5;
   const rep = p.ability('repair');
   if (p.repairT > 0 && rep && rep.level >= 5) k *= 0.7;
   const d = dmg * k * sim.threatTaken();

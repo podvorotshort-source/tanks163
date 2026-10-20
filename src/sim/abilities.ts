@@ -17,7 +17,7 @@ export function abilityCooldown(p: Player, slot: number): number {
   let cd = d.cd * p.stats.abilityCd;
   // «Перезарядка −20%» в уровнях — у большинства способностей на 2-м или 3-м улучшении.
   const cdLevel: Record<string, number> = {
-    dash: 2, volley: 4, fortress: 3, smoke: 4, repair: 3, airstrike: 4, emp: 4, shockwave: 4, minefield: 4, overdrive: 3, drone: 99, wall: 4, gravity: 4,
+    dash: 2, volley: 4, fortress: 3, repair: 3, airstrike: 4, emp: 4, shockwave: 4, minefield: 4, overdrive: 3, drone: 99, wall: 4, gravity: 4, magma: 4,
   };
   if (a.level >= (cdLevel[a.id] ?? 99)) cd *= 0.8;
   return cd;
@@ -48,7 +48,6 @@ export function updateAbilities(sim: Sim, p: Player, dt: number): void {
     }
   }
   if (p.overdriveT > 0) p.overdriveT -= dt;
-  p.inSmoke = sim.zones.some(z => z.kind === 'smoke' && !z.dead && (z.x - p.x) ** 2 + (z.y - p.y) ** 2 < z.r * z.r);
 }
 
 /** Попытка применить способность из слота. */
@@ -93,16 +92,27 @@ export function useAbility(sim: Sim, p: Player, slot: number): boolean {
       if (L >= 5) ring(1);
       break;
     }
+    case 'magma': {
+      // Двойная пушка поглощённого генерала: веер раскалённых снарядов по направлению башни, на месте взрывов — магма.
+      const n = 6 + (L >= 2 ? 2 : 0);
+      const dmg = 34 * pw * st.dmg * (L >= 3 ? 1.3 : 1);
+      for (let i = 0; i < n; i++) {
+        const ang = p.turret + (i / (n - 1) - 0.5) * 0.62;
+        const sh = sim.makeShot();
+        sh.team = 0; sh.owner = p.idx; sh.w = 'magma'; sh.dmgType = 'he'; sh.kind = 'magma'; sh.tier = sim.stageIdx;
+        const L0 = size * 0.55;
+        sh.x = sh.px = p.x + Math.cos(ang) * L0; sh.y = sh.py = p.y + Math.sin(ang) * L0;
+        const sp = size * 10;
+        sh.vx = Math.cos(ang) * sp; sh.vy = Math.sin(ang) * sp;
+        sh.dmg = dmg; sh.blast = size * 1.1 * st.blast * (L >= 5 ? 1.3 : 1); sh.incendiary = true;
+        sh.life = ((size * 7) / sp) * (0.75 + (i % 2) * 0.3); sh.r = size * 0.1; sh.size = size * 0.26;
+      }
+      sim.emit({ t: 'shot', x: p.x, y: p.y, a: p.turret, w: 'he', p: p.idx, size: size * 0.5, tier: sim.stageIdx });
+      break;
+    }
     case 'fortress':
       p.fortressT = dur(3 + (L >= 2 ? 1 : 0) + (L >= 5 ? 1 : 0));
       break;
-    case 'smoke': {
-      const z = new Zone();
-      z.kind = 'smoke'; z.x = p.x; z.y = p.y; z.r = size * 3.5 * (L >= 2 ? 1.25 : 1); z.dur = dur(6 + (L >= 3 ? 2 : 0)); z.owner = p.idx;
-      z.n = L >= 5 ? 1 : 0;
-      sim.zones.push(z);
-      break;
-    }
     case 'repair': {
       const heal = 0.35 + (L >= 2 ? 0.1 : 0);
       const T = 3;

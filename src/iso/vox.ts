@@ -29,9 +29,9 @@ export const PAL: Record<string, string> = {
   glass: '#7cc0e0', glass_d: '#4a86b0', roof: '#a8443a', roof_d: '#7a2e28', plastic: '#e0583a', toy_b: '#3a7ee0', toy_g: '#4ab84a', toy_y: '#f2c43a',
   bone: '#e8dcc0', bread: '#d89a50', flesh: '#c87a6a', alien: '#7a3ec0', alien_d: '#4a2280', alien_l: '#b07ae8', void: '#2a1840', crystal: '#9ae0f0', magma: '#e8401a',
   // светящееся (без света сцены)
-  lamp: '#fff4c8', lamp_r: '#ff5a3c', lamp_g: '#7cff6a', lamp_o: '#ffb238', eye_r: '#ff3020', glow_p: '#d070ff', glow_c: '#7ae8ff', fire: '#ff9a2a',
+  lamp: '#fff4c8', glow_y: '#ffd23a', glow_g: '#7cff5a', glow_r: '#ff4a26', magma_d: '#c8281a', lamp_r: '#ff5a3c', lamp_g: '#7cff6a', lamp_o: '#ffb238', eye_r: '#ff3020', glow_p: '#d070ff', glow_c: '#7ae8ff', fire: '#ff9a2a',
 };
-export const GLOW = new Set(['lamp', 'lamp_r', 'lamp_g', 'lamp_o', 'eye_r', 'glow_p', 'glow_c', 'fire', 'lava', 'lava_l', 'magma']);
+export const GLOW = new Set(['glow_y', 'glow_g', 'glow_r', 'lamp', 'lamp_r', 'lamp_g', 'lamp_o', 'eye_r', 'glow_p', 'glow_c', 'fire', 'lava', 'lava_l', 'magma']);
 
 const names: string[] = [''];
 const index = new Map<string, number>();

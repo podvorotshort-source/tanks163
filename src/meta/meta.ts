@@ -51,7 +51,7 @@ export interface UnlockDef {
 /** Открыто с самого начала. */
 export const START_UNLOCKS = [
   'w:ap', 'w:he', 'w:mg', 'w:flame', 'w:mines',
-  'a:smoke', 'a:repair', 'a:shockwave', 'a:overdrive',
+  'a:repair', 'a:shockwave', 'a:overdrive',
   'm:ap_ricochet', 'm:he_incendiary', 'm:mg_ap', 'm:fl_napalm', 'm:mn_chain', 'm:rk_seeker',
   'y:syn_firewall', 'y:syn_detonator', 'y:syn_pyre',
 ];

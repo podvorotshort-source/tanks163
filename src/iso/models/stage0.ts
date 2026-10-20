@@ -189,44 +189,56 @@ export function windupGeneral(): ModelDef {
 // ---------------------------------------------------------------- препятствия ступени I
 
 export function brick(v: number): ModelDef {
-  const n = 14, H = 12, b = new Vox(n, H, n);
-  b.box(0, n, 0, H, 0, n, 'brick');
+  // кирпичный куб: ряды кирпичей с перевязкой, светлые торцы, сколы на кромках
+  const n = 40, H = 30, b = new Vox(n, H, n);
+  b.box(0, n, 0, H, 0, n, 'mortar');
+  const brickCol = (i: number, row: number) => { const h = (i * 7 + row * 13 + v * 5) % 9; return h < 2 ? 'brick_l' : h > 6 ? 'brick_d' : 'brick'; };
   b.fill((x, y, z) => {
-    const row = Math.floor(y / 3), off = (row % 2) * 2;
-    const edge = x < 1 || x > n - 1 || z < 1 || z > n - 1;
-    if (!edge || y > H - 1) return undefined;
-    if (Math.floor(y) % 3 === 2) return 'mortar';
-    const along = x < 1 || x > n - 1 ? z : x;
-    if (Math.floor(along + off) % 4 === 3 && y < H - 1) return 'mortar';
-    return (Math.floor(along / 4) + row + v) % 3 === 0 ? 'brick_l' : (Math.floor(along / 4) + row) % 4 === 1 ? 'brick_d' : 'brick';
+    const side = x < 1 || x > n - 1 || z < 1 || z > n - 1;
+    if (!side || y > H - 1) return undefined;
+    const row = Math.floor(y / 4.25), fy = y - row * 4.25;
+    if (fy < 1) return 'mortar';
+    const along = x < 1 || x > n - 1 ? z : x, off = (row % 2) * 5;
+    const k = Math.floor((along + off) / 10), fx = (along + off) - k * 10;
+    if (fx < 1) return 'mortar';
+    return brickCol(k, row);
   });
   b.fill((x, y, z) => {
-    const r = Math.floor(z / 3.5), k = Math.floor(x + (r % 2) * 2);
-    if (Math.floor(z) % 4 === 3 || k % 5 === 4) return 'mortar';
-    return (Math.floor(k / 5) + r + v) % 3 === 0 ? 'brick_l' : 'brick';
+    const r = Math.floor(z / 8.5), fz = z - r * 8.5, off = (r % 2) * 9;
+    const k = Math.floor((x + off) / 13), fx = x + off - k * 13;
+    if (fz < 1 || fx < 1) return 'mortar';
+    return brickCol(k + 3, r + 5);
   }, 0, n, H - 1, H, 0, n);
-  return one(b, 14, [n, n]);
+  // сколы по верхним кромкам
+  for (let i = 0; i < 9; i++) { const t = (i * 37 + v * 11) % 40; b.box(t, t + 2, H - 2, H, i % 2 ? 0 : n - 1.5, i % 2 ? 1.5 : n, 0); }
+  return one(b, 40, [n, n]);
 }
 
 export function steel(v: number): ModelDef {
-  const n = 14, H = 11, b = new Vox(n, H, n);
-  b.box(0, n, 0, H, 0, n, 'steel');
-  b.box(2, n - 2, H - 1, H, 2, n - 2, 'steel_l');
-  b.box(3, n - 3, H - 1, H, 3, n - 3, 'steel');
-  for (const [x, z] of [[1, 1], [n - 2, 1], [1, n - 2], [n - 2, n - 2]]) b.box(x, x + 1, H, H + 0, z, z + 1, 'steel_l');
-  b.paint((x, y, z) => ((x < 1 || x > n - 1 || z < 1 || z > n - 1) && (Math.floor(x) === 2 || Math.floor(x) === n - 3 || Math.floor(z) === 2 || Math.floor(z) === n - 3) && Math.floor(y) % 4 === 2 ? 'steel_l' : undefined));
-  b.paint((x, y) => (y < 1 ? 'steel_d' : undefined));
+  // бронеящик: тёмный металл, светлая рамка-фаска, болты по углам, шов посередине
+  const n = 40, H = 30, b = new Vox(n, H, n);
+  b.box(0, n, 0, H, 0, n, 'gun');
+  b.paint((x, y, z) => {
+    const ex = x < 2.5 || x > n - 2.5, ez = z < 2.5 || z > n - 2.5, ey = y > H - 2.5 || y < 2.5;
+    return (ex && ez) || (ex && ey) || (ez && ey) ? 'gun_l' : undefined;
+  });
+  b.box(6, n - 6, H - 1, H, 6, n - 6, 'steel_d');
+  b.box(n / 2 - 0.5, n / 2 + 0.5, H - 1, H + 0.01, 6, n - 6, 'gun_d'); b.box(6, n - 6, H - 1, H + 0.01, n / 2 - 0.5, n / 2 + 0.5, 'gun_d');
+  for (const [x, z] of [[3, 3], [n - 5, 3], [3, n - 5], [n - 5, n - 5]]) b.box(x, x + 2, H, H + 1, z, z + 2, 'gold');
+  for (const y of [5, H - 7]) for (const [x, z] of [[3, -0.01], [n - 5, -0.01], [-0.01, 3], [-0.01, n - 5]]) b.box(x < 0 ? 0 : x, x < 0 ? 0.6 : x + 2, y, y + 2, z < 0 ? 0 : z, z < 0 ? 0.6 : z + 2, 'gold');
+  b.paint((x, y, z) => ((Math.abs(x - n / 2) < 0.6 && (z < 0.6 || z > n - 0.6)) || (Math.abs(z - n / 2) < 0.6 && (x < 0.6 || x > n - 0.6)) ? 'gun_d' : undefined), 0, n, 4, H - 4, 0, n);
   void v;
-  return one(b, 14, [n, n]);
+  return one(b, 40, [n, n]);
 }
 
 export function bush(v: number): ModelDef {
-  const n = 22, b = new Vox(n, 14, n);
-  const blobs: [number, number, number, number][] = [[11, 6, 11, 6.5], [6, 4, 7, 4.2], [16, 4.5, 8, 4.5], [7, 4.5, 15, 4.5], [15, 4, 16, 4.6], [11, 9, 9, 3.6]];
-  for (const [x, y, z, r] of blobs) b.ell(x, y, z, r, r * 0.85, r, 'leaf');
-  b.paint((x, y, z) => { const h = Math.sin(x * 2.1 + z * 1.3 + v) * Math.cos(z * 1.7 - y); return h > 0.55 ? 'leaf_l' : h < -0.6 ? 'leaf_d' : undefined; });
-  b.paint((x, y) => (y > 9 ? 'leaf_l' : y < 2 ? 'leaf_d' : undefined));
-  for (let i = 0; i < 4; i++) b.paint(() => 'berry', 4 + i * 4, 5 + i * 4, 6 + (i % 2) * 2, 7 + (i % 2) * 2, 3 + ((i * 5) % 14), 4 + ((i * 5) % 14));
+  // пышный куст из нескольких шапок листвы: светлый верх, тёмный низ, красные ягоды
+  const n = 48, b = new Vox(n, 30, n);
+  const blobs: [number, number, number, number][] = [[24, 13, 24, 13], [13, 9, 15, 9], [35, 10, 16, 9.5], [14, 10, 33, 9.5], [33, 9, 34, 10], [23, 19, 20, 8], [28, 17, 29, 7.5]];
+  for (const [x, y, z, r] of blobs) b.ell(x, y, z, r, r * 0.82, r, 'leaf');
+  b.paint((x, y, z) => { const h = Math.sin(x * 0.9 + z * 0.6 + v) * Math.cos(z * 0.8 - y * 0.7); return h > 0.62 ? 'leaf_l' : h < -0.66 ? 'leaf_d' : undefined; });
+  b.paint((x, y) => (y > 21 ? 'grass_ll' : y < 4 ? 'leaf_d' : undefined));
+  for (let i = 0; i < 9; i++) { const x = 8 + ((i * 17 + v * 5) % 32), z = 8 + ((i * 23 + v * 3) % 32), y = 8 + (i % 4) * 3; b.paint(() => 'berry', x, x + 2, y, y + 2, z, z + 2); }
   return one(b, n, [n, n]);
 }
 

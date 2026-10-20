@@ -61,16 +61,16 @@ function free(list: Prop[], x: number, y: number, w: number, h: number, keep: { 
 
 /** Деталь модуля: отдельный блок (кирпич/сталь), куст или пруд; координаты центра — в ячейке. */
 type Piece = { k: 'brick' | 'steel' | 'bush' | 'water'; x: number; y: number; w?: number; h?: number };
-/** Блок укрытия — почти с танк (28): отдельные крупные кубы с просветами, не сплошная кладка. */
-const BLK = 26;
-const STEP = 34; // шаг между блоками (просвет 8 — танк не протиснется, но блоки читаются по одному)
-const TOY_CELL = 144;
+/** Блок укрытия — почти с танк (64): отдельные крупные кубы с просветами, не сплошная кладка. */
+const BLK = 46;
+const STEP = 54; // шаг между блоками (просвет 8 — танк не протиснется, но блоки читаются по одному)
+const TOY_CELL = 270;
 const M = TOY_CELL / 2;
 const b = (k: 'brick' | 'steel', x: number, y: number): Piece => ({ k, x, y });
 
 const TOY_MODULES: { p: number; parts: Piece[] }[] = [
   // Пусто — проезды и «воздух» между укрытиями.
-  { p: 0.36, parts: [] },
+  { p: 0.34, parts: [] },
   // Ряд из трёх кирпичных блоков.
   { p: 0.12, parts: [b('brick', M - STEP, M), b('brick', M, M), b('brick', M + STEP, M)] },
   // Столбик из трёх.
@@ -85,18 +85,22 @@ const TOY_MODULES: { p: number; parts: Piece[] }[] = [
   { p: 0.05, parts: [b('steel', M, M)] },
   { p: 0.05, parts: [b('brick', M, M)] },
   // Кусты.
-  { p: 0.05, parts: [{ k: 'bush', x: M - 22, y: M, w: 44, h: 44 }, { k: 'bush', x: M + 22, y: M + 6, w: 40, h: 40 }] },
+  { p: 0.05, parts: [{ k: 'bush', x: M - 42, y: M, w: 80, h: 80 }, { k: 'bush', x: M + 42, y: M + 10, w: 72, h: 72 }] },
   // Пруд.
-  { p: 0.03, parts: [{ k: 'water', x: M, y: M, w: 80, h: 60 }] },
+  { p: 0.05, parts: [{ k: 'water', x: M, y: M, w: 170, h: 120 }] },
 ];
 
 function toyProps(_rng: Rng, s: StageDef): Prop[] {
   const out: Prop[] = [];
   const cx = s.w / 2, cy = s.h / 2;
-  const keep = [{ x: cx, y: cy, r: 105 }];
+  const keep = [{ x: cx, y: cy, r: 190 }];
   const C = TOY_CELL;
   const cols = Math.floor(s.w / C), rows = Math.floor(s.h / C);
   const ox = (s.w - cols * C) / 2, oy = (s.h - rows * C) / 2;
+  // Пруды — ориентиры полигона (симметрично, вдали от старта).
+  for (const [dx, dy, w, h] of [[-760, -330, 230, 160], [760, 330, 230, 160], [560, -440, 170, 120], [-560, 440, 170, 120]]) {
+    if (free(out, cx + dx, cy + dy, w, h, keep, 10)) out.push(P(0, 'water', 'water', cx + dx, cy + dy, w, h));
+  }
   const place = (pc: Piece, x0: number, y0: number, flipX: boolean, flipY: boolean, v: number) => {
     const X = x0 + (flipX ? C - pc.x : pc.x), Y = y0 + (flipY ? C - pc.y : pc.y);
     const w = pc.w ?? BLK, h = pc.h ?? BLK;
@@ -117,7 +121,7 @@ function toyProps(_rng: Rng, s: StageDef): Prop[] {
     mod.parts.forEach((pc, i) => place(pc, x0, y0, gx > cols - 1 - gx, gy > rows - 1 - gy, qx + qy + i));
   }
   // Укрытия у старта: по паре блоков с каждой стороны, углы открыты.
-  for (const [dx, dy, vert] of [[-150, 0, 1], [150, 0, 1], [0, -118, 0], [0, 118, 0]]) {
+  for (const [dx, dy, vert] of [[-270, 0, 1], [270, 0, 1], [0, -210, 0], [0, 210, 0]]) {
     for (const o of [-STEP / 2, STEP / 2]) place(b('brick', 0, 0), cx + dx + (vert ? 0 : o), cy + dy + (vert ? o : 0), false, false, 0);
   }
   return out;

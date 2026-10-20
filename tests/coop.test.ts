@@ -8,7 +8,7 @@ describe('дружественный огонь', () => {
   it('взрывы игрока не вредят и не двигают напарника', () => {
     const sim = makeSim();
     const [a, b] = sim.players;
-    b.x = a.x + 30; b.y = a.y;
+    b.x = a.x + sim.size * 1.2; b.y = a.y;
     const hp = b.hp, x = b.x, y = b.y;
     explode(sim, b.x, b.y, 200, 1e9, 'he', a.idx, 'he', { kind: 'big', knock: 10, ignite: true });
     step(sim, 30);

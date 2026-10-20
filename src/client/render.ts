@@ -52,7 +52,6 @@ export function drawWorld(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   drawShots(ctx, rc, false);
   drawPickups(ctx, rc);
   drawShots(ctx, rc, true);
-  drawZonesTop(ctx, rc);
   rc.fx.draw(ctx, cam, 1);
 }
 
@@ -312,23 +311,6 @@ function drawZonesGround(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   }
 }
 
-function drawZonesTop(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
-  const { sim, cam } = rc;
-  for (const z of sim.zones) {
-    if (z.dead || z.kind !== 'smoke') continue;
-    const u = z.t / z.dur, fade = u > 0.8 ? (1 - u) / 0.2 : Math.min(1, z.t * 3);
-    const r = z.r * cam.zoom;
-    ctx.globalAlpha = 0.5 * fade;
-    for (let i = 0; i < 9; i++) {
-      const a = i * 0.7 + rc.time * 0.2, d = (i % 3) * 0.3 * z.r;
-      const wx = z.x + Math.cos(a) * d, wy = z.y + Math.sin(a) * d;
-      const rr = r * (0.42 + 0.06 * Math.sin(rc.time + i));
-      const sx = cam.sxOf(wx, wy), sy = cam.syOf(wx, wy, z.r * 0.3);
-      ctx.drawImage(disc(rr, i % 2 ? '#9a92a0' : '#c8c0c8'), Math.round(sx - rr), Math.round(sy - rr));
-    }
-    ctx.globalAlpha = 1;
-  }
-}
 
 function drawMines(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
   const { sim, cam } = rc;

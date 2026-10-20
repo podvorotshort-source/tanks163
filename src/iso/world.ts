@@ -1,118 +1,128 @@
 // Изометрический мир игры: связывает симуляцию с 3D-выводом.
-// Сцена ступени s = арена (земля + препятствия + юниты) + «внешний мир» ступени s+1 вокруг (в 4 раза крупнее).
-// Переход между ступенями — непрерывный отъезд камеры: внешний мир уже на месте, после переключения
-// он становится ареной, а прежняя арена остаётся в нём «реликвией».
+// Земля — нарисованная попиксельно картинка ступени (src/iso/paint), объекты — воксельные модели.
+// В бою масштаб постоянный (ART_Z). Переход между ступенями: танк поглощает босса и растёт вчетверо,
+// камера отъезжает вчетверо; под старой ареной проступает земля следующей ступени, где старая арена
+// заново нарисована «реликвией» в новом масштабе, а затем старая картинка гаснет.
 
 import * as THREE from 'three';
 import type { Camera } from '../client/camera';
+import { ISO_X, ISO_Y } from '../client/camera';
 import type { Sim } from '../sim/sim';
 import type { Enemy, Player } from '../sim/entities';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { STAGE_GROWTH } from '../sim/types';
-import { MATS } from '../sim/props';
+import { MATS, type Prop } from '../sim/props';
+import { Rng } from '../core/rng';
 import { IsoRenderer, ModelPool } from './renderer';
 import { model } from './models/index';
-import { groundMesh, frameMesh, cellAt } from './ground';
-import { decoFor } from './models/deco';
+import { paintStage, paintNow, ART_Z, type PaintResult } from './paint';
 import { tierOf } from '../client/tiers';
 import { bossDropH } from '../client/render';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const G = STAGE_GROWTH;
 
 export interface Decal { x: number; y: number; r: number; kind: string; col: string; seed: number; a: number }
 
+/** Состояние кат-сцены перехода для вывода. */
+export interface TransView {
+  from: number;
+  /** Симуляция уже на новой ступени (координаты — новые). */
+  switched: boolean;
+  /** Визуальный рост танков (1 → 4 в старых координатах; после переключения — 1). */
+  tankScale: number;
+  /** Облик уже новый (поглощение свершилось). */
+  evolved: boolean;
+  /** Обломки босса: тают и втягиваются в танк (k: 1 → 0). */
+  wreck: { x: number; y: number; size: number; angle: number; art: string; k: number } | null;
+  /** Непрозрачность старой земли и её полей (мира вокруг арены). */
+  oldAlpha: number;
+  marginAlpha: number;
+}
+
 /** Неподвижные модели (не поворачиваются к цели). */
 const FIXED = new Set(['toyBunker', 'jackBox', 'deskLamp', 'tv', 'silo', 'lance', 'mobileFort', 'moonlet']);
+/** Нарисованы в земле — моделей нет. */
+const PAINTED = new Set(['water']);
 
 export class IsoWorld {
   readonly r: IsoRenderer;
   private pools = new Map<string, ModelPool>();
-  private stage = -1;
-  private stageGroup = new THREE.Group();
   private units = new THREE.Group();
   private decals: THREE.InstancedMesh;
   private decalN = 0;
   private decalMax = 400;
   private tmp = new THREE.Matrix4();
   private col = new THREE.Color();
+  private seed = -1;
+  private paints = new Map<string, PaintResult>();
+  private jobs = new Map<string, Generator<void, PaintResult>>();
+  private nextProps = new Map<number, Prop[]>();
 
   constructor(canvas: HTMLCanvasElement) {
     this.r = new IsoRenderer(canvas);
-    this.r.scene.add(this.stageGroup, this.units);
+    this.r.scene.add(this.units);
     const dg = new THREE.CircleGeometry(1, 12); dg.rotateX(-Math.PI / 2);
-    this.decals = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.5, depthWrite: false }), this.decalMax);
+    this.decals = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }), this.decalMax);
     this.decals.count = 0; this.decals.frustumCulled = false; this.decals.renderOrder = 1;
     this.r.scene.add(this.decals);
   }
 
-  // ------------------------------------------------------------ ступень: земля, рамка, внешний мир
-  private built = new Map<number, THREE.Group>();
-
-  /** Заранее собрать сцену ступени s (дорого: земля из десятков тысяч клеток). */
-  prebuild(s: number): void { if (s <= 7 && !this.built.has(s)) this.built.set(s, this.buildStage(s)); }
-
-  private buildStage(s: number): THREE.Group {
-    const grp = new THREE.Group();
-    const st = STAGE_DEFS[s], mat = this.r.litMat;
-    grp.add(groundMesh(s, 0, 0, st.w, st.h, 10, mat));
-    grp.add(frameMesh(s, st.w, st.h, mat));
-    this.addDeco(grp, s);
-    // внешний мир — следующая ступень (или стол с глобусом за планетой), в 4 раза крупнее, чуть ниже
-    const G = STAGE_GROWTH, ns = s + 1, nd = STAGE_DEFS[Math.min(ns, 7)];
-    const relX = ns <= 7 ? nd.relicX : 1440, relY = ns <= 7 ? nd.relicY : 810;
-    const outer = groundMesh(ns, 0, 0, ns <= 7 ? nd.w : 2880, ns <= 7 ? nd.h : 1620, 32, mat);
-    outer.scale.set(G, G, G);
-    outer.position.set(st.w / 2 - relX * G, -3, st.h / 2 - relY * G);
-    grp.add(outer);
-    // ещё дальше — ровная поверхность, чтобы при отъезде ×24 не было пустоты
-    const far = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: ['#c58a4e', '#a06a3a', '#6e6a6a', '#7a8a6a', '#5a7a4a', '#2a4a7a', '#14101e', '#14101e', '#14101e'][Math.min(ns, 8)] }));
-    far.scale.set(st.w * 400, 1, st.h * 400); far.position.set(st.w / 2, -8, st.h / 2); far.receiveShadow = true;
-    grp.add(far);
-    return grp;
+  // ------------------------------------------------------------ земля ступеней
+  setSeed(seed: number): void {
+    if (seed === this.seed) return;
+    this.seed = seed;
+    this.jobs.clear(); this.nextProps.clear();
   }
 
-  /** Мелкие детали на земле арены (статичные экземпляры, без теней). */
-  private addDeco(grp: THREE.Group, s: number): void {
-    const st = STAGE_DEFS[s], G = STAGE_GROWTH;
-    const prev = s > 0 ? STAGE_DEFS[s - 1] : null;
-    const rx0 = prev ? st.relicX - prev.w / G / 2 : 0, ry0 = prev ? st.relicY - prev.h / G / 2 : 0;
-    const byKey = new Map<string, THREE.Matrix4[]>();
-    let seed = 1234567 + s * 999;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
-    const N = 4200;
-    for (let i = 0; i < N; i++) {
-      const x = rnd() * st.w, y = rnd() * st.h;
-      if (prev && x > rx0 - 10 && y > ry0 - 10 && x < rx0 + prev.w / G + 10 && y < ry0 + prev.h / G + 10) continue;
-      const d = decoFor(s, cellAt(s, x, y).c);
-      if (!d) continue;
-      const key = `deco:${d[0]}:${Math.floor(rnd() * 5)}`;
-      const m = model(key), k = (d[1] / m.size) * (0.8 + rnd() * 0.5);
-      const mx = new THREE.Matrix4().makeRotationY(rnd() * 6.283).scale(new THREE.Vector3(k, k, k)).setPosition(x, 0, y);
-      let arr = byKey.get(key); if (!arr) byKey.set(key, (arr = []));
-      arr.push(mx);
-    }
-    for (const [key, arr] of byKey) {
-      const part = model(key).parts[0];
-      if (!part.lit) continue;
-      const im = new THREE.InstancedMesh(part.lit, this.r.litMat, arr.length);
-      arr.forEach((mx, i) => im.setMatrixAt(i, mx));
-      im.receiveShadow = true; im.frustumCulled = false; im.userData.shared = true;
-      grp.add(im);
+  /** Начать рисовать землю ступени s в фоне (по кусочку в кадр, см. pump). */
+  prebuild(s: number): void {
+    const key = this.seed + ':' + s;
+    if (s > 7 || this.paints.has(key) || this.jobs.has(key)) return;
+    this.jobs.set(key, paintStage(s, this.seed));
+  }
+
+  /** Продвинуть фоновое рисование (бюджет — миллисекунды). */
+  pump(ms: number): void {
+    const end = performance.now() + ms;
+    for (const [key, g] of this.jobs) {
+      while (performance.now() < end) {
+        const r = g.next();
+        if (r.done) { this.store(key, r.value); this.jobs.delete(key); break; }
+      }
+      if (performance.now() >= end) return;
     }
   }
 
-  /** Показать сцену ступени s. */
-  setStage(s: number): void {
-    if (s === this.stage) return;
-    const old = this.stage;
-    this.stage = s;
-    this.prebuild(s);
-    this.stageGroup.clear();
-    this.stageGroup.add(this.built.get(s)!);
-    // прежняя ступень больше не нужна — освобождаем память
-    const g = this.built.get(old);
-    if (g && old !== s) { g.traverse(o => { if ((o as THREE.Mesh).geometry && !o.userData.shared) (o as THREE.Mesh).geometry.dispose(); }); this.built.delete(old); }
-    this.decalN = 0; this.decals.count = 0;
+  /** Земля ступени — готовая (дорисовывается сразу, если не успела в фоне). */
+  paint(s: number): PaintResult {
+    const key = this.seed + ':' + s;
+    let p = this.paints.get(key);
+    if (!p) {
+      const g = this.jobs.get(key);
+      if (g) { for (;;) { const r = g.next(); if (r.done) { p = r.value; break; } } this.jobs.delete(key); }
+      else p = paintNow(s, this.seed);
+      this.store(key, p);
+    }
+    return p;
+  }
+
+  /** Хранить не больше четырёх картинок (самые давние — освобождаем). */
+  private store(key: string, p: PaintResult): void {
+    this.paints.delete(key);
+    this.paints.set(key, p);
+    while (this.paints.size > 4) { const [k, v] = this.paints.entries().next().value!; v.tex.dispose(); this.paints.delete(k); }
+  }
+
+  /** Препятствия ступени — те же, что создаст симуляция (для показа мира вокруг при отъезде камеры). */
+  private propsOf(s: number): Prop[] {
+    let p = this.nextProps.get(s);
+    if (!p) {
+      const def = STAGE_DEFS[s];
+      p = def.props(new Rng((this.seed ^ (s * 7919)) >>> 0), def);
+      this.nextProps.set(s, p);
+    }
+    return p;
   }
 
   // ------------------------------------------------------------ следы на земле
@@ -123,7 +133,7 @@ export class IsoWorld {
     const r = d.r * (d.kind === 'crater' ? 1.1 : 1);
     this.tmp.compose(new THREE.Vector3(d.x, 0.05 + (i % 7) * 0.01, d.y), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), d.seed), new THREE.Vector3(r, 1, r * (0.75 + ((d.seed >>> 3) % 5) * 0.06)));
     this.decals.setMatrixAt(i, this.tmp);
-    this.col.set(d.kind === 'rubble' ? d.col : d.kind === 'splat' ? '#2a2630' : '#14111a');
+    this.col.set(d.kind === 'rubble' ? d.col : d.kind === 'splat' ? '#2a2630' : '#1a1222');
     this.decals.setColorAt(i, this.col);
     this.decalN++;
     this.decals.count = Math.min(this.decalN, this.decalMax);
@@ -142,72 +152,121 @@ export class IsoWorld {
     return this.tmp.makeRotationY(-a).scale(new THREE.Vector3(s, s, s)).setPosition(x, h, y);
   }
 
-  // ------------------------------------------------------------ отдельная сцена (финал)
+  // ------------------------------------------------------------ отдельная сцена (финал, фон меню)
   private extra: THREE.Object3D | null = null;
-  /** Показать вместо мира другую сцену (финальный стол с глобусом). */
-  renderScene(obj: THREE.Object3D, cam: Camera): void {
+  /** Показать вместо мира другую сцену; ground — ступень, чья нарисованная земля лежит под ней. */
+  renderScene(obj: THREE.Object3D, cam: Camera, ground: number | null = null, seed = 1): void {
     if (this.extra !== obj) {
       if (this.extra) this.r.scene.remove(this.extra);
       this.extra = obj; this.r.scene.add(obj);
-      this.stageGroup.visible = this.units.visible = this.decals.visible = false;
+      this.units.visible = this.decals.visible = false;
     }
     this.r.resize(cam.w, cam.h);
+    if (ground !== null) {
+      this.setSeed(seed);
+      const p = this.paint(ground);
+      this.r.groundView('A', p, (cam.cx - cam.cy) * ISO_X * ART_Z, (cam.cx + cam.cy) * ISO_Y * ART_Z, cam.zoom / ART_Z, 1);
+    } else this.r.groundView('A', null, 0, 0, 1, 0);
+    this.r.groundView('B', null, 0, 0, 1, 0);
+    this.r.setMargin(1);
     this.r.setCamera(cam);
     this.r.render();
   }
 
   // ------------------------------------------------------------ кадр
-  render(sim: Sim, cam: Camera, alpha: number, time: number, opts: { hideProps?: boolean; hideUnits?: boolean } = {}): void {
-    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.stageGroup.visible = this.units.visible = this.decals.visible = true; }
+  render(sim: Sim, cam: Camera, alpha: number, time: number, tv: TransView | null = null): void {
+    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = true; }
+    this.setSeed(sim.cfg.seed);
     this.r.resize(cam.w, cam.h);
-    this.setStage(sim.stageIdx);
+    this.ground(sim, cam, tv);
     for (const p of this.pools.values()) p.begin();
-    if (!opts.hideProps) this.syncProps(sim, time);
-    if (!opts.hideUnits) {
-      for (const p of sim.players) this.syncPlayer(sim, p, alpha, time);
-      for (const e of sim.enemies) this.syncEnemy(sim, e, alpha, time);
+    this.syncProps(sim.props.props, time, cam, 1, null);
+    if (tv && !tv.switched && tv.from < 7) {
+      // мир следующей ступени вокруг (в старых координатах — вчетверо крупнее)
+      const nd = STAGE_DEFS[tv.from + 1], od = STAGE_DEFS[tv.from];
+      this.syncProps(this.propsOf(tv.from + 1), time, cam, G, (x, y) => [od.w / 2 + (x - nd.relicX) * G, od.h / 2 + (y - nd.relicY) * G]);
+    }
+    for (const p of sim.players) this.syncPlayer(sim, p, alpha, time, tv);
+    for (const e of sim.enemies) this.syncEnemy(sim, e, alpha, time);
+    if (!tv) {
       for (const d of sim.drones) {
         const m = model('drone');
         this.pool('drone').add(this.root(d.x, sim.size * 1.2, d.y, d.a, (sim.size * 0.45) / m.size), n => (n === 'rotor' ? time * 30 : 0));
       }
-    }
+    } else if (tv.wreck && tv.wreck.k > 0.02) this.syncWreck(tv.wreck, time);
     for (const p of this.pools.values()) p.end();
     this.r.setCamera(cam);
     this.r.render();
   }
 
-  private syncProps(sim: Sim, time: number): void {
-    const under = (px: number, py: number, w: number, h: number) => sim.players.some(pl => pl.state === 'alive' && Math.abs(pl.x - px) < w / 2 + pl.r && Math.abs(pl.y - py) < h / 2 + pl.r);
-    for (const p of sim.props.props) {
-      if (p.dead) continue;
-      const key = `prop:${p.kind}:${p.v}`;
+  /** Слои земли: в бою — картинка ступени 1:1; при переходе — старая поверх новой. */
+  private ground(sim: Sim, cam: Camera, tv: TransView | null): void {
+    const r = this.r;
+    const uv = (x: number, y: number): [number, number] => [(x - y) * ISO_X * ART_Z, (x + y) * ISO_Y * ART_Z];
+    if (!tv) {
+      const p = this.paint(sim.stageIdx);
+      const [u, v] = uv(cam.cx, cam.cy);
+      r.groundView('A', p, u, v, cam.zoom / ART_Z, 1);
+      r.groundView('B', null, 0, 0, 1, 0);
+      r.setMargin(1);
+      if (sim.boss || sim.stageTime > sim.stage.bossAt - 40) this.prebuild(sim.stageIdx + 1);
+      return;
+    }
+    const od = STAGE_DEFS[tv.from], nd = STAGE_DEFS[Math.min(7, tv.from + 1)];
+    let ox: number, oy: number, nx: number, ny: number, zo: number, zn: number;
+    if (!tv.switched) { ox = cam.cx; oy = cam.cy; zo = cam.zoom; nx = nd.relicX + (ox - od.w / 2) / G; ny = nd.relicY + (oy - od.h / 2) / G; zn = zo * G; }
+    else { nx = cam.cx; ny = cam.cy; zn = cam.zoom; ox = od.w / 2 + (nx - nd.relicX) * G; oy = od.h / 2 + (ny - nd.relicY) * G; zo = zn / G; }
+    const po = this.paint(tv.from), pn = this.paint(Math.min(7, tv.from + 1));
+    const [ou, ov] = uv(ox, oy), [nu, nv] = uv(nx, ny);
+    r.groundView('A', po, ou, ov, zo / ART_Z, tv.oldAlpha);
+    r.groundView('B', pn, nu, nv, zn / ART_Z, 1);
+    r.setMargin(tv.marginAlpha);
+  }
+
+  private syncProps(props: Prop[], time: number, cam: Camera, scale: number, map: ((x: number, y: number) => [number, number]) | null): void {
+    for (const p of props) {
+      if (p.dead || PAINTED.has(p.kind)) continue;
+      let px = p.x, py = p.y;
+      if (map) [px, py] = map(p.x, p.y);
+      const pw = p.w * scale, ph = p.h * scale;
+      if (!cam.visible(px, py, Math.max(pw, ph))) continue;
+      // крошечные (реликвии, вид издалека) — упрощённая модель, чтобы не рассыпаться на «кашу»
+      const tiny = Math.max(pw, ph) * cam.zoom < 10;
+      const key = tiny ? `mini:${p.kind}:${p.v}` : `prop:${p.kind}:${p.v}`;
       const m = model(key), foot = m.foot ?? [m.size, m.size];
-      let w = p.w, h = p.h, a = 0;
-      if (foot[0] > foot[1] * 1.3 && p.h > p.w * 1.3) { a = Math.PI / 2; w = p.h; h = p.w; }
+      let w = pw, h = ph, a = 0;
+      if (foot[0] > foot[1] * 1.3 && ph > pw * 1.3) { a = Math.PI / 2; w = ph; h = pw; }
       const sx = w / foot[0], sz = h / foot[1], sy = Math.min(sx, sz);
       const mat = MATS[p.mat];
-      let ky = 1;
-      if (mat.canopy && under(p.x, p.y, p.w, p.h)) ky = 0.3;               // танк под кустом — куст «приминается»
       if (p.ttl !== undefined && p.ttl < 2 && Math.floor(time * 8) % 2) continue;
-      this.tmp.makeRotationY(a).scale(new THREE.Vector3(sx, sy * ky, sz)).setPosition(p.x, 0, p.y);
+      this.tmp.makeRotationY(a).scale(new THREE.Vector3(sx, sy, sz)).setPosition(px, 0, py);
       const dmg = p.maxHp < 1e11 && p.hp < p.maxHp * 0.5 && !mat.solid;
       this.pool(key).add(this.tmp, undefined, dmg ? DMG : undefined);
     }
   }
 
-  private syncPlayer(sim: Sim, p: Player, alpha: number, time: number): void {
+  private syncPlayer(sim: Sim, p: Player, alpha: number, time: number, tv: TransView | null): void {
     if (p.state === 'dead' || p.state === 'out') return;
-    if (p.invulnT > 0 && p.invulnT < 3 && Math.floor(time * 14) % 2 === 0) return;
+    if (!tv && p.invulnT > 0 && p.invulnT < 3 && Math.floor(time * 14) % 2 === 0) return;
     const x = lerp(p.px, p.x, alpha), y = lerp(p.py, p.y, alpha);
-    const tier = tierOf(sim.stageIdx);
+    let tier = tierOf(sim.stageIdx);
+    if (tv && tv.evolved && !tv.switched) tier = Math.min(7, tier + 1);
     const key = p.state === 'down' ? `wreck:${p.classId}:${tier}` : `tank:${p.classId}:${tier}:${p.idx}`;
     const m = model(key);
-    const s = sim.size / m.size;
-    const col = p.hurtT > 0.12 ? FLASH : undefined;
-    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : 0), col);
+    const s = (sim.size / m.size) * (tv ? tv.tankScale : 1);
+    const col = !tv && p.hurtT > 0.12 ? FLASH : undefined;
+    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col);
+  }
+
+  private syncWreck(w: NonNullable<TransView['wreck']>, time: number): void {
+    const key = `boss:${w.art}`;
+    const m = model(key);
+    const s = (w.size / m.size) * w.k;
+    this.pool(key).add(this.root(w.x, 0, w.y, w.angle, s), n => (n === 'key' ? time * 0.6 : 0), WRECK, WRECK_GLOW);
   }
 
   private syncEnemy(sim: Sim, e: Enemy, alpha: number, time: number): void {
+    if (e.dead) return;
     const x = lerp(e.px, e.x, alpha), y = lerp(e.py, e.y, alpha);
     const art = e.def.art;
     const boss = e === sim.boss;
@@ -232,3 +291,5 @@ const ELITE = new THREE.Color(1.25, 0.82, 1.4);
 const BONUS = new THREE.Color(1.8, 0.7, 0.6);
 const BURN = new THREE.Color(0.75, 0.6, 0.55);
 const DMG = new THREE.Color(0.72, 0.68, 0.7);
+const WRECK = new THREE.Color(0.55, 0.5, 0.56);
+const WRECK_GLOW = new THREE.Color(0.8, 0.5, 0.45);

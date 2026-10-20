@@ -107,7 +107,6 @@ export class Player {
   overdriveT = 0;
   repairT = 0;
   repairRate = 0;
-  inSmoke = false;
   contactT = 0;
   seismicT = 0;
   /** Звёзды основного орудия (общие для команды, но храним у каждого). */
@@ -277,13 +276,13 @@ export class Mine {
   r = 0;
 }
 
-export type ZoneKind = 'smoke' | 'gravity' | 'tar' | 'freeze' | 'barrage' | 'hazard' | 'shock' | 'hqField';
+export type ZoneKind = 'gravity' | 'tar' | 'freeze' | 'barrage' | 'hazard' | 'shock' | 'hqField';
 
 export class Zone {
   x = 0; y = 0; r = 0;
   t = 0;
   dur = 1;
-  kind: ZoneKind = 'smoke';
+  kind: ZoneKind = 'hazard';
   owner = -1;
   team: ShotTeam = 0;
   dps = 0;

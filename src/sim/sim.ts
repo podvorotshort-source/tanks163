@@ -4,10 +4,10 @@ import { Rng } from '../core/rng';
 import { clamp, dist2 } from '../core/math';
 import {
   type SimEvent, type ClassId, type WeaponId, type AbilityId, type PowerupId,
-  DT, TANK_BASE, STAGE_GROWTH, STAGES, powerOf, stageUnit,
+  DT, TANK_BASE, TANK_SIZE, STAGE_GROWTH, STAGES, powerOf, stageUnit,
 } from './types';
 import { Player, Enemy, Shot, Mine, Zone, Pickup, Drone, type WeaponInst } from './entities';
-import { CLASSES, ABILITIES } from './content/classes';
+import { CLASSES, ABILITIES, BOSS_ABILITY } from './content/classes';
 import { STAGE_DEFS, type StageDef } from './content/stages';
 import { PropWorld, MATS, makeProp, type Prop } from './props';
 import { NavGrid } from './nav';
@@ -19,6 +19,7 @@ import { updatePlayers } from './playerRun';
 import { updateEnemies } from './enemyRun';
 import { updateShots, updateMines, updateZones, updateDrones } from './shotsRun';
 import { Director } from './director';
+import { BOSSES } from './bosses';
 import { updatePickups } from './powerups';
 import { burnTick } from './combat';
 
@@ -85,11 +86,19 @@ export interface TransitionState {
   /** Танк в момент перехода (старые координаты). */
   ox: number;
   oy: number;
+  /** Побеждённый босс (старые координаты): к нему подъезжает танк и поглощает его. */
+  bx: number;
+  by: number;
+  bsize: number;
+  bangle: number;
+  bart: string;
 }
 
 const LEVELS_PER_STAGE = 12;
-export const TRANSITION_TIME = 9;
-export const TRANSITION_SWITCH = 3.4;
+/** Переход: взрывы босса → танк подъезжает к обломкам → поглощение → отъезд камеры (новый масштаб) → бой. */
+export const TR_DRIVE0 = 0.9, TR_DRIVE1 = 2.8, TR_ABSORB1 = 4.4;
+export const TRANSITION_SWITCH = 7.8;
+export const TRANSITION_TIME = 9.4;
 
 export class Sim {
   rng: Rng;
@@ -127,9 +136,8 @@ export class Sim {
   levelsThisStage = 0;
   /** Экспонента роста (абсолютный размер = 28·G^e). */
   growE = 0;
-  /** Текущий размер танка, локальные ед. (сглаженный). */
-  size = TANK_BASE;
-  sizeTarget = TANK_BASE;
+  /** Физический размер танка (постоянный). */
+  size = TANK_SIZE;
   starTier = 0;
   /** Каска: неуязвимость команды. */
   helmetT = 0;
@@ -231,12 +239,10 @@ export class Sim {
     this.pickups = [];
     this.drones = [];
     this.director = new Director(this);
-    this.sizeTarget = TANK_BASE * Math.pow(STAGE_GROWTH, this.growE - n);
-    this.size = this.sizeTarget;
     if (!carry) {
       // Старт забега: игроки в центре.
       this.players.forEach((p, i) => {
-        p.x = p.px = s.w / 2 + (this.players.length > 1 ? (i ? 22 : -22) : 0);
+        p.x = p.px = s.w / 2 + (this.players.length > 1 ? (i ? 1 : -1) * this.size * 0.6 : 0);
         p.y = p.py = s.h / 2 + 30;
         p.angle = p.turret = -Math.PI / 2;
       });
@@ -266,8 +272,18 @@ export class Sim {
     return stageUnit(this.stageIdx);
   }
 
+  /** «Виртуальный» размер для силы: растёт с уровнями 28 → 112 за ступень, как прежний рост танка. */
+  get vsize(): number {
+    return TANK_BASE * Math.pow(STAGE_GROWTH, this.growE - this.stageIdx);
+  }
+
+  /** Во сколько раз физические размеры врагов меньше «силовых» (враги подбираются по vsize, рисуются рядом с танком). */
+  get compress(): number {
+    return this.size / this.vsize;
+  }
+
   tankPower(): number {
-    return powerOf(this.size * this.unit);
+    return powerOf(this.vsize * this.unit);
   }
 
   /** Множитель получаемого игроками урона: угроза × нарастание по ступеням. */
@@ -289,8 +305,10 @@ export class Sim {
 
   /** Половина видимой области (игровая, 16:9). */
   viewHalf(): [number, number] {
-    const k = this.size / TANK_BASE;
-    return [330 * k, 186 * k];
+    // Изометрическая камера (1 пиксель на единицу, 640×360): видимая область — повёрнутый прямоугольник ~±320×±360 ед.;
+    // берём квадрат с той же диагональю (по ней — кольцо появления врагов).
+    const r = 345 * (this.size / TANK_SIZE);
+    return [r, r];
   }
 
   center(): { x: number; y: number } {
@@ -363,7 +381,7 @@ export class Sim {
   private grow(): void {
     const cap = this.stageIdx + (this.bossDefeated ? 1 : 1.08);
     this.growE = Math.min(cap, this.growE + 1 / LEVELS_PER_STAGE);
-    this.sizeTarget = TANK_BASE * Math.pow(STAGE_GROWTH, this.growE - this.stageIdx);
+    for (const p of this.players) this.recalc(p);
   }
 
   private queueLevelUps(n: number): void {
@@ -431,6 +449,10 @@ export class Sim {
     } else if (c.id.startsWith('a:lvl:')) {
       const a = p.ability(c.id.slice(6) as AbilityId);
       if (a) a.level++;
+    } else if (kind === 'b') {
+      // Трофей босса: заменить способность в слоте (или оставить как есть).
+      const [, id, slot] = c.id.split(':');
+      if (slot !== 'keep') p.abilities[+slot] = { id: id as AbilityId, level: 1, t: 0, active: 0, charges: 1 };
     } else if (c.id === 'f:repair') p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.5);
     else if (c.id === 'f:scrap') this.scrapEarned += 40;
     else if (c.id === 'f:power') { p.stats.dmg += 0.04; p.stats.maxHp += 0.04; }
@@ -450,13 +472,6 @@ export class Sim {
     const dt = DT;
     this.time += dt;
     this.stageTime += dt;
-    // Плавный рост.
-    if (Math.abs(this.size - this.sizeTarget) > 1e-4) {
-      const prev = this.size;
-      this.size += (this.sizeTarget - this.size) * Math.min(1, dt * 2.2);
-      if (Math.abs(this.size - this.sizeTarget) < 0.01) this.size = this.sizeTarget;
-      if (Math.floor(prev * 4) !== Math.floor(this.size * 4)) for (const p of this.players) this.recalc(p);
-    }
     if (this.freezeT > 0) this.freezeT -= dt;
     if (this.helmetT > 0) this.helmetT -= dt;
     if (this.bossSlowT > 0) this.bossSlowT -= dt;
@@ -546,7 +561,11 @@ export class Sim {
     for (const p of this.players) {
       if (p.state === 'down' || p.state === 'dead') { p.state = 'alive'; p.hp = p.maxHp * 0.5; p.invulnT = 3; }
     }
-    this.transition = { t: 0, from: this.stageIdx, switched: false, ox: this.viewX, oy: this.viewY };
+    const lead = this.nearestPlayer(b.x, b.y);
+    this.transition = {
+      t: 0, from: this.stageIdx, switched: false, ox: lead?.x ?? this.viewX, oy: lead?.y ?? this.viewY,
+      bx: b.x, by: b.y, bsize: b.size ?? this.size * STAGE_GROWTH, bangle: b.angle ?? 0, bart: b.def?.art ?? '',
+    };
     this.state = 'transition';
   }
 
@@ -558,6 +577,27 @@ export class Sim {
       for (const e of this.enemies) if (!e.dead && this.rng.chance(0.06)) { e.dead = true; this.emit({ t: 'kill', x: e.x, y: e.y, size: e.size, kind: e.def.art, by: -1, xp: 0, crushed: false, air: e.air }); }
       for (const s of this.shots) s.dead = true;
       this.shots = [];
+    } else if (this.enemies.length) {
+      for (const e of this.enemies) if (!e.dead) { e.dead = true; this.emit({ t: 'kill', x: e.x, y: e.y, size: e.size, kind: e.def.art, by: -1, xp: 0, crushed: false, air: e.air }); }
+    }
+    if (this.enemies.some(e => e.dead)) this.enemies = this.enemies.filter(e => !e.dead);
+    this.zones = [];
+    // Танки подъезжают к обломкам босса и «въезжают» в них.
+    if (tr.t >= TR_DRIVE0 && !tr.switched) {
+      const alive = this.players.filter(p => p.state === 'alive');
+      alive.forEach((p, i) => {
+        const tx = tr.bx + (alive.length > 1 ? (i ? 1 : -1) * this.size * 0.6 : 0), ty = tr.by;
+        const dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
+        p.px = p.x; p.py = p.y;
+        if (d > 1) {
+          const sp = Math.max(d / Math.max(0.2, TR_DRIVE1 - tr.t), p.cls.speed * this.size * 0.8) * DT;
+          const k = Math.min(1, sp / d);
+          p.x += dx * k; p.y += dy * k;
+          p.vx = (dx / d) * sp / DT; p.vy = (dy / d) * sp / DT;
+          p.angle = Math.atan2(dy, dx); p.turret = p.angle;
+        } else { p.vx = p.vy = 0; }
+      });
+      if (tr.t >= TR_DRIVE1) { tr.ox = tr.bx; tr.oy = tr.by; this.viewX = tr.bx; this.viewY = tr.by; }
     }
     if (!tr.switched && tr.t >= TRANSITION_SWITCH) {
       tr.switched = true;
@@ -565,35 +605,73 @@ export class Sim {
       const next = STAGE_DEFS[tr.from + 1];
       const G = STAGE_GROWTH;
       const map = (x: number, y: number): [number, number] => [next.relicX + (x - old.w / 2) / G, next.relicY + (y - old.h / 2) / G];
-      for (const p of this.players) { [p.x, p.y] = map(p.x, p.y); p.px = p.x; p.py = p.y; }
+      // Танки выросли вчетверо вместе с миром: точка босса переносится в реликвию, а их взаимное
+      // расположение (в собственных размерах) сохраняется.
+      const [mbx, mby] = map(tr.bx, tr.by);
+      for (const p of this.players) { p.x = mbx + (p.x - tr.bx); p.y = mby + (p.y - tr.by); p.px = p.x; p.py = p.y; }
       [this.viewX, this.viewY] = map(this.viewX, this.viewY);
       // Препятствия прежней арены переезжают в новый мир уменьшенными — их можно давить.
       const carry = this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
       this.setupStage(tr.from + 1, tr);
       for (const p of carry) {
         const [x, y] = map(p.x, p.y);
+        // Под танками обломки не оставляем — танк стоит на месте поглощённого босса.
+        if (this.players.some(q => Math.abs(q.x - x) < this.size * 0.9 + p.w / G / 2 && Math.abs(q.y - y) < this.size * 0.9 + p.h / G / 2)) continue;
         this.props.add(makeProp(p.kind, p.mat, x, y, p.w / G, p.h / G, p.hp, { round: p.round, v: p.v, a: p.a }));
       }
       this.nav.rebuildBlocked(this.props);
-      for (const p of this.players) { p.px = p.x; p.py = p.y; }
-      // Камера ровно над игроками.
+      for (const p of this.players) { p.px = p.x; p.py = p.y; p.vx = p.vy = 0; }
+      this.grantBossAbility(tr.from);
     }
     if (tr.t >= TRANSITION_TIME) {
       this.transition = null;
       this.state = 'play';
+      if (this.pendingTrophy) {
+        const offers = this.pendingTrophy;
+        this.pendingTrophy = null;
+        this.levelUp = { offers, done: offers.map(o => !o.length), queue: 0 };
+        this.state = 'levelup';
+        this.emit({ t: 'levelup', level: this.level });
+      }
       for (const p of this.players) if (p.state === 'alive') p.invulnT = Math.max(p.invulnT, 2);
     }
   }
+
+  /** Трофей: способность поглощённого босса. Свободный слот — сразу; все заняты — выбор, что заменить. */
+  private grantBossAbility(fromStage: number): void {
+    const id = BOSS_ABILITY[fromStage];
+    if (!id) return;
+    const offers: Card[][] = [];
+    let need = false;
+    for (const p of this.players) {
+      if (p.state === 'out') { offers.push([]); continue; }
+      const own = p.ability(id);
+      if (own) { own.level = Math.min(5, own.level + 1); offers.push([]); continue; }
+      if (p.abilities.length < 3) {
+        p.abilities.push({ id, level: 1, t: 0, active: 0, charges: 1 });
+        this.emit({ t: 'abilityGot', p: p.idx, id });
+        offers.push([]);
+        continue;
+      }
+      need = true;
+      offers.push(bossCards(p, id));
+    }
+    if (!need) return;
+    this.pendingTrophy = offers;
+  }
+
+  /** Отложенный выбор трофея (показывается после перехода). */
+  pendingTrophy: Card[][] | null = null;
 
   /** Отладка: перейти к ступени (через переход). */
   debugSkipStage(): void {
     if (this.state !== 'play') return;
     const fake = this.enemies[0] ?? null;
     this.growE = this.stageIdx + 1;
-    this.sizeTarget = TANK_BASE * Math.pow(STAGE_GROWTH, this.growE - this.stageIdx);
-    this.size = this.sizeTarget;
+    for (const p of this.players) this.recalc(p);
     if (fake) fake.dead = true;
-    this.onBossKilled(fake ?? ({ x: this.viewX, y: this.viewY } as Enemy));
+    const [x, y] = fake ? [fake.x, fake.y] : [this.viewX + 200, this.viewY];
+    this.onBossKilled(({ x, y, size: this.size * STAGE_GROWTH, angle: Math.PI, def: { art: BOSSES[this.stage.boss]?.art ?? '' } } as unknown) as Enemy);
   }
 
   // -------------------------------------------------------------------------
@@ -621,4 +699,15 @@ export class Sim {
   get propsList(): Prop[] {
     return this.props.props;
   }
+}
+
+/** Карточки выбора трофейной способности, когда все слоты заняты. */
+function bossCards(p: Player, id: AbilityId): Card[] {
+  const d = ABILITIES[id];
+  const cards: Card[] = p.abilities.map((a, i) => ({
+    id: `b:${id}:${i}`, kind: 'ability', rarity: 3, title: d.name.toUpperCase(), icon: 'a_' + id, tag: 'Трофей босса', value: 0,
+    text: `Заменит «${ABILITIES[a.id].name}». ${d.desc}`,
+  }));
+  cards.push({ id: `b:${id}:keep`, kind: 'fallback', rarity: 0, title: 'ОСТАВИТЬ КАК ЕСТЬ', icon: 'gear', tag: 'Трофей босса', value: 0, text: 'Не брать трофейную способность.' });
+  return cards;
 }

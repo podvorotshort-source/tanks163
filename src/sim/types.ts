@@ -5,12 +5,17 @@ export type DmgType = 'mg' | 'ap' | 'he' | 'rocket' | 'fire' | 'mine' | 'tesla' 
 export type WeaponId = 'ap' | 'he' | 'mg' | 'rockets' | 'flame' | 'mines' | 'tesla' | 'ram';
 export type ClassId = 'scout' | 'assault' | 'heavy';
 export type AbilityId =
-  | 'dash' | 'volley' | 'fortress' | 'smoke' | 'repair' | 'airstrike' | 'emp'
-  | 'shockwave' | 'minefield' | 'overdrive' | 'drone' | 'wall' | 'gravity';
+  | 'dash' | 'volley' | 'fortress' | 'repair' | 'airstrike' | 'emp'
+  | 'shockwave' | 'minefield' | 'overdrive' | 'drone' | 'wall' | 'gravity'
+  // трофейные — за поглощение боссов
+  | 'magma';
 export type PowerupId = 'star' | 'clock' | 'helmet' | 'grenade' | 'shovel' | 'tank' | 'repair';
 
 /** Длина корпуса танка в начале ступени (локальные единицы). */
 export const TANK_BASE = 28;
+/** Физический размер танка на любой ступени (локальные ед.). В бою танк не растёт:
+ *  растёт только сила (через «виртуальный» размер Sim.vsize), облик и размер меняются после поглощения босса. */
+export const TANK_SIZE = 64;
 /** Рост танка за ступень (и отношение единиц соседних ступеней). */
 export const STAGE_GROWTH = 4;
 /** Показатель степени «силы» от абсолютного размера. */
@@ -75,5 +80,6 @@ export type SimEvent =
   | { t: 'stageStart'; stage: number }
   | { t: 'growth'; size: number }
   | { t: 'weaponGot'; p: number; w: WeaponId }
+  | { t: 'abilityGot'; p: number; id: AbilityId }
   | { t: 'gameover' }
   | { t: 'victory' };

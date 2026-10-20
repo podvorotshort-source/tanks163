@@ -3,6 +3,10 @@
 
 import { Vox, type ModelDef } from '../vox';
 import { heroI, heroII } from './hero';
+import { formTyrant, formVacuum, formFridge, formCommandarm, formMole, formSky, formGroza, formTitan } from './forms';
+
+/** Облики III–X (форма поглощённого босса). */
+const FORMS: Partial<Record<number, (cls: TankClass, glow: string) => ModelDef>> = { 2: formTyrant, 3: formVacuum, 4: formFridge, 5: formCommandarm, 6: formMole, 7: formSky, 8: formGroza, 9: formTitan };
 
 export type TankClass = 'scout' | 'assault' | 'heavy';
 
@@ -39,8 +43,10 @@ export function tracks(v: Vox, x0: number, x1: number, h: number, z0: number, z1
 
 export function tankModel(cls: TankClass, tier: number, pl: 0 | 1): ModelDef {
   if (tier === 0) return heroI(cls, pl);
-  if (tier === 1) return heroII(cls, pl === 0 ? 'glow_y' : 'glow_g');
-  return legacyTank(cls, tier, pl);
+  const glow = pl === 0 ? 'glow_y' : 'glow_g';
+  if (tier === 1) return heroII(cls, glow);
+  const f = FORMS[tier];
+  return f ? f(cls, glow) : legacyTank(cls, tier, pl);
 }
 
 /** Прежние облики (поколения III–VIII ещё не перерисованы). */

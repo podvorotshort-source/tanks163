@@ -374,7 +374,7 @@ export class IsoWorld {
     const ts = tv ? tv.tankScale : 1;
     this.aoAdd(x, y, (p.hl * 2 + 18) * ts, (p.hw * 2 + 16) * ts, p.angle);
     const fr = p.state === 'down' ? undefined : this.treadFrame('p' + p.idx, m, x, y, p.angle, s, time, !tv || !tv.switched);
-    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col, undefined, fr);
+    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : n === 'rotor' ? time * 25 : n === 'spin' ? time * 6 : n === 'prop' ? time * 30 : 0), col, undefined, fr);
   }
 
   private syncWreck(w: NonNullable<TransView['wreck']>, time: number): void {

@@ -2,6 +2,7 @@
 import { Vox, buildModel, animTracks, type BuiltModel, type ModelDef } from '../vox';
 import { tankModel, wreckModel, type TankClass } from './tanks';
 import { heroII } from './hero';
+import { formTyrant, formVacuum, formFridge, formCommandarm, formMole, formSky, formGroza, formTitan } from './forms';
 import { rotor } from './kit';
 import * as s0 from './stage0';
 import * as army from './army';
@@ -28,7 +29,7 @@ export const ENEMIES: Record<string, Builder> = {
   meteorite: s6.meteorite, contCrawler: s6.contCrawler, orbitalSat: s6.orbitalSat, voidSpider: s6.voidSpider, lance: s6.lance, moonlet: s6.moonlet, starTitan: s6.starTitan,
 };
 export const BOSSES: Record<string, Builder> = {
-  bossGeneral: () => heroII('heavy', 'glow_r', true), bossTyrant: s1.bossTyrant, bossVacuum: s2.bossVacuum, bossFridge: s3.bossFridge, bossRoller: s4.bossRoller, bossSky: s5.bossSky, bossTitan: s6.bossTitan, bossEater: s6.bossEater,
+  bossGeneral: () => heroII('heavy', 'glow_r', true), bossTyrant: () => formTyrant('heavy', 'glow_r', true), bossVacuum: () => formVacuum('heavy', 'glow_r', true), bossFridge: () => formFridge('heavy', 'glow_r', true), bossCommandarm: () => formCommandarm('heavy', 'glow_r', true), bossMole: () => formMole('heavy', 'glow_r', true), bossSky: () => formSky('heavy', 'glow_r', true), bossGroza: () => formGroza('heavy', 'glow_r', true), bossTitan: () => formTitan('heavy', 'glow_r', true), bossEater: s6.bossEater,
 };
 export const PROPS: Record<string, PropBuilder> = {
   brick: s0.brick, steel: s0.steel, bush: s0.bush, water: () => s0.water(), crate: () => army.crate(), hq: () => army.hq(), steelWall: s0.steel,

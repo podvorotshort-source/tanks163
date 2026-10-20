@@ -366,7 +366,7 @@ export class Sim {
   }
 
   /** Множитель кривой опыта (подбирается балансными прогонами). */
-  static XP_K = 1.3;
+  static XP_K = 0.96;
 
   xpNeed(level = this.level): number {
     return Math.round((40 + 10 * level + 0.05 * level * level) * Sim.XP_K);
@@ -663,7 +663,10 @@ export class Sim {
       for (const p of this.players) { p.x = mbx + (p.x - tr.bx); p.y = mby + (p.y - tr.by); p.px = p.x; p.py = p.y; }
       [this.viewX, this.viewY] = map(this.viewX, this.viewY);
       // Препятствия прежней арены переезжают в новый мир уменьшенными — их можно давить.
-      const alive = this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
+      // Прозрение: что прежнего мира остаётся видно в новом. Квартира становится крышей дома (мебель — внутри),
+      // континенты — планетой Земля (горы и города не висят в космосе вокруг неё).
+      const hidden = tr.from === 3 || tr.from === 8;
+      const alive = hidden ? [] : this.props.props.filter(p => !p.dead && p.ttl === undefined && p.kind !== 'water' && p.kind !== 'hq' && !MATS[p.mat].solid);
       // Стены и кусты оказываются игрушками: ЛЕГО-кирпичики и пластмассовые деревца (см. toyify).
       const toys = toyify(alive), toyIds = new Set(toys.flatMap(t => t.ids));
       const carry = [

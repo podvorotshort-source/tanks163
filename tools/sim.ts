@@ -18,6 +18,8 @@ const verbose = args.includes('-v');
 const startStage = Number(get('stage', '0'));
 const metaF = Number(get('meta', '0'));
 const threat = Number(get('threat', '0'));
+/** --god: игроки неуязвимы (замер темпа: длительность ступеней и боёв с боссами). */
+const god = args.includes('--god');
 const meta: MetaBonus = { ...NO_META };
 for (const w of WORKSHOP) meta[w.id] = Math.round(w.costs.length * metaF) * w.per;
 const unlocks = metaF >= 0.5 ? undefined : { has: (id: string) => START_UNLOCKS.includes(id) };
@@ -40,6 +42,7 @@ for (let r = 0; r < runs; r++) {
   const ticks = maxSec * 60;
   for (let i = 0; i < ticks; i++) {
     if (sim.state === 'levelup') botChoose(sim, { skill });
+    if (god) for (const p of sim.players) { p.invulnT = 1; if (p.hp < p.maxHp * 0.5) p.hp = p.maxHp; }
     const cmds = sim.players.map(p => botCommand(sim, p, { skill }));
     sim.step(cmds);
     for (const e of sim.events) {

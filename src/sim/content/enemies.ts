@@ -197,6 +197,8 @@ add(
 // Балансный проход (см. docs/BALANCE.md): стрелки бьют слабее, тяжёлая броня — меньше прочности.
 for (const d of Object.values(ENEMIES)) {
   if (d.behavior === 'shooter' || d.behavior === 'air') d.dmg *= 0.8;
+  // Ступень короче (время до босса 255 с вместо 345) — поздние враги появляются в той же доле ступени.
+  if (d.minTime) d.minTime = Math.round(d.minTime * 0.74);
   if (d.armor === 'heavy') { d.hp *= 0.7; d.armorPct = (d.armorPct ?? 0) * 0.7; }
 }
 

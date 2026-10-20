@@ -178,7 +178,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: 'laser', name: 'Лазер', role: 'луч насквозь',
     desc: 'Трофей Пульт-тирана. Непрерывный луч прожигает всех на линии, пока держит цель. Останавливается стенами.',
     dmgType: 'energy', main: true, tags: ['electric', 'area'], targeting: 'armored',
-    base: S({ cd: 0.1, dmg: 5.2, range: 8.5, pierce: 3, extra: 0.16 }),
+    base: S({ cd: 0.1, dmg: 3.6, range: 8.5, pierce: 3, extra: 0.16 }),
     levels: [
       { text: 'Урон +25%', apply: s => { s.dmg *= 1.25; } },
       { text: 'Луч длиннее (+20%), +1 цель', apply: s => { s.range *= 1.2; s.pierce += 1; } },
@@ -204,7 +204,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: 'cryo', name: 'Криопушка', role: 'замедляет и замораживает',
     desc: 'Трофей Холодильника-крепости. Ледяные осколки замедляют врагов; третье попадание подряд замораживает, замёрзшие получают +30% урона.',
     dmgType: 'cold', main: true, tags: ['projectile'], targeting: 'nearest',
-    base: S({ cd: 0.55, dmg: 12, range: 7.5, speed: 13, count: 2, spread: 10, extra: 1.2 }),
+    base: S({ cd: 0.55, dmg: 9, range: 7.5, speed: 13, count: 2, spread: 10, extra: 1.2 }),
     levels: [
       { text: '+1 осколок', apply: s => { s.count += 1; s.spread += 6; } },
       { text: 'Урон +25%', apply: s => { s.dmg *= 1.25; } },
@@ -217,7 +217,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     id: 'autocannon', name: 'Автопушка', role: 'очереди по броне и авиации',
     desc: 'Трофей танка «Командарм». Очереди 30-мм снарядов: хорошо пробивают среднюю броню и сбивают авиацию.',
     dmgType: 'ap', main: true, tags: ['projectile', 'kinetic'], targeting: 'nearest',
-    base: S({ cd: 1.0, dmg: 13, range: 9, speed: 18, count: 3, spread: 3, pierce: 1 }),
+    base: S({ cd: 1.0, dmg: 11, range: 9, speed: 18, count: 3, spread: 3, pierce: 1 }),
     levels: [
       { text: '+1 снаряд в очереди', apply: s => { s.count += 1; } },
       { text: 'Урон +25%', apply: s => { s.dmg *= 1.25; } },

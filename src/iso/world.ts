@@ -14,6 +14,7 @@ import { IsoRenderer, ModelPool } from './renderer';
 import { model } from './models/index';
 import { groundMesh, frameMesh } from './ground';
 import { tierOf } from '../client/tiers';
+import { bossDropH } from '../client/render';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -107,8 +108,23 @@ export class IsoWorld {
     return this.tmp.makeRotationY(-a).scale(new THREE.Vector3(s, s, s)).setPosition(x, h, y);
   }
 
+  // ------------------------------------------------------------ отдельная сцена (финал)
+  private extra: THREE.Object3D | null = null;
+  /** Показать вместо мира другую сцену (финальный стол с глобусом). */
+  renderScene(obj: THREE.Object3D, cam: Camera): void {
+    if (this.extra !== obj) {
+      if (this.extra) this.r.scene.remove(this.extra);
+      this.extra = obj; this.r.scene.add(obj);
+      this.stageGroup.visible = this.units.visible = this.decals.visible = false;
+    }
+    this.r.resize(cam.w, cam.h);
+    this.r.setCamera(cam);
+    this.r.render();
+  }
+
   // ------------------------------------------------------------ кадр
   render(sim: Sim, cam: Camera, alpha: number, time: number, opts: { hideProps?: boolean; hideUnits?: boolean } = {}): void {
+    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.stageGroup.visible = this.units.visible = this.decals.visible = true; }
     this.r.resize(cam.w, cam.h);
     this.setStage(sim.stageIdx);
     for (const p of this.pools.values()) p.begin();
@@ -165,7 +181,7 @@ export class IsoWorld {
     const m = model(key);
     let s = e.size / m.size;
     if (e.spawnT > 0) s *= Math.max(0.05, 1 - e.spawnT / 0.45);
-    const h = e.air ? e.size * 0.9 + Math.sin(time * 3 + e.id) * e.size * 0.05 : 0;
+    const h = (e.air ? e.size * 0.9 + Math.sin(time * 3 + e.id) * e.size * 0.05 : 0) + (boss ? bossDropH(e) : 0);
     const fixed = FIXED.has(art);
     const a = fixed ? 0 : e.angle;
     let col: THREE.Color | undefined;

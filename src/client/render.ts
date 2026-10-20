@@ -4,7 +4,7 @@
 
 import { hasExt, extFrame } from '../gfx/ext';
 import type { Sim } from '../sim/sim';
-import type { Shot } from '../sim/entities';
+import type { Shot, Enemy } from '../sim/entities';
 import { ISO_X, ISO_Y, type Camera } from './camera';
 import type { Fx } from './fx';
 import { disc } from './fx';
@@ -92,7 +92,7 @@ function drawUnitMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       starBurst(ctx, sx, sy - e.size * cam.zoom * 0.3, Math.max(1.5, e.size * cam.zoom * 0.5 * (0.4 + 0.6 * Math.abs(Math.sin(u * Math.PI * 3)))), '#fff4b0');
       continue;
     }
-    if (e === sim.boss) continue;
+    if (e === sim.boss) { drawBossMarks(ctx, rc, e, x, y); continue; }
     if (e.elite) {
       ctx.globalAlpha = 0.45 + 0.25 * Math.sin(rc.time * 5 + e.id);
       ringIso(ctx, sx, cam.syOf(x, y), e.size * cam.zoom * 0.62, e.aura === 'shield' ? '#68a6f0' : e.aura === 'haste' ? '#fbcd4a' : '#6ccc4a', 1);
@@ -105,6 +105,42 @@ function drawUnitMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
       bar(ctx, sx - w / 2, sy - e.size * cam.zoom * 0.75 - 4, w, 2, e.hp / e.maxHp, e.elite ? '#bb70cc' : '#ea6a3f');
     }
   }
+}
+
+/** Высота «падения» босса при появлении (визуально: сверху, с ударом о землю). */
+export function bossDropH(e: Enemy): number {
+  const b = e.brain as { entering?: number } | undefined;
+  const t = b?.entering ?? 0;
+  return t > BOSS_LAND ? ((t - BOSS_LAND) / (2.5 - BOSS_LAND)) ** 2 * e.size * 2.2 : 0;
+}
+export const BOSS_LAND = 1.4;
+
+/** Метки босса: растущая тень при падении, мигающая мишень на слабом месте. */
+function drawBossMarks(ctx: CanvasRenderingContext2D, rc: RenderCtx, e: Enemy, x: number, y: number): void {
+  const { cam } = rc;
+  const drop = bossDropH(e);
+  if (drop > 0) {
+    const k = 1 - drop / (e.size * 2.2);
+    ctx.globalAlpha = 0.25 + 0.35 * k;
+    ground(ctx, cam.sxOf(x, y), cam.syOf(x, y), e.size * cam.zoom * (0.25 + 0.3 * k), '#07060b');
+    ctx.globalAlpha = 0.5 + 0.4 * Math.sin(rc.time * 16);
+    ringIso(ctx, cam.sxOf(x, y), cam.syOf(x, y), e.size * cam.zoom * 0.62, '#ea6a3f', 1);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  const b = e.brain as { def?: { weak: { dir: number } } } | undefined;
+  if (!b?.def) return;
+  const a = e.angle + b.def.weak.dir, R = e.size * 0.47;
+  const wx = x + Math.cos(a) * R, wy = y + Math.sin(a) * R, h = (e.air ? e.size * 0.9 : 0) + e.size * 0.22;
+  const sx = Math.round(cam.sxOf(wx, wy)), sy = Math.round(cam.syOf(wx, wy, h));
+  const pulse = 0.5 + 0.5 * Math.sin(rc.time * 7);
+  const r = Math.round(4 + pulse * 3 + e.size * cam.zoom * 0.03);
+  // четыре уголка-скобки и точка
+  ctx.fillStyle = '#07060b';
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(sx + dx * r - 1 - (dx < 0 ? 0 : 2), sy + dy * r - 1 - (dy < 0 ? 0 : 0), 5, 3); ctx.fillRect(sx + dx * r - 1 - (dx < 0 ? 0 : 0), sy + dy * r - 1 - (dy < 0 ? 0 : 2), 3, 5); }
+  ctx.fillStyle = pulse > 0.5 ? '#fff4b0' : '#ea6a3f';
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.fillRect(sx + dx * r - (dx < 0 ? 0 : 2), sy + dy * r, 3, 1); ctx.fillRect(sx + dx * r, sy + dy * r - (dy < 0 ? 0 : 2), 1, 3); }
+  ctx.fillRect(sx - 1, sy - 1, 2, 2);
 }
 
 /** Подписи над танками (в слое интерфейса, cam — камера интерфейса). */
@@ -169,7 +205,7 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
     ctx.globalAlpha = 0.25; ground(ctx, cam.sxOf(x, y), cam.syOf(x, y), Math.max(1, r * 0.8), '#07060b'); ctx.globalAlpha = 1;
     const pk = projKey(s);
     if (pk) { const img = extFrame(pk, Math.max(4, Math.round(r * 4))); if (img) { ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(a); ctx.drawImage(img, -img.width / 2, -img.height / 2); ctx.restore(); continue; } }
-    if (s.kind === 'ball' || s.kind === 'marble') { ctx.drawImage(disc(r, s.kind === 'ball' ? '#bdf3dc' : '#3aa8c2'), Math.round(sx - r), Math.round(sy - r)); ctx.drawImage(disc(Math.max(0.5, r * 0.4), '#ffffff'), Math.round(sx - r * 0.5), Math.round(sy - r * 0.6)); continue; }
+    if (s.kind === 'ball' || s.kind === 'marble') { orb(ctx, sx, sy, r, s.kind === 'ball' ? '#9ad8b8' : '#2f6fa0', s.kind === 'ball' ? '#e0f8e8' : '#8fd0ec'); continue; }
     if (s.team === 0 && (s.w === 'ap' || s.w === 'mg' || s.w === 'drone')) {
       const len = Math.max(2, Math.min(tier >= 6 ? 22 : 12, sp * z * 0.025));
       const w = Math.max(1, Math.round(r * (s.w === 'ap' ? 0.9 : 0.6)));
@@ -183,9 +219,15 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
       line(ctx, sx, sy, sx - Math.cos(a) * len * 0.4, sy - Math.sin(a) * len * 0.4, c1, Math.max(1, Math.round(r * 0.45)));
       continue;
     }
-    ctx.drawImage(disc(r, c2), Math.round(sx - r), Math.round(sy - r));
-    if (r >= 1.5) ctx.drawImage(disc(r * 0.5, c1), Math.round(sx - r * 0.7), Math.round(sy - r * 0.7));
+    orb(ctx, sx, sy, r, c2, c1);
   }
+}
+
+/** Снаряд-шар: тёмная обводка, тело, блик (без свечения). */
+function orb(ctx: CanvasRenderingContext2D, sx: number, sy: number, r: number, body: string, hi: string): void {
+  if (r >= 1.5) ctx.drawImage(disc(r + 1, '#1a1322'), Math.round(sx - r - 1), Math.round(sy - r - 1));
+  ctx.drawImage(disc(r, body), Math.round(sx - r), Math.round(sy - r));
+  if (r >= 1.5) ctx.drawImage(disc(r * 0.45, hi), Math.round(sx - r * 0.75), Math.round(sy - r * 0.75));
 }
 
 const PROJ_LEN: Record<string, number> = { proj_shell: 1.5, proj_rocket: 2.2, proj_plasma: 1.6, proj_laser: 3, proj_bullet: 2 };
@@ -210,9 +252,8 @@ function drawLob(ctx: CanvasRenderingContext2D, rc: RenderCtx, s: Shot, x: numbe
   ground(ctx, cam.sxOf(x, y), cam.syOf(x, y), r, '#07060b');
   ctx.globalAlpha = 1;
   const sx = cam.sxOf(x, y), sy = cam.syOf(x, y, h);
-  const col = s.team === 0 ? '#fbab6c' : s.kind === 'ice' ? '#a8dcf0' : s.kind === 'toast' ? '#c9a265' : '#ea6a3f';
-  ctx.drawImage(disc(r, col), Math.round(sx - r), Math.round(sy - r));
-  ctx.drawImage(disc(Math.max(0.5, r * 0.4), '#ffffff'), Math.round(sx - r * 0.5), Math.round(sy - r * 0.6));
+  const col = s.team === 0 ? '#c25a2a' : s.kind === 'ice' ? '#74aed0' : s.kind === 'toast' ? '#c9a265' : '#a8402a';
+  orb(ctx, sx, sy, r, col, s.team === 0 ? '#fbab6c' : s.kind === 'ice' ? '#eafcff' : '#f2a070');
 }
 
 function drawTelegraphs(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {

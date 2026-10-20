@@ -4,7 +4,7 @@ import type { Scene } from '../app';
 import { app } from '../app';
 import { Sim, type RunConfig, type PlayerCmd, TRANSITION_SWITCH, TRANSITION_TIME } from '../sim/sim';
 import { DT, TANK_BASE, STAGE_GROWTH, type SimEvent } from '../sim/types';
-import { Camera } from './camera';
+import { Camera, ISO_X, ISO_Y, ISO_H } from './camera';
 import { IsoWorld } from '../iso/world';
 import { Fx } from './fx';
 import { Hud } from './hud';
@@ -15,6 +15,7 @@ import { audio } from '../audio/audio';
 import { music } from '../audio/music';
 import { STAGE_DEFS } from '../sim/content/stages';
 import { BOSSES } from '../sim/bosses';
+import { BOSS_LAND } from './render';
 import { POWERUP_INFO } from '../sim/powerups';
 import { WEAPONS } from '../sim/content/weapons';
 import { UI } from '../gfx/palette';
@@ -100,17 +101,55 @@ export class GameScene implements Scene {
 
   private syncCamera(k: number): void {
     const sim = this.sim;
-    const z = this.gameplayZoom();
-    this.zoomSmooth = k >= 1 ? z : this.zoomSmooth + (z - this.zoomSmooth) * k;
+    let z = this.gameplayZoom();
+    let tx = sim.viewX, ty = sim.viewY;
+    // Бой с боссом: камера отъезжает и держит в кадре и игрока, и босса (при появлении — смотрит на босса).
+    const b = sim.boss;
+    if (b && b.hp > 0) {
+      const entering = ((b.brain as { entering?: number } | undefined)?.entering ?? 0) > 0;
+      const w = entering ? 0.55 : 0.32;
+      tx = sim.viewX + (b.x - sim.viewX) * w; ty = sim.viewY + (b.y - sim.viewY) * w;
+      // модель босса высокая: центр кадра чуть выше, запас сверху
+      const up = b.size * (b.air ? 1.6 : 0.85) * ISO_H;
+      const sh = (up * 0.5) / (2 * ISO_Y);
+      tx -= sh; ty -= sh;
+      const fit = (ox: number, oy: number, r: number, u: number) => {
+        const ex = Math.abs(ox - oy) * ISO_X + r, ey = Math.abs(ox + oy) * ISO_Y + r * 0.5 + u;
+        return Math.min((this.cam.w * 0.44) / Math.max(1, ex), (this.cam.h * 0.42) / Math.max(1, ey));
+      };
+      const zf = Math.min(fit(b.x - tx, b.y - ty, b.size * 0.6, up * 0.5), fit(sim.viewX - tx, sim.viewY - ty, sim.size * 1.5, 0));
+      z = Math.max(z * 0.32, Math.min(z, zf));
+    }
+    this.zoomSmooth = k >= 1 ? z : this.zoomSmooth + (z - this.zoomSmooth) * k * 0.6;
     this.cam.zoom = this.zoomSmooth;
     // Центр: плавно к центру видимой области симуляции, с ограничением арены по экрану.
     const s = sim.stage;
     const hw = this.cam.w / 2 / this.cam.zoom, hh = this.cam.h / 2 / this.cam.zoom;
-    let tx = sim.viewX, ty = sim.viewY;
     tx = s.w > hw * 2 ? clamp(tx, hw, s.w - hw) : s.w / 2;
     ty = s.h > hh * 2 ? clamp(ty, hh, s.h - hh) : s.h / 2;
     if (k >= 1) { this.cam.x = tx; this.cam.y = ty; } else { this.cam.x += (tx - this.cam.x) * k; this.cam.y += (ty - this.cam.y) * k; }
   }
+
+  /** Приземление босса: удар, пыль кольцом, воронка. */
+  private bossLanding(): void {
+    const b = this.sim.boss;
+    const ent = ((b?.brain as { entering?: number } | undefined)?.entering ?? 0);
+    const above = ent > BOSS_LAND;
+    if (b && this.bossAbove && !above && !b.air) {
+      const fx = this.fx, cam = this.cam;
+      cam.addShake(18);
+      input.rumble(0, 1, 0.8, 400); input.rumble(1, 1, 0.8, 400);
+      audio.play('boomL', { vol: 1 });
+      for (let i = 0; i < 40; i++) {
+        const a = (i / 40) * Math.PI * 2, p = fx.spawn('dust', b.x + Math.cos(a) * b.size * 0.4, b.y + Math.sin(a) * b.size * 0.4);
+        p.vx = Math.cos(a) * b.size * 1.6; p.vy = Math.sin(a) * b.size * 1.6; p.drag = 3;
+        p.r = b.size * 0.08; p.r1 = b.size * 0.22; p.life = 1.1; p.col = '#8a7a66'; p.alpha = 0.7;
+      }
+      this.ground.addDecal({ x: b.x, y: b.y, r: b.size * 0.55, kind: 'crater', col: '#14111a', seed: (b.id * 2654435761) >>> 0, a: 1 });
+    }
+    this.bossAbove = !!b && above;
+  }
+  private bossAbove = false;
 
   // -------------------------------------------------------------------------
 
@@ -167,6 +206,7 @@ export class GameScene implements Scene {
       this.trans = null;
       this.syncCamera(Math.min(1, dt * 5));
     }
+    this.bossLanding();
     this.cam.update(dt, settings.data.shake);
     this.engineSound();
     if (sim.state === 'gameover') {
@@ -175,7 +215,7 @@ export class GameScene implements Scene {
     }
     if (sim.state === 'victory') {
       this.endT += dt;
-      if (!this.ending) this.ending = new Ending(sim);
+      if (!this.ending) this.ending = new Ending(sim, this.iso);
       if (this.endT > 1.5) this.ending.prepare(4);
       if (this.endingDone || (this.endT > 10 && (input.menu.pressed.a1 || input.mouse.clicked))) this.finish(false);
     }
@@ -258,7 +298,9 @@ export class GameScene implements Scene {
         case 'bossDead': {
           audio.play('bossDead');
           cam.addShake(16);
-          for (let i = 0; i < 6; i++) setTimeout(() => emitExplosion(this.fx, sim, { t: 'boom', x: e.x + (Math.random() - 0.5) * sim.size * 3, y: e.y + (Math.random() - 0.5) * sim.size * 3, r: sim.size * (1.5 + Math.random()), kind: 'boss', p: -1 }, this.cam, this.ground), i * 180);
+          const R = BOSSES[sim.stage.boss]?.size ?? 280;
+          for (let i = 0; i < 14; i++) setTimeout(() => { emitExplosion(this.fx, sim, { t: 'boom', x: e.x + (Math.random() - 0.5) * R * 0.9, y: e.y + (Math.random() - 0.5) * R * 0.9, r: R * (0.15 + Math.random() * 0.15), kind: 'boss', p: -1 }, this.cam, this.ground); this.cam.addShake(8); }, i * 150);
+          setTimeout(() => { emitExplosion(this.fx, sim, { t: 'boom', x: e.x, y: e.y, r: R * 0.6, kind: 'boss', p: -1 }, this.cam, this.ground); this.cam.addShake(22); audio.play('boomL', { vol: 1 }); }, 14 * 150 + 120);
           this.hud.banner('БОСС УНИЧТОЖЕН!', UI.gold, 3, undefined, true);
           music.play('victory');
           break;
@@ -437,7 +479,7 @@ export class GameScene implements Scene {
     const s = app.screen;
     const W = s.ww, H = s.wh;
     ctx.clearRect(0, 0, W, H);
-    if (this.ending && this.endT > 2.5) { ctx.fillStyle = '#07060b'; ctx.fillRect(0, 0, W, H); return; }
+    if (this.ending && this.endT > 2.5) { this.ending.renderWorld(W, H); return; }
     const sim = this.sim;
     const t0 = performance.now();
     this.iso.render(sim, this.cam, this.alpha, this.time);
@@ -463,13 +505,14 @@ export class GameScene implements Scene {
     const sim = this.sim;
     const tr = sim.transition;
     const ucam = this.syncUiCamera();
-    const cinematic = !!(tr && this.trans && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
+    const finale = sim.state === 'victory' && !!this.ending && this.endT > 2.5;
+    const cinematic = finale || !!(tr && this.trans && ((tr.t > 1.2 && !tr.switched) || (tr.switched && tr.t < 7.6)));
     if (!cinematic) {
       const rc: RenderCtx = { sim, cam: ucam, fx: this.fx, alpha: this.alpha, time: this.time };
       drawWorldLabels(ctx, rc);
       this.fx.draw(ctx, ucam, 2);
     }
-    this.hud.draw(ctx, sim, ucam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
+    if (!finale) this.hud.draw(ctx, sim, ucam, W, H, app.fps, !(sim.state !== 'transition' || (tr && tr.t > 7.6)));
     if (sim.state === 'levelup') this.levelUI.draw(ctx, sim, W, H);
     if (this.pause.open) this.pause.draw(ctx, W, H, sim);
     if (sim.state === 'gameover' && this.endT > 1.5) {

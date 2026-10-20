@@ -265,7 +265,7 @@ export class GameScene implements Scene {
       this.endT += dt;
       if (!this.ending) this.ending = new Ending(sim, this.iso);
       if (this.endT > 1.5) this.ending.prepare(4);
-      if (this.endingDone || (this.endT > 10 && (input.menu.pressed.a1 || input.mouse.clicked))) this.finish(false);
+      if (this.endingDone || (this.endT > 17 && (input.menu.pressed.a1 || input.mouse.clicked))) this.finish(false);
     }
   }
 

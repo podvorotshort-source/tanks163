@@ -50,10 +50,45 @@ export class Ending {
       ctx.fillRect(0, 8, W, 66);
       drawText(ctx, 'ПОБЕДА!', W / 2, 14, { align: 'center', color: UI.gold, scale: 3 });
       drawText(ctx, 'Целый мир оказался игрушечным глобусом на детском столе…', W / 2, 42, { align: 'center', color: UI.text });
-      drawText(ctx, '…а ваш танк прошёл путь от игрушки до планетарного титана.', W / 2, 54, { align: 'center', color: UI.dim });
+      drawText(ctx, '…а ваш танк прошёл путь от игрушки до титана-мегаполиса.', W / 2, 54, { align: 'center', color: UI.dim });
       ctx.globalAlpha = 1;
     }
-    if (t > 9) drawText(ctx, 'ПРОБЕЛ / ENTER / ✕ — ДАЛЕЕ', W / 2, H - 14, { align: 'center', color: UI.faint });
-    return t > 16;
+    this.credits(ctx, W, H, t - 9.5);
+    if (t > 12) drawText(ctx, 'ПРОБЕЛ / ENTER / ✕ — ДАЛЕЕ', W / 2, H - 14, { align: 'center', color: UI.faint });
+    return t > CREDITS_END;
+  }
+
+  /** Титры: выплывают снизу и уходят вверх под надписью «Победа». */
+  private credits(ctx: CanvasRenderingContext2D, W: number, H: number, t: number): void {
+    if (t <= 0) return;
+    const top = 84, bot = H - 26;
+    const y0 = bot - t * 22;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, top, W, bot - top); ctx.clip();
+    ctx.fillStyle = 'rgba(7,6,11,0.5)';
+    ctx.fillRect(Math.round(W / 2 - 150), top, 300, bot - top);
+    let y = y0;
+    for (const [text, kind] of CREDITS) {
+      if (kind === 'gap') { y += 16; continue; }
+      const scale = kind === 'title' ? 3 : kind === 'name' ? 2 : 1;
+      const color = kind === 'title' ? UI.gold : kind === 'name' ? UI.text : kind === 'role' ? UI.gold : UI.dim;
+      if (y > top - 40 && y < bot + 10) drawText(ctx, text, W / 2, Math.round(y), { align: 'center', color, scale });
+      y += 10 * scale + 6;
+    }
+    ctx.restore();
   }
 }
+
+/** Титры (пользователь добавит остальных позже). */
+const CREDITS: [string, 'title' | 'role' | 'name' | 'text' | 'gap'][] = [
+  ['ТАНКОРОСТ', 'title'],
+  ['', 'gap'],
+  ['ГЕНЕРАЛЬНЫЙ АРТ-ДИЗАЙНЕР', 'role'],
+  ['РОМАН ЯНИН', 'name'],
+  ['', 'gap'],
+  ['', 'gap'],
+  ['Спасибо за игру!', 'text'],
+  ['От игрушечного полигона — до планет.', 'text'],
+];
+/** Когда финал заканчивается сам: титры успевают пройти. */
+const CREDITS_END = 26;

@@ -13,7 +13,7 @@ page.on('pageerror', e => errors.push(e.message));
 await page.goto(url);
 await page.waitForTimeout(2500);
 const cdp = await ctx.newCDPSession(page);
-const touch = (type: string, pts: { x: number; y: number; id: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(p => ({ x: p.x, y: p.y, id: p.id })) });
+const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel', pts: { x: number; y: number; id: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(p => ({ x: p.x, y: p.y, id: p.id })) });
 const vp = page.viewportSize()!;
 const p0 = await page.evaluate('({ x: __tk.sim.players[0].x, y: __tk.sim.players[0].y })') as { x: number; y: number };
 // стик: палец в левой половине, ведём вправо

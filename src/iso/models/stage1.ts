@@ -1,224 +1,251 @@
-// Ступень II «Ковёр и детская»: заводные и радиоуправляемые игрушки, кубики, карандаши, шарики.
-import { Vox, type ModelDef } from '../vox';
-import { tankSpec, wheel, gun, rotor, one, cbox, seams, tracks } from './kit';
+// Ступень II «Ковёр и детская»: игрушки, ожившие по радиосигналу Пульт-тирана. Свои краски у каждой игрушки,
+// а метка вражеской армии — красные огоньки (glow_r) и красные полосы. Плотность ~1 воксель на пиксель кадра.
+// Препятствия: кубики с буквами, книжки, мелки, ножки мебели, стеклянные шарики, тапки, подушки.
+import { Vox, type ModelDef, type PartDef } from '../vox';
+import { track, barrel } from './hero';
+import { cbox, wheel, rotor, one } from './kit';
 
+/** Заводная мышь: серебристая жесть, розовые уши и хвост, золотой ключ, красные глаза-огоньки, красная полоса. */
 export function windMouse(): ModelDef {
-  const v = new Vox(20, 9, 12), zc = 6;
-  v.ell(10, 3.6, zc, 7, 3.4, 4.2, 'steel_l');
-  v.ell(15, 3.6, zc, 3.4, 2.6, 3, 'steel_l');
-  v.ell(17.5, 3.4, zc, 1.2, 1, 1, 'pink');                 // нос
-  for (const z of [zc - 2.5, zc + 2.5]) { v.cylX(6, z, 1.8, 13, 14, 'pink'); v.set(16, 5, z > zc ? zc + 1 : zc - 1, 'black'); }
-  v.seg([3, 3, zc], [0, 5, zc], 0.6, 'pink');               // хвост
-  v.cylX(5, zc, 0.8, 4, 8, 'gold'); v.cylZ(4, 5, 2, zc - 3, zc - 2, 'gold'); v.cylZ(4, 5, 2, zc + 2, zc + 3, 'gold'); // ключ
-  for (const x of [6, 13]) { v.set(x, 0, zc - 3, 'black'); v.set(x, 0, zc + 3, 'black'); }
-  return one(v, 16);
+  const v = new Vox(24, 12, 16), zc = 8;
+  v.ell(11, 4.5, zc, 8, 4.4, 5.2, 'steel_l');
+  v.ell(17.5, 4, zc, 4, 3.2, 3.4, 'steel_l');
+  v.ell(21.3, 3.8, zc, 1.4, 1.2, 1.2, 'pink');                                  // нос
+  v.paint((x, y) => (y > 7.2 ? 'chrome' : y < 2.2 ? 'steel' : undefined));
+  v.paint((x, y, z) => (Math.abs(z - zc) < 1 && y > 6 ? 'red' : undefined), 4, 18, 0, 12, 0, 16);   // красная полоса
+  for (const s of [-1, 1]) { v.cylX(7.5, zc + s * 2.6, 2.2, 15, 16, 'pink'); v.cylX(7.5, zc + s * 2.6, 1.3, 15.9, 16.1, 'pink'); v.set(19.6, 5, zc + s * 1.6, 'glow_r'); }
+  for (let i = 0; i < 6; i++) v.set(3 - i * 0.5, 3 + Math.sin(i) * 1.2, zc + i * 0.8, 'pink');   // хвост
+  v.cylY(9, zc, 0.7, 8.5, 11, 'gold_d'); v.box(7, 11, 10, 11.5, zc - 0.5, zc + 0.5, 'gold');   // ключ
+  for (const x of [6, 14]) for (const z of [zc - 4.5, zc + 4.5]) v.set(x, 0, z, 'black');
+  return one(v, 20);
 }
 
+/** Юла: полосатый конус (вращается), красный пояс, ручка с красным огоньком. */
 export function top(): ModelDef {
-  const v = new Vox(20, 16, 20), c = 10;
-  v.fill((x, y, z) => {
-    const r = Math.hypot(x - c, z - c), prof = y < 2 ? y * 1.5 : y < 9 ? 3 + (y - 2) * 1.0 : 10 - (y - 9) * 1.4;
-    if (r > prof) return undefined;
-    const a = Math.atan2(z - c, x - c);
-    return y > 11 ? 'gold' : Math.floor((a + Math.PI) / (Math.PI / 4)) % 2 ? 'red' : 'fabric_y';
-  }, 0, 20, 0, 13, 0, 20);
-  v.cylY(c, c, 1, 12, 16, 'wood'); v.cylY(c, c, 1.6, 15, 16, 'red');
-  return { size: 18, parts: [{ name: 'spin', vox: v, pivot: [c, 0, c] }] };
+  const n = 26, c = n / 2, t = new Vox(n, 26, n);
+  const cols = ['blue', 'white', 'toy_y', 'blue_l', 'white', 'red'];
+  t.fill((x, y, z) => {
+    const r = Math.hypot(x - c, z - c);
+    const R = y < 9 ? y * 1.25 + 0.6 : y < 16 ? 11.8 - (y - 9) * 0.25 : 10 - (y - 16) * 1.6;
+    if (r > R || y > 21) return undefined;
+    if (y > 9 && y < 11) return 'red';
+    const a = Math.atan2(z - c, x - c), band = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 6);
+    return y < 9 ? cols[band] : cols[(band + 2) % 6];
+  }, 0, n, 0, 22, 0, n);
+  t.cylY(c, c, 1.6, 21, 25, 'gun');
+  t.sphere(c, 25, c, 1.4, 'glow_r');
+  return { size: 22, parts: [{ name: 'spin', vox: t, pivot: [c, 0, c] }] };
 }
 
+/** Радиомашинка-монстр: огромные колёса, синий кузов с красной гоночной полосой, дуга, антенна с огоньком. */
 export function rcCar(): ModelDef {
-  const v = new Vox(28, 12, 18), zc = 9;
-  for (const x of [6, 21]) { wheel(v, x, 3.5, 3.5, 0, 3.5, 'rubber', 'yel'); wheel(v, x, 3.5, 3.5, 14.5, 18, 'rubber', 'yel'); }
-  v.box(2, 26, 3, 7, 3.5, 14.5, 'blue');
-  v.box(8, 18, 7, 10, 4.5, 13.5, 'blue_l');
-  v.box(9, 17, 7.5, 9.5, 4.2, 13.8, 'glass');
-  v.box(0, 4, 8, 9, 2, 16, 'black');                         // спойлер
-  v.box(1, 2, 6, 8, 3, 4, 'black'); v.box(1, 2, 6, 8, 14, 15, 'black');
-  for (let x = 4; x < 24; x += 4) v.box(x, x + 2, 7, 7.5, zc - 1, zc + 1, 'white');
-  v.seg([5, 9, 14], [3, 17, 14], 0.4, 'black'); v.set(3, 17, 14, 'lamp_r'); // антенна
-  v.box(25, 26, 4, 6, 4, 6, 'lamp'); v.box(25, 26, 4, 6, 12, 14, 'lamp');
-  return one(v, 24);
+  const v = new Vox(34, 18, 26), zc = 13;
+  for (const x of [8, 26]) for (const [z0, z1] of [[0, 5], [21, 26]]) { wheel(v, x, 5.5, 5.5, z0, z1, 'rubber', 'steel'); for (let a = 0; a < 10; a++) { const an = (a / 10) * Math.PI * 2; v.set(x + Math.cos(an) * 5.5, 5.5 + Math.sin(an) * 5.5, z0 < 10 ? z0 : z1 - 1, 'rubber_l'); } }
+  cbox(v, 4, 31, 6, 12, 5, 21, 'blue', 1, 1);
+  v.cut(1, 1.3, 0, 31 + 1.3 * 9, 25, 32, 6, 13);
+  v.box(4, 31, 11, 12.2, zc - 2, zc + 2, 'red');                                 // гоночная полоса
+  v.box(12, 21, 12, 15, 7, 19, 'blue_d'); v.box(19, 21.1, 12.5, 14.5, 8, 18, 'glass');
+  v.box(1, 4, 13, 14, 4, 22, 'black'); v.box(2, 3, 11, 13, 6, 8, 'black'); v.box(2, 3, 11, 13, 18, 20, 'black');   // спойлер
+  v.box(31, 32.2, 8, 10, 6, 9, 'lamp'); v.box(31, 32.2, 8, 10, 17, 20, 'lamp');
+  v.seg([8, 12, 7], [5, 17.5, 6], 0.4, 'gun_d'); v.set(5, 17.5, 6, 'glow_r');
+  v.box(3, 4.2, 8, 10, 7, 9, 'glow_r'); v.box(3, 4.2, 8, 10, 17, 19, 'glow_r');
+  return one(v, 30);
 }
 
+/** Жестяной робот: корпус с панелью приборов, красные глаза, антенна-шарик, лучевой пистолет. */
 export function toyRobot(): ModelDef {
-  const v = new Vox(16, 30, 18), zc = 9;
-  for (const z of [zc - 4, zc + 4]) { v.box(5, 11, 0, 3, z - 2.5, z + 2.5, 'red'); v.box(6, 10, 3, 11, z - 1.8, z + 1.8, 'steel'); }
-  v.box(3, 13, 11, 22, zc - 6, zc + 6, 'steel_l');            // корпус
-  v.box(12.5, 13.5, 13, 20, zc - 4, zc + 4, 'steel_d');       // панель
-  for (let i = 0; i < 3; i++) v.set(13, 18 - i * 2, zc - 2 + i * 2, ['lamp_r', 'lamp_g', 'lamp_o'][i]);
-  v.box(5, 11, 22, 29, zc - 3.5, zc + 3.5, 'steel');           // голова
-  v.box(10.5, 11.5, 25, 27, zc - 2.5, zc - 1, 'lamp_o'); v.box(10.5, 11.5, 25, 27, zc + 1, zc + 2.5, 'lamp_o');
-  v.box(10.5, 11.5, 23, 24, zc - 2, zc + 2, 'gun_d');
-  v.seg([8, 29, zc], [8, 32, zc], 0.5, 'gun');
-  for (const s of [-1, 1]) { v.box(6, 10, 13, 21, zc + s * 7.5 - 1.5, zc + s * 7.5 + 1.5, 'red'); gun(v, 9, 16, 14, zc + s * 7.5, 1.1, 'gun', 'gun_d'); }
-  return one(v, 24);
+  const v = new Vox(24, 36, 22), zc = 11;
+  for (const s of [-1, 1]) { v.box(9, 13, 0, 9, zc + s * 3.5 - 2, zc + s * 3.5 + 2, 'steel_d'); v.box(8, 15, 0, 2, zc + s * 3.5 - 2.5, zc + s * 3.5 + 2.5, 'red_d'); }   // ноги и ступни
+  cbox(v, 6, 16, 9, 24, zc - 7, zc + 7, 'steel_l', 1, 1);
+  v.box(15.9, 16.4, 12, 20, zc - 4, zc + 4, 'gun');                                // панель
+  for (const [y, z] of [[17, zc - 2], [17, zc + 2], [14, zc]]) v.box(16, 16.7, y, y + 1.5, z - 0.8, z + 0.8, y > 15 ? 'glow_r' : 'gold');
+  v.box(6, 16, 9, 10, zc - 7.2, zc + 7.2, 'red');                                   // красный пояс
+  cbox(v, 7, 15, 24, 31, zc - 4.5, zc + 4.5, 'steel', 1, 1);                       // голова
+  v.box(14.9, 15.4, 27, 28.5, zc - 3, zc - 1, 'glow_r'); v.box(14.9, 15.4, 27, 28.5, zc + 1, zc + 3, 'glow_r');
+  v.box(14.9, 15.3, 25, 26, zc - 2.5, zc + 2.5, 'gun_d');                           // рот-решётка
+  v.seg([11, 31, zc], [11, 34, zc], 0.4, 'gun_d'); v.sphere(11, 34.5, zc, 1.2, 'glow_r');
+  for (const s of [-1, 1]) { v.ell(11, 22, zc + s * 8.4, 2.4, 2.4, 2, 'steel_d'); v.seg([11, 21, zc + s * 8.6], [17, 15, zc + s * 8.6], 1.3, 'steel'); }
+  v.box(16, 22, 14, 16.5, zc + 7.6, zc + 9.6, 'red'); v.cylX(15.2, zc + 8.6, 0.8, 21, 23.5, 'gun'); v.set(23.5, 15.2, zc + 8.6, 'glow_r');   // лучевой пистолет
+  return one(v, 30);
 }
 
+/** Бумажный самолётик: сложенный лист с красной полосой по крылу, красный огонёк на носу. */
 export function plane(): ModelDef {
-  const v = new Vox(30, 8, 26), zc = 13;
-  // бумажный самолётик: две плоскости-крыла и киль
-  v.fill((x, y, z) => { const half = (x / 30) * 12; return Math.abs(z - zc) <= half && y < 1.6 + (12 - Math.abs(z - zc)) * 0.0 ? (Math.abs(z - zc) < 1 ? 'paper_d' : 'paper') : undefined; }, 0, 30, 0, 2, 0, 26);
-  v.fill((x, y, z) => (Math.abs(z - zc) < 1 && y < 1 + (x / 30) * 6 ? 'paper_d' : undefined), 0, 30, 0, 8, 0, 26);
-  v.fill((x, y, z) => (Math.abs(z - zc) > 4 && Math.abs(z - zc) < 5 && x > 6 ? 'fabric_b' : undefined), 0, 30, 1, 2, 0, 26);
+  const v = new Vox(36, 10, 32), zc = 16;
+  v.fill((x, y, z) => { const dz = Math.abs(z - zc), w = x * 0.42; if (dz > w) return undefined; const yy = 4 + dz * 0.35; return Math.abs(y - yy) < 0.7 ? (dz < 1 ? 'paper_d' : 'paper') : undefined; }, 0, 36, 0, 10, 0, 32);
+  v.fill((x, y, z) => (Math.abs(z - zc) < 1 && y < 4 && y > 4 - x * 0.12 ? 'paper_d' : undefined), 0, 36, 0, 6, 0, 32);   // киль
+  v.paint((x, y, z) => (Math.abs(Math.abs(z - zc) - x * 0.3) < 0.8 && x > 6 ? 'red' : undefined));
+  v.set(35, 4, zc, 'glow_r');
   return one(v, 30);
 }
 
+/** Кубик-голем: тело из кубиков с буквами, глаза-огоньки, кулаки-кубики. */
 export function blockGolem(): ModelDef {
-  const v = new Vox(30, 34, 30), c = 15;
-  const cube = (x: number, y: number, z: number, s: number, col: string, letter?: string) => {
-    v.box(x, x + s, y, y + s, z, z + s, col);
-    v.box(x + 1, x + s - 1, y + 1, y + s - 1, z - 0.01, z + s + 0.01, 'cream');
-    if (letter) v.box(x + s / 2 - 1, x + s / 2 + 1, y + 2, y + s - 2, z - 0.02, z + s + 0.02, col);
+  const v = new Vox(40, 54, 40), zc = 20;
+  const cube = (x: number, y: number, z: number, s: number, col: string, letter: string) => {
+    cbox(v, x - s / 2, x + s / 2, y, y + s, z - s / 2, z + s / 2, 'wood_l', 1, 1);
+    v.paint((xx, yy, zz) => {
+      const ex = Math.abs(xx - x) < s / 2 - 1.2, ez = Math.abs(zz - z) < s / 2 - 1.2, ey = yy > y + 1.2 && yy < y + s - 1.2;
+      return (ex && ey) || (ez && ey) || (ex && ez) ? col : undefined;
+    }, x - s / 2, x + s / 2, y, y + s, z - s / 2, z + s / 2);
+    v.paint((xx, yy) => (Math.abs(yy - (y + s / 2)) < 1.5 && Math.abs(xx - x) < s / 4 ? letter : undefined), x + s / 2 - 0.6, x + s / 2 + 0.1, y, y + s, z - s / 2, z + s / 2);
   };
-  cube(4, 0, 4, 9, 'toy_b', 'A'); cube(17, 0, 4, 9, 'red', 'B'); cube(4, 0, 17, 9, 'toy_g'); cube(17, 0, 17, 9, 'toy_y');
-  cube(7, 9, 7, 16, 'red', 'Г');
-  cube(10, 25, 10, 9, 'toy_y');
-  v.box(19, 21, 28, 31, 12, 14, 'black'); v.box(19, 21, 28, 31, 16, 18, 'black');           // глаза
-  for (const z of [1, 26]) v.box(11, 19, 13, 16, z, z + 3, 'toy_g');                        // руки-кубики
-  void c;
-  return one(v, 30);
+  cube(20, 0, zc - 7, 11, 'blue', 'white'); cube(20, 0, zc + 7, 11, 'toy_g', 'white');          // ноги
+  cube(20, 11, zc, 20, 'red', 'toy_y');                                                         // туловище
+  cube(21, 31, zc, 13, 'toy_y', 'red');                                                         // голова
+  v.box(27.4, 28, 37, 39, zc - 4, zc - 1.5, 'glow_r'); v.box(27.4, 28, 37, 39, zc + 1.5, zc + 4, 'glow_r');
+  cube(23, 14, zc - 15, 9, 'blue', 'toy_y'); cube(23, 14, zc + 15, 9, 'toy_g', 'red');             // кулаки
+  v.box(10, 30, 23, 24.4, zc - 10.2, zc + 10.2, 'red_d');                                        // красный пояс
+  return one(v, 44);
 }
 
+/** Чёртик в коробке: расписной ящик, ручка завода, клоун на пружине с красным носом и огоньками. */
 export function jackBox(): ModelDef {
-  const v = new Vox(22, 30, 22), c = 11;
-  v.box(1, 21, 0, 14, 1, 21, 'fabric_b');
-  v.fill((x, y, z) => ((Math.floor(x / 3) + Math.floor(y / 3) + Math.floor(z / 3)) % 2 ? 'fabric_y' : undefined), 1, 21, 0, 14, 1, 21);
-  v.box(1, 21, 13, 14, 1, 21, 'red');
-  v.box(20, 21, 14, 26, 1, 21, 'fabric_b');                                 // откинутая крышка
-  v.cylZ(4, 8, 2.4, 21, 22, 'gold'); v.cylX(8, 21.5, 0.8, 1, 4, 'gold');     // ручка
-  for (let i = 0; i < 4; i++) v.cylY(c, c, 3.6 - (i % 2) * 0.8, 14 + i * 2, 16 + i * 2, 'steel_l');   // пружина
-  v.sphere(c, 25, c, 4.6, 'white');
-  v.ell(c + 3, 25.5, c, 1.6, 1, 3, 'red');                                   // нос
-  v.set(c + 4, 27, c - 2, 'black'); v.set(c + 4, 27, c + 2, 'black');
-  v.box(c - 1, c + 4, 29, 30, c - 4, c + 4, 'red'); v.box(c - 2, c + 2, 30, 32, c - 2, c + 2, 'fabric_y');   // колпак
-  return one(v, 22);
+  const n = 40, v = new Vox(n, 58, n), c = n / 2;
+  cbox(v, 4, n - 4, 0, 24, 4, n - 4, 'blue', 1, 1);
+  v.paint((x, y, z) => ((Math.floor((x + z) / 6) + Math.floor(y / 6)) % 2 === 0 ? 'toy_y' : undefined), 4, n - 4, 2, 22, 4, n - 4);
+  v.box(4, n - 4, 22, 24, 4, n - 4, 'red'); v.box(4, n - 4, 0, 2, 4, n - 4, 'red');
+  v.box(5, n - 5, 24, 25, 5, n - 5, 'black');                                                   // открытая крышка
+  v.box(4, 6, 24, 40, 4, n - 4, 'blue'); v.box(3.6, 4, 26, 38, 6, n - 6, 'toy_y');
+  v.cylZ(c, 12, 2, n - 4, n - 1, 'gold_d'); v.box(c - 1, c + 1, 12, 20, n - 2, n - 1, 'gold'); v.box(c - 1, c + 4, 19, 21, n - 2, n, 'red');   // ручка
+  for (let y = 24; y < 40; y++) { const a = y * 1.2; v.set(c + Math.cos(a) * 3.5, y, c + Math.sin(a) * 3.5, 'chrome'); v.set(c + Math.cos(a + Math.PI) * 3.5, y, c + Math.sin(a + Math.PI) * 3.5, 'steel'); }   // пружина
+  v.sphere(c, 45, c, 6, 'white');
+  v.ell(c, 50, c, 6.6, 3, 6.6, 'red');                                                          // колпак
+  v.cylY(c, c, 1.6, 52, 56, 'red'); v.sphere(c, 56.5, c, 1.6, 'glow_r');
+  v.sphere(c + 5.6, 44.5, c, 1.5, 'red');                                                       // нос
+  v.box(c + 4.6, c + 5.6, 46.5, 48, c - 3, c - 1.4, 'glow_r'); v.box(c + 4.6, c + 5.6, 46.5, 48, c + 1.4, c + 3, 'glow_r');
+  v.box(c + 4.8, c + 5.8, 41.5, 42.5, c - 2.5, c + 2.5, 'red_d');                               // улыбка
+  for (const s of [-1, 1]) v.ell(c, 44, c + s * 6, 1.6, 2.6, 1.4, 'toy_g');                       // волосы
+  return one(v, 40, [n, n]);
 }
 
+/** Радиотанк: большой пластиковый танк на пульте — камуфляж игрушечных цветов, приёмник с антенной и огоньками,
+ *  башня с пусковой установкой мягких ракет, красные полосы. */
 export function rcTank(): ModelDef {
-  return tankSpec({
-    L: 46, W: 34, tH: 10, hH: 7, body: 'navy_l', dark: 'navy', light: 'blue_l', wheel: 'yel', round: false, wheels: 5,
-    tr: 9, tH2: 7, turret: 'navy_l', barrel: 18, bR: 2, twin: true,
-    extra: (h, t, c) => {
-      for (const zz of [c.zc - 18, c.zc + 17]) h.box(c.x0 + 2, c.x1 - 6, c.yT - 2, c.yT, zz, zz + 1, 'yel');
-      t.seg([c.tcx - 6, c.TH, c.tcz + 5], [c.tcx - 8, c.TH + 16, c.tcz + 5], 0.6, 'black'); t.set(c.tcx - 8, c.TH + 16, c.tcz + 5, 'lamp_r');
-      t.box(c.tcx - 4, c.tcx + 2, c.TH, c.TH + 3, c.tcz - 4, c.tcz + 1, 'gun');
-      h.box(c.x1 - 3, c.x1 - 1, c.yT - 4, c.yT - 2, c.zc - 14, c.zc - 11, 'lamp'); h.box(c.x1 - 3, c.x1 - 1, c.yT - 4, c.yT - 2, c.zc + 11, c.zc + 14, 'lamp');
-    },
-  });
+  const L = 62, TW = 14, TH = 12, W = 50, NX = L + 8, NZ = W + 2, zc = NZ / 2, x0 = 4, x1 = 4 + L;
+  const v = new Vox(NX, 36, NZ);
+  track(v, x0, x1, TH, 1, 1 + TW, 1, 6, 'rubber', 'toy_y');
+  track(v, x0, x1, TH, NZ - 1 - TW, NZ - 1, NZ - 2, 6, 'rubber', 'toy_y');
+  v.box(x0 + 3, x1 - 3, 2, TH - 1, 1 + TW, NZ - 1 - TW, 'gun_d');
+  const yb = TH - 2, yt = TH + 9;
+  cbox(v, x0 + 1, x1 - 1, yb, yt, TW - 3, NZ - TW + 3, 'toy_g', 2, 2);
+  v.cut(0.9, 1, 0, 0.9 * (x1 - 12) + yt, x1 - 13, x1, yb, yt);
+  v.paint((x, y, z) => (Math.sin(x * 0.3) + Math.cos(z * 0.35) > 1.1 ? 'green_d' : Math.sin(x * 0.2 + 2) + Math.cos(z * 0.25 + 1) > 1.3 ? 'toy_y' : undefined));
+  v.paint((x, y) => (y >= yt - 3 && y < yt - 1.8 ? 'red' : undefined), x0, x1, yb, yt, 0, NZ);       // красная полоса
+  for (const zz of [TW, NZ - TW - 3]) v.box(x1 - 3, x1 - 1, yb + 3, yb + 5, zz, zz + 3, 'glow_r');
+  // приёмник радиосигнала: коробка с огоньками и длинная антенна
+  v.box(x0 + 3, x0 + 13, yt, yt + 6, zc + 6, zc + 14, 'gun'); v.box(x0 + 4, x0 + 12, yt + 6, yt + 6.6, zc + 7, zc + 13, 'gun_d');
+  for (let i = 0; i < 3; i++) v.set(x0 + 5 + i * 3, yt + 6.5, zc + 10, 'glow_r');
+  v.seg([x0 + 8, yt + 6, zc + 10], [x0 + 5, yt + 26, zc + 10], 0.5, 'chrome'); v.sphere(x0 + 5, yt + 26.5, zc + 10, 1.2, 'glow_r');
+  const t = new Vox(72, 18, 36), tc = 18, tcx = 18;
+  t.cylY(tcx, tc, 13, 0, 9, 'toy_g', 11);
+  t.paint((x, y, z) => (Math.sin(x * 0.4) + Math.cos(z * 0.4) > 1.1 ? 'green_d' : undefined));
+  t.cylY(tcx, tc, 13.2, 3, 4.5, 'red');
+  barrel(t, tcx + 10, tcx + 42, 4.5, tc, 2.6, 'toy_y', 'toy_g', 'glow_r');
+  for (const s of [-1, 1]) { t.box(tcx - 6, tcx + 6, 5, 11, tc + s * 12 - 3, tc + s * 12 + 3, 'blue'); for (const yy of [6.5, 9]) for (const dz of [-1.5, 1.5]) { t.cylX(yy, tc + s * 12 + dz, 0.9, tcx + 6, tcx + 9, 'toy_y'); t.set(tcx + 9, yy, tc + s * 12 + dz, 'red'); } }
+  t.cylY(tcx - 5, tc - 4, 3, 9, 11, 'toy_y'); t.set(tcx - 5, 11, tc - 4, 'glow_r');
+  return { size: L, parts: [{ name: 'hull', vox: v }, { name: 'turret', vox: t, pivot: [tcx, 0, tc], at: [x0 + L * 0.5 - NX / 2, yt, 0] }] };
 }
 
-// ---------------------------------------------------------------- босс: Пульт-тиран
-// Огромный боевой робот на радиоуправлении: ноги-гусеницы, торс с ракетницами и руками-пушками,
-// на спине — гигантский пульт с телескопической антенной (слабое место, мигает красным).
-export function bossTyrant(): ModelDef {
-  const NX = 92, NZ = 100, c = NZ / 2;
-  const legs = new Vox(NX, 44, NZ);
-  for (const s of [-1, 1]) {
-    const zz = c + s * 25;
-    tracks(legs, 8, 84, 16, zz - 10, zz + 10, 5, 'yel', 'gun_d');
-    cbox(legs, 14, 78, 12, 20, zz - 11, zz + 11, 'navy', 3, 2);                    // надгусеничная броня
-    seams(legs, 14, 78, 12, 20, zz - 11, zz + 11, 12, 0, 0, 'navy_d');
-    legs.box(76, 80, 14, 17, zz - 8, zz - 5, 'lamp'); legs.box(76, 80, 14, 17, zz + 5, zz + 8, 'lamp');
-    cbox(legs, 34, 58, 20, 38, zz - 7, zz + 7, 'navy_l', 2, 0);                     // голень
-    legs.box(32, 60, 26, 30, zz - 8, zz + 8, 'yel');
-    legs.cylZ(46, 36, 5, zz - 9, zz + 9, 'gun');                                   // колено-шарнир
-    legs.cylZ(46, 36, 2, zz - 9.5, zz + 9.5, 'yel');
-  }
-  cbox(legs, 30, 62, 34, 44, c - 30, c + 30, 'navy_d', 3, 2);                         // таз
-  legs.cylY(46, c, 12, 40, 44, 'gun');
+// ============================================================================ препятствия
+const BLOCK_COLS: [string, string][] = [['red', 'toy_y'], ['blue', 'white'], ['toy_g', 'toy_y'], ['toy_y', 'red'], ['purple', 'white'], ['orange', 'blue']];
 
-  const T = new Vox(84, 74, NZ), tc = c;
-  // торс со скосами, швы панелей, грудная плита со звездой
-  cbox(T, 18, 62, 0, 36, tc - 24, tc + 24, 'navy_l', 4, 3);
-  T.cut(1, 0.9, 0, 62 + 0.9 * 22, 48, 63, 18, 37);
-  seams(T, 18, 62, 0, 36, tc - 24, tc + 24, 11, 9, 12, 'navy');
-  cbox(T, 56, 64, 6, 26, tc - 14, tc + 14, 'yel', 2, 1);
-  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0, 2], [0, -2], [2, 0], [-2, 0]]) T.set(64, 16 + a, tc + b, 'lamp_o');
-  for (let z = tc - 20; z < tc + 20; z += 4) T.box(18, 20, 10, 30, z, z + 2, 'gun_d');   // решётка на спине
-  // голова: шлем, визор, «уши»-антенны
-  cbox(T, 34, 58, 36, 52, tc - 12, tc + 12, 'navy', 3, 3);
-  T.box(54, 59, 42, 47, tc - 10, tc + 10, 'gun_d');
-  T.box(58, 59.5, 43, 46, tc - 8, tc - 2, 'eye_r'); T.box(58, 59.5, 43, 46, tc + 2, tc + 8, 'eye_r');
-  T.box(56, 59, 37, 40, tc - 6, tc + 6, 'steel_l');
-  for (let z = tc - 5; z < tc + 6; z += 2) T.box(58, 59.2, 37, 40, z, z + 1, 'gun_d');      // «зубы»-решётка
-  for (const s of [-1, 1]) { T.cylZ(46, 46, 3.5, tc + s * 12 - (s > 0 ? 0 : 2), tc + s * 12 + (s > 0 ? 2 : 0), 'yel'); T.seg([46, 49, tc + s * 13], [42, 58, tc + s * 15], 0.6, 'steel_l'); T.set(42, 58, tc + s * 15, 'lamp_g'); }
-  T.box(38, 54, 52, 54, tc - 3, tc + 3, 'red');                                         // гребень
-  // плечи: ракетные блоки, руки с пушками
-  for (const s of [-1, 1]) {
-    const zz = tc + s * 34;
-    cbox(T, 22, 56, 14, 38, zz - 10, zz + 10, 'navy', 3, 3);
-    cbox(T, 24, 54, 36, 44, zz - 9, zz + 9, 'red', 2, 2);
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { T.cylX(39 - j * 4.5, zz - 5 + i * 5, 1.7, 50, 55, 'gun_d'); T.cylX(39 - j * 4.5, zz - 5 + i * 5, 1, 54, 55.2, 'lamp_o'); }
-    seams(T, 22, 56, 14, 38, zz - 10, zz + 10, 0, 8, 0, 'navy_d');
-    // рука: плечо → локоть → предплечье-пушка вперёд
-    T.seg([38, 16, zz], [42, 4, zz], 3.2, 'gun');
-    T.sphere(42, 6, zz, 4.4, 'yel');
-    cbox(T, 38, 64, 1, 12, zz - 5, zz + 5, 'navy_l', 2, 2);
-    gun(T, 62, 80, 6.5, zz - s * 1.5, 2.6, 'gun', 'gun_d');
-    gun(T, 62, 76, 6.5, zz + s * 3, 1.4, 'gun_l', 'gun_d');
-  }
-  // гигантский пульт на спине: корпус, джойстики, кнопки, антенна
-  cbox(T, 2, 18, 2, 42, tc - 18, tc + 18, 'black', 3, 3);
-  T.box(1, 2, 8, 36, tc - 14, tc + 14, 'gun');
-  for (const zz of [tc - 8, tc + 8]) { T.cylX(26, zz, 5, 0.5, 2, 'gun_d'); T.seg([1, 26, zz], [-3 + 4, 33, zz], 1, 'steel'); T.sphere(1, 34, zz, 2.2, 'red'); }
-  for (let i = 0; i < 4; i++) T.cylX(12, tc - 9 + i * 6, 1.6, 0.5, 2, ['red', 'lamp_g', 'yel', 'blue'][i]);
-  T.box(3, 15, 42, 44, tc - 4, tc + 12, 'gun');
-  for (let y = 44; y < 72; y += 1) T.cylY(9, tc + 8, y < 52 ? 1.6 : y < 62 ? 1.2 : 0.9, y, y + 1, (y % 8) < 1 ? 'steel' : 'steel_l');
-  T.sphere(9, 72, tc + 8, 2.8, 'lamp_r');
-  return {
-    size: 100,
-    parts: [
-      { name: 'hull', vox: legs, pivot: [46, 0, c] },
-      { name: 'turret', vox: T, pivot: [40, 0, tc], at: [0, 42, 0] },
-    ],
-  };
-}
-
-// ---------------------------------------------------------------- препятствия
-const BLOCK_COL = ['red', 'toy_b', 'toy_g', 'toy_y', 'purple'];
+/** Кубик с буквами: деревянное ребро, цветные грани, рельефная буква. */
 export function block(v: number): ModelDef {
-  const n = 14, b = new Vox(n, 14, n), col = BLOCK_COL[v % 5];
-  b.box(0, n, 0, 14, 0, n, col);
-  b.box(1, n - 1, 1, 13, -0.01, n + 0.01, 'cream'); b.box(-0.01, n + 0.01, 1, 13, 1, n - 1, 'cream');
-  b.box(1, n - 1, 13, 14, 1, n - 1, 'cream');
-  // буквы-полоски
-  b.box(5, 9, 3, 11, -0.02, n + 0.02, col); b.box(-0.02, n + 0.02, 3, 11, 5, 9, col); b.box(4, 10, 13.5, 14, 6, 8, col);
+  const n = 40, b = new Vox(n, n, n), [face, letter] = BLOCK_COLS[v % BLOCK_COLS.length];
+  cbox(b, 0, n, 0, n - 1, 0, n, 'wood_l', 2, 2);
+  b.paint((x, y, z) => { const ex = x > 4 && x < n - 4, ez = z > 4 && z < n - 4, ey = y > 4 && y < n - 5; return (ex && ey) || (ez && ey) || (ex && ez) ? face : undefined; });
+  b.paint((x, y, z) => ((x < 1 || x > n - 1 || z < 1 || z > n - 1 || y > n - 2) && ((x + y + z) % 9 === 0) ? 'wood' : undefined));
+  // буквы: «А» на одной грани, «Б» на другой, «В» сверху (простые штрихи)
+  const glyph = (u: number, w: number, k: number) => {
+    const p = (u - n / 2) / 12, q = (w - n / 2) / 12;
+    if (k === 0) return Math.abs(Math.abs(p) * 2 - (q + 1) * 0.9) < 0.18 && q > -1 && q < 1 || (Math.abs(q - 0.1) < 0.14 && Math.abs(p) < 0.5);
+    if (k === 1) return (Math.abs(p + 0.5) < 0.16 && Math.abs(q) < 1) || (Math.abs(q - 0.95) < 0.15 && Math.abs(p) < 0.6) || (Math.abs(q + 0.1) < 0.15 && p > -0.5 && p < 0.4) || (Math.abs(q + 0.95) < 0.15 && p > -0.5 && p < 0.4) || (Math.abs(p - 0.45) < 0.16 && q > -1 && q < 0);
+    return (Math.abs(p + 0.5) < 0.16 && Math.abs(q) < 1) || (Math.abs(Math.hypot(p - 0, q - 0.45) - 0.48) < 0.15 && p > -0.5) || (Math.abs(Math.hypot(p, q + 0.45) - 0.48) < 0.15 && p > -0.5);
+  };
+  b.paint((x, y, z) => (x > n - 1.5 && glyph(z, n - y, (v + 0) % 3) ? letter : undefined));
+  b.paint((x, y, z) => (z > n - 1.5 && glyph(x, n - y, (v + 1) % 3) ? letter : undefined));
+  b.paint((x, y, z) => (y > n - 2.5 && glyph(x, z, (v + 2) % 3) ? letter : undefined));
   return one(b, n, [n, n]);
 }
 
-const BOOK_COL = ['fabric_r', 'fabric_b', 'green', 'purple'];
+const BOOK_COLS = ['fabric_r', 'fabric_b', 'green_d', 'purple_d', 'orange_d', 'navy'];
+/** Книжка плашмя: твёрдая обложка, корешок с золотым тиснением, срез страниц, закладка. */
 export function book(v: number): ModelDef {
-  const b = new Vox(28, 7, 20), col = BOOK_COL[v % 4];
-  b.box(0, 28, 0, 1, 0, 20, col); b.box(0, 28, 6, 7, 0, 20, col); b.box(0, 2, 0, 7, 0, 20, col);
-  b.box(2, 27.5, 1, 6, 0.5, 19.5, 'paper');
-  b.fill((x, y) => (Math.floor(y) % 2 ? 'paper_d' : undefined), 27, 28, 1, 6, 1, 19);
-  b.box(8, 20, 6.5, 7, 6, 14, 'gold');
-  return one(b, 28, [28, 20]);
+  const X = 130, Z = 96, b = new Vox(X, 18, Z), col = BOOK_COLS[v % BOOK_COLS.length];
+  b.box(0, X, 0, 2, 0, Z, col); b.box(0, X, 15, 17, 0, Z, col);
+  b.box(2, X - 3, 2, 15, 3, Z - 3, 'paper');
+  b.paint((x, y) => (y % 2 < 1 ? 'paper_d' : undefined), 2, X - 3, 2, 15, 3, Z - 3);
+  b.box(0, 5, 0, 17, 0, Z, col);                                             // корешок
+  for (const z of [14, Z - 16]) b.box(0, 5.4, 2, 15, z, z + 2, 'gold');
+  b.box(20, X - 20, 16.6, 17, 20, Z - 20, col === 'navy' ? 'navy_l' : 'paper_d');                       // наклейка на обложке
+  b.box(30, X - 30, 16.8, 17.2, 30, 34, 'gold'); b.box(40, X - 40, 16.8, 17.2, 40, 42, 'gold');
+  b.box(X - 3, X + 0, 6, 9, Z - 30, Z - 26, 'red');                          // закладка
+  return one(b, X, [X, Z]);
 }
 
-const CRAYON_COL = ['red', 'toy_b', 'toy_g', 'toy_y', 'purple'];
+const CRAYON_COLS: [string, string][] = [['red', 'red_d'], ['blue', 'blue_d'], ['toy_g', 'green_d'], ['toy_y', 'gold_d'], ['purple', 'purple_d'], ['orange', 'orange_d']];
+/** Восковой мелок: заострённый кончик, обёртка с полосками и надписью. */
 export function crayon(v: number): ModelDef {
-  const b = new Vox(40, 6, 6), col = CRAYON_COL[v % 5];
-  b.cylX(3, 3, 2.8, 0, 32, col);
-  b.cylX(3, 3, 2.9, 6, 26, 'paper');
-  b.fill((x) => (Math.floor(x) % 5 === 0 ? col : undefined), 6, 26, 0, 6, 0, 6);
-  b.cylX(3, 3, 2.8, 32, 40, col, 0.6);
-  return one(b, 40, [40, 6]);
+  const X = 120, Z = 14, c = new Vox(X, 14, Z), [w, d] = CRAYON_COLS[v % CRAYON_COLS.length];
+  c.cylX(7, 7, 6.4, 0, X - 18, w);
+  c.cylX(7, 7, 6.4, 6, X - 26, 'paper');
+  for (const x of [8, 11, X - 30, X - 33]) c.cylX(7, 7, 6.5, x, x + 1.5, d);
+  c.cylX(7, 7, 6.5, 30, X - 50, w);
+  c.paint((x, y) => (y > 11.5 && x > 34 && x < X - 54 && Math.floor(x / 3) % 2 ? 'black' : undefined), 30, X - 50, 0, 14, 0, Z);
+  c.cylX(7, 7, 6.4, X - 18, X, w, 1.2);                                      // кончик
+  c.cylX(7, 7, 6.6, X - 18, X - 16, d);
+  return one(c, X, [X, Z]);
 }
 
+/** Ножка мебели: точёный деревянный столб с кольцами и латунной накладкой у пола. */
 export function furnitureLeg(): ModelDef {
-  const b = new Vox(16, 40, 16);
-  b.cylY(8, 8, 7, 0, 3, 'wood_d'); b.cylY(8, 8, 6, 3, 40, 'wood'); b.cylY(8, 8, 6.5, 18, 21, 'wood_l');
-  return one(b, 16, [16, 16]);
+  const n = 48, H = 130, b = new Vox(n, H, n), c = n / 2;
+  b.fill((x, y, z) => { const r = Math.hypot(x - c, z - c); const R = 15 + Math.sin(y / 9) * 2 + (y < 10 ? 4 : 0) + (y > H - 18 ? 6 : 0) - (y > 30 && y < 40 ? 3 : 0); return r < R ? 'wood' : undefined; });
+  b.paint((x, y) => (Math.floor(y) % 18 < 2 ? 'wood_d' : y % 18 > 14 ? 'wood_l' : undefined));
+  b.paint((x, y, z) => ((Math.atan2(z - c, x - c) * 8 + y * 0.15) % 2 < 0.3 ? 'wood_d' : undefined), 0, n, 40, H - 20, 0, n);
+  b.cylY(c, c, 20, 0, 6, 'brass'); b.cylY(c, c, 20.4, 5, 6, 'gold');
+  return one(b, n, [n, n]);
 }
 
-const MARBLE_COL = ['water_l', 'red_l', 'toy_g', 'gold'];
+const MARBLE_COLS: [string, string][] = [['glass', 'blue'], ['water_l', 'toy_g'], ['crystal', 'red'], ['ice_l', 'purple'], ['glass_d', 'toy_y']];
+/** Стеклянный шарик: прозрачное тело, цветная спираль внутри, блик. */
 export function marble(v: number): ModelDef {
-  const b = new Vox(12, 12, 12);
-  b.sphere(6, 6, 6, 5.6, 'glass');
-  b.paint((x, y, z) => (Math.abs(Math.sin(x * 0.9 + z * 0.6 + y * 0.3)) < 0.25 ? MARBLE_COL[v % 4] : undefined));
-  b.set(4, 9, 4, 'white');
-  return one(b, 12, [12, 12]);
+  const n = 20, c = n / 2, b = new Vox(n, n, n), [g, s] = MARBLE_COLS[v % MARBLE_COLS.length];
+  b.sphere(c, c, c, 9.4, g);
+  b.paint((x, y, z) => { const a = Math.atan2(z - c, x - c) + y * 0.4; return Math.abs(Math.sin(a * 1.5)) > 0.9 ? s : undefined; });
+  b.paint((x, y, z) => ((x - c + 4) ** 2 + (y - c - 5) ** 2 + (z - c + 4) ** 2 < 6 ? 'white' : undefined));
+  return one(b, n, [n, n]);
 }
 
-void rotor;
+const SLIPPER_COLS: [string, string][] = [['pink', 'white'], ['fabric_b', 'white'], ['fabric_y', 'orange'], ['green_l', 'white']];
+/** Пушистый тапок: резиновая подошва, мягкий верх-петля, помпон. */
+export function slipper(v: number): ModelDef {
+  const X = 150, Z = 70, b = new Vox(X, 30, Z), zc = Z / 2, [col, pom] = SLIPPER_COLS[v % SLIPPER_COLS.length];
+  b.fill((x, y, z) => { const dz = Math.abs(z - zc) / (zc - 2), dx = (x - X / 2) / (X / 2 - 2); return dx * dx + dz * dz <= 1 ? 'rubber' : undefined; }, 0, X, 0, 4, 0, Z);
+  b.fill((x, y, z) => { const dz = Math.abs(z - zc) / (zc - 4), dx = (x - X / 2) / (X / 2 - 4); return dx * dx + dz * dz <= 1 ? 'cream' : undefined; }, 0, X, 4, 6, 0, Z);
+  // верх: мягкий купол над передней половиной
+  b.fill((x, y, z) => { if (x < X * 0.45) return undefined; const dz = (z - zc) / (zc - 3), dx = (x - X * 0.72) / (X * 0.3), dy = (y - 5) / 20; return dx * dx + dz * dz + dy * dy <= 1 && y >= 5 ? col : undefined; }, 0, X, 5, 30, 0, Z);
+  b.paint((x, y, z) => ((x * 7 + y * 3 + z * 5) % 11 === 0 ? 'white' : undefined), X * 0.45, X, 6, 30, 0, Z);
+  b.sphere(X * 0.84, 22, zc, 8, pom);
+  b.paint((x, y, z) => ((x + y + z) % 5 === 0 ? 'cream' : undefined), X * 0.84 - 9, X * 0.84 + 9, 13, 31, zc - 9, zc + 9);
+  return one(b, X, [X, Z]);
+}
+
+const PILLOW_COLS: [string, string][] = [['white', 'fabric_b'], ['fabric_y', 'orange'], ['fabric_r', 'gold'], ['pink', 'white']];
+/** Подушка: мягкая, со швом по краю, вышитым ромбом и кисточками по углам. */
+export function pillow(v: number): ModelDef {
+  const X = 150, Z = 80, b = new Vox(X, 30, Z), [col, acc] = PILLOW_COLS[v % PILLOW_COLS.length];
+  b.fill((x, y, z) => {
+    const ex = Math.min(x, X - x) / 18, ez = Math.min(z, Z - z) / 14;
+    const h = 26 * Math.min(1, ex) * Math.min(1, ez) * (0.85 + 0.15 * Math.sin(x / X * Math.PI));
+    return y < Math.max(4, h) ? col : undefined;
+  });
+  b.paint((x, y, z) => (Math.abs(Math.abs(x - X / 2) / 40 + Math.abs(z - Z / 2) / 24 - 1) < 0.06 ? acc : undefined));
+  b.paint((x, y, z) => (Math.min(x, X - x) < 3 || Math.min(z, Z - z) < 3 ? acc : undefined), 0, X, 0, 6, 0, Z);
+  for (const [x, z] of [[2, 2], [X - 3, 2], [2, Z - 3], [X - 3, Z - 3]]) b.ell(x, 3, z, 2.4, 2.8, 2.4, acc);
+  return one(b, X, [X, Z]);
+}
+
+export type { PartDef };
+export { rotor };

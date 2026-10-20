@@ -38,7 +38,10 @@ export class Hud {
     if (this.banners.length > 3) this.banners.shift();
   }
 
+  private pulse = 0;
+
   update(dt: number): void {
+    this.pulse += dt;
     for (const b of this.banners) b.t += dt;
     this.banners = this.banners.filter(b => b.t < b.dur);
     this.hurtFlash = this.hurtFlash.map(v => Math.max(0, v - dt * 3));
@@ -65,15 +68,20 @@ export class Hud {
   }
 
   private drawTop(ctx: CanvasRenderingContext2D, sim: Sim, W: number): void {
-    const bw = Math.min(250, Math.round(W * 0.36));
+    const bw = Math.min(220, Math.round(W * 0.32));
     const x = Math.round(W / 2 - bw / 2), y = 5;
-    const k = sim.xp / sim.xpNeed();
-    bar(ctx, x, y, bw, 5, k, '#fbcd4a');
-    // Риски уровня
-    ctx.fillStyle = 'rgba(7,6,11,0.5)';
-    for (let i = 1; i < 10; i++) ctx.fillRect(x + Math.round((bw * i) / 10), y, 1, 5);
-    drawText(ctx, `УР ${sim.level}`, x - 6, y - 1, { align: 'right', color: UI.gold });
-    drawText(ctx, fmtTime(sim.time), x + bw + 6, y - 1, { color: UI.text });
+    // Полоса ступени: путь до прихода босса (череп в конце); в бою с боссом — красная.
+    const st0 = STAGE_DEFS[sim.stageIdx];
+    const k = sim.boss ? 1 : Math.min(1, sim.stageTime / st0.bossAt);
+    ctx.fillStyle = '#07060b'; ctx.fillRect(x - 2, y - 2, bw + 4, 9);
+    ctx.fillStyle = '#272336'; ctx.fillRect(x - 1, y - 1, bw + 2, 7);
+    ctx.fillStyle = '#151320'; ctx.fillRect(x, y, bw, 5);
+    ctx.fillStyle = sim.boss ? '#c23434' : '#3a3550';
+    ctx.fillRect(x, y, Math.round(bw * k), 5);
+    ctx.fillStyle = sim.boss ? '#ea6a3f' : '#55507a'; ctx.fillRect(x, y, Math.round(bw * k), 1);
+    ctx.drawImage(iconCanvas('skull'), x + bw - 2, y - 6, 14, 14);
+    drawText(ctx, sim.boss ? 'БОСС!' : 'ДО БОССА', x - 6, y - 1, { align: 'right', color: sim.boss ? UI.red : UI.dim });
+    drawText(ctx, fmtTime(sim.time), x + bw + 16, y - 1, { color: UI.text });
     const st = STAGE_DEFS[sim.stageIdx];
     const stars = '★'.repeat(sim.starTier) + (sim.starTier < 3 ? '☆'.repeat(0) : '');
     drawText(ctx, `${TIER_ROMAN[sim.stageIdx]} · ${st.name.toUpperCase()}`, W / 2, y + 9, { align: 'center', color: UI.dim, font: 'main' });
@@ -100,64 +108,86 @@ export class Hud {
     }
   }
 
+  /** Панель игрока: рамка его цвета, портрет класса, сегментная прочность с цифрами, золотая «энергия» (опыт до уровня),
+   *  кнопки способностей с клавишами и кольцом перезарядки, жизни, оружие с точками уровня. */
   private drawPlayer(ctx: CanvasRenderingContext2D, sim: Sim, p: Player, x: number, right: boolean, W: number): void {
-    const col = p.idx === 0 ? UI.p1 : UI.p2;
-    const w = Math.min(132, Math.round(W * 0.22));
-    const x0 = right ? x - w : x;
-    const y0 = 3;
-    // Зеркальная раскладка: px(o, width) — координата элемента со смещением o от «внешнего» края.
+    const col = p.idx === 0 ? UI.p1 : UI.p2, dark = p.idx === 0 ? '#5b3409' : '#17401c';
+    const w = Math.min(150, Math.round(W * 0.25)), h = 62;
+    const x0 = right ? x - w : x, y0 = 3;
     const px = (o: number, ew: number) => (right ? x0 + w - o - ew : x0 + o);
-    ctx.fillStyle = 'rgba(7,6,11,0.6)';
-    ctx.fillRect(x0 - 2, y0 - 2, w + 4, 52);
-    ctx.fillStyle = col;
-    ctx.fillRect(right ? x0 + w + 1 : x0 - 2, y0 - 2, 1, 52);
-    ctx.drawImage(iconCanvas('c_' + p.classId), px(0, 18), y0);
+    // рамка: тёмная подложка, кромка цвета игрока со светлым верхом, уголки
+    ctx.fillStyle = 'rgba(7,6,11,0.72)'; ctx.fillRect(x0 - 3, y0 - 3, w + 6, h + 6);
+    ctx.fillStyle = dark; ctx.fillRect(x0 - 3, y0 - 3, w + 6, 1); ctx.fillRect(x0 - 3, y0 + h + 2, w + 6, 1); ctx.fillRect(x0 - 3, y0 - 3, 1, h + 6); ctx.fillRect(x0 + w + 2, y0 - 3, 1, h + 6);
+    ctx.fillStyle = col; for (const [cx, cy] of [[x0 - 3, y0 - 3], [x0 + w, y0 - 3], [x0 - 3, y0 + h], [x0 + w, y0 + h]]) { ctx.fillRect(cx, cy, 3, 1); ctx.fillRect(cx + (cx > x0 ? 2 : 0), cy, 1, 3); }
+    // портрет
+    const pX = px(0, 24);
+    ctx.fillStyle = '#151320'; ctx.fillRect(pX, y0, 24, 24);
+    ctx.fillStyle = dark; ctx.fillRect(pX, y0 + 23, 24, 1);
+    ctx.drawImage(iconCanvas('c_' + p.classId), pX + 1, y0 + 2, 22, 22);
+    drawText(ctx, TIER_ROMAN[sim.stageIdx], pX + (right ? 2 : 22), y0 + 16, { align: right ? 'left' : 'right', font: 'small', color: UI.gold });
     const label = (p.idx === 0 ? '1P ' : '2P ') + p.cls.name.toUpperCase();
-    drawText(ctx, label, right ? x0 + w - 21 : x0 + 21, y0 + 1, { color: col, align: right ? 'right' : 'left' });
-    // Прочность.
-    const hw = w - 21;
-    const hpk = p.state === 'alive' ? p.hp / p.maxHp : 0;
-    const hcol = hpk > 0.5 ? '#6ccc4a' : hpk > 0.25 ? '#fbcd4a' : '#ea6a3f';
-    const hx = px(21, hw);
-    bar(ctx, hx, y0 + 11, hw, 4, hpk, p.state === 'alive' ? hcol : '#3a3550');
-    if (this.hurtFlash[p.idx] > 0) { ctx.globalAlpha = this.hurtFlash[p.idx]; ctx.fillStyle = '#fff'; ctx.fillRect(hx, y0 + 11, Math.round(hw * hpk), 4); ctx.globalAlpha = 1; }
-    // Способности (3 слота) с подписью клавиши внутри.
+    drawText(ctx, label, right ? x0 + w - 28 : x0 + 28, y0, { color: col, align: right ? 'right' : 'left' });
+    // прочность: сегменты по 6 px
+    const hw = w - 28, hx = px(28, hw), hy = y0 + 9;
+    const hpk = p.state === 'alive' ? Math.max(0, p.hp / p.maxHp) : 0;
+    const hcol = hpk > 0.5 ? ['#6ccc4a', '#c0f07e', '#349b36'] : hpk > 0.25 ? ['#fbcd4a', '#fff1b4', '#df981c'] : ['#ea6a3f', '#fbab6c', '#c23434'];
+    ctx.fillStyle = '#07060b'; ctx.fillRect(hx - 1, hy - 1, hw + 2, 8);
+    const seg = 6, ns = Math.floor(hw / seg), full = hpk * ns;
+    for (let i = 0; i < ns; i++) {
+      const sx = right ? hx + hw - (i + 1) * seg : hx + i * seg, f = Math.max(0, Math.min(1, full - i));
+      ctx.fillStyle = '#272336'; ctx.fillRect(sx, hy, seg - 1, 6);
+      if (f > 0) { const fw = Math.max(1, Math.round((seg - 1) * f)); const fx = right ? sx + seg - 1 - fw : sx; ctx.fillStyle = hcol[0]; ctx.fillRect(fx, hy, fw, 6); ctx.fillStyle = hcol[1]; ctx.fillRect(fx, hy, fw, 1); ctx.fillStyle = hcol[2]; ctx.fillRect(fx, hy + 5, fw, 1); }
+    }
+    if (this.hurtFlash[p.idx] > 0) { ctx.globalAlpha = this.hurtFlash[p.idx]; ctx.fillStyle = '#fff'; ctx.fillRect(hx, hy, Math.round(hw * hpk), 6); ctx.globalAlpha = 1; }
+    // энергия: опыт до следующего уровня (общий), номер уровня
+    const ey = hy + 9, ek = sim.xp / sim.xpNeed();
+    ctx.fillStyle = '#07060b'; ctx.fillRect(hx - 1, ey - 1, hw + 2, 5);
+    ctx.fillStyle = '#272336'; ctx.fillRect(hx, ey, hw, 3);
+    const ew = Math.round(hw * ek);
+    ctx.fillStyle = '#df981c'; ctx.fillRect(right ? hx + hw - ew : hx, ey, ew, 3);
+    ctx.fillStyle = '#fff1b4'; ctx.fillRect(right ? hx + hw - ew : hx, ey, ew, 1);
+    drawText(ctx, `УР ${sim.level}`, right ? hx + hw : hx, ey + 4, { align: right ? 'right' : 'left', font: 'small', color: UI.gold });
+    // кнопки способностей: рамка-кнопка, иконка, кольцо перезарядки по периметру, клавиша на «колпачке»
     for (let i = 0; i < 3; i++) {
-      const sx = px(21 + i * 17, 15), sy = y0 + 19;
-      ctx.fillStyle = '#151320';
-      ctx.fillRect(sx, sy, 15, 15);
+      const bs = 19, sx = px(i * (bs + 3), bs), sy = y0 + 28;
       const a = p.abilities[i];
-      if (!a) { ctx.fillStyle = '#211e2e'; ctx.fillRect(sx + 1, sy + 1, 13, 13); continue; }
-      ctx.drawImage(iconCanvas('a_' + a.id), sx - 1, sy - 1, 17, 17);
+      ctx.fillStyle = '#07060b'; ctx.fillRect(sx - 1, sy - 1, bs + 2, bs + 2);
+      ctx.fillStyle = a ? '#272336' : '#151320'; ctx.fillRect(sx, sy, bs, bs);
+      ctx.fillStyle = a ? '#3a3550' : '#1f1c2e'; ctx.fillRect(sx, sy, bs, 1); ctx.fillRect(sx, sy, 1, bs);
+      if (!a) continue;
+      ctx.drawImage(iconCanvas('a_' + a.id), sx + 1, sy + 1, bs - 2, bs - 2);
       const cd = abilityCooldown(p, i);
       if (a.charges <= 0 && cd > 0) {
         const k = Math.max(0, Math.min(1, a.t / cd));
-        ctx.fillStyle = 'rgba(7,6,11,0.72)';
-        ctx.fillRect(sx, sy, 15, Math.round(15 * k));
-        drawText(ctx, String(Math.ceil(a.t)), sx + 8, sy + 4, { align: 'center', font: 'small', color: UI.text });
-      } else if (a.active > 0) {
+        ctx.fillStyle = 'rgba(7,6,11,0.7)'; ctx.fillRect(sx, sy, bs, bs);
+        // кольцо готовности: сколько осталось — по периметру по часовой
+        const per = bs * 4 - 4, done = Math.round(per * (1 - k));
         ctx.fillStyle = col;
-        ctx.fillRect(sx, sy, 15, 1); ctx.fillRect(sx, sy + 14, 15, 1); ctx.fillRect(sx, sy, 1, 15); ctx.fillRect(sx + 14, sy, 1, 15);
-      }
-      if (a.charges > 1) drawText(ctx, String(a.charges), sx + 12, sy + 1, { font: 'small', color: UI.gold });
+        for (let s = 0; s < done; s++) { const q = s; let qx: number, qy: number; if (q < bs) { qx = q; qy = 0; } else if (q < bs * 2 - 1) { qx = bs - 1; qy = q - bs + 1; } else if (q < bs * 3 - 2) { qx = bs - 1 - (q - bs * 2 + 2); qy = bs - 1; } else { qx = 0; qy = bs - 1 - (q - bs * 3 + 3); } ctx.fillRect(sx + qx, sy + qy, 1, 1); }
+        drawText(ctx, String(Math.ceil(a.t)), sx + bs / 2, sy + 6, { align: 'center', color: UI.text });
+      } else if (a.active > 0) {
+        ctx.fillStyle = col; ctx.fillRect(sx, sy, bs, 1); ctx.fillRect(sx, sy + bs - 1, bs, 1); ctx.fillRect(sx, sy, 1, bs); ctx.fillRect(sx + bs - 1, sy, 1, bs);
+      } else if (Math.floor(this.pulse * 3) % 2 === 0 && i > 0) { ctx.fillStyle = col; ctx.fillRect(sx + bs - 3, sy + 1, 2, 2); }
+      if (a.charges > 1) drawText(ctx, String(a.charges), sx + bs - 4, sy + 1, { font: 'small', color: UI.gold });
       const act: Action = (['a1', 'a2', 'a3'] as Action[])[i];
       const key = keyHint(p.idx as 0 | 1, act, sim.players.length === 1);
-      drawText(ctx, key, sx + 8, sy + 16, { align: 'center', font: 'small', color: UI.dim });
+      const kw = textWidth(key, { font: 'small' }) + 4;
+      ctx.fillStyle = '#ebe5e6'; ctx.fillRect(Math.round(sx + bs / 2 - kw / 2), sy + bs + 1, kw, 7);
+      ctx.fillStyle = '#9a92a0'; ctx.fillRect(Math.round(sx + bs / 2 - kw / 2), sy + bs + 7, kw, 1);
+      drawText(ctx, key, sx + bs / 2, sy + bs + 1, { align: 'center', font: 'small', color: '#07060b' });
     }
-    // Жизни — справа от способностей.
-    const lx = 21 + 3 * 17 + 4;
-    const nl = Math.min(4, p.lives);
-    for (let i = 0; i < nl; i++) ctx.drawImage(iconCanvas('p_tank'), px(lx + i * 10, 10), y0 + 21, 10, 10);
-    if (p.lives > 4) drawText(ctx, `+${p.lives - 4}`, px(lx + 40, 10), y0 + 23, { font: 'small', color: UI.text });
-    // Оружие.
+    // жизни — справа от кнопок
+    const lx = 3 * 22 + 4, nl = Math.min(4, p.lives);
+    for (let i = 0; i < nl; i++) ctx.drawImage(iconCanvas('p_tank'), px(lx + i * 11, 10), y0 + 30, 10, 10);
+    if (p.lives > 4) drawText(ctx, `+${p.lives - 4}`, px(lx + 44, 10), y0 + 32, { font: 'small', color: UI.text });
+    // оружие с точками уровня
     p.weapons.forEach((wi, i) => {
-      const ix = px(i * 16, 12);
-      ctx.drawImage(iconCanvas('w_' + wi.id), ix - 1, y0 + 37, 12, 12);
-      drawText(ctx, String(wi.level), ix + 12, y0 + 43, { font: 'small', color: i === 0 ? UI.gold : UI.text });
+      const ix = px(lx + i * 15, 13), iy = y0 + 43;
+      ctx.drawImage(iconCanvas('w_' + wi.id), ix, iy, 13, 13);
+      for (let l = 0; l < 6; l++) { ctx.fillStyle = l < wi.level ? (i === 0 ? UI.gold : '#ebe5e6') : '#3a3550'; ctx.fillRect(ix + (l % 3) * 4 + 1, iy + 14 + Math.floor(l / 3) * 2, 3, 1); }
     });
-    // Состояние.
     const st = p.state === 'out' ? 'ВЫБЫЛ' : p.state === 'down' ? `ПОДБИТ ${Math.ceil(p.downT)}` : p.state === 'dead' ? 'ВОЗРОЖДЕНИЕ' : '';
-    if (st) drawText(ctx, st, right ? x0 + w : x0, y0 + 53, { color: p.state === 'down' ? UI.red : UI.dim, align: right ? 'right' : 'left' });
+    if (st) drawText(ctx, st, right ? x0 + w : x0, y0 + h + 5, { color: p.state === 'down' ? UI.red : UI.dim, align: right ? 'right' : 'left' });
     void ABILITIES;
   }
 

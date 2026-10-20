@@ -147,11 +147,12 @@ export function emitHit(fx: Fx, sim: Sim, e: Ev<'hit'>, cam: Camera, numbers: bo
 
 /** Урон показываем относительно «силы» танка — числа читаемые на любом масштабе. */
 function fmtDmg(v: number): string {
+  v *= 10;                                     // целые числа: дробные «3.9» читались плохо
   if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
   if (v >= 1e4) return Math.round(v / 1e3) + 'K';
   if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
   if (v >= 10) return String(Math.round(v));
-  return v.toFixed(1);
+  return String(Math.max(1, Math.round(v)));
 }
 
 /** Обломки вражеской игрушки: красные и белые пластинки корпуса, тёмные детали, шестерёнки завода. */

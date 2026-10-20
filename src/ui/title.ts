@@ -46,7 +46,7 @@ export class TitleScene implements Scene {
 
   render(ctx: CanvasRenderingContext2D): void {
     const { w: W, h: H } = app.screen;
-    menuBackground(ctx, W, H, this.t, Math.min(7, save.data.stats.bestStage));
+    menuBackground(ctx, W, H, this.t, Math.min(9, save.data.stats.bestStage));
     const sc = W >= 600 ? 6 : 4;
     logo(ctx, 'ТАНКОРОСТ', W / 2, Math.round(H * 0.12), sc, this.t);
     drawText(ctx, 'ТАНКОВЫЙ РОГАЛИК · ОТ ИГРУШЕК ДО ПЛАНЕТ', W / 2, Math.round(H * 0.12) + sc * 7 + 10, { align: 'center', color: UI.text });
@@ -57,7 +57,7 @@ export class TitleScene implements Scene {
     const compact = app.screen.compact;
     this.menu.draw(ctx, W / 2, Math.round(H * (compact ? 0.4 : 0.45)), 200, compact ? 21 : 22, this.t);
     const s = save.data.stats;
-    const info = s.runs ? `Забегов: ${s.runs} · Лучший результат: ступень ${s.bestStage + 1}/8 · Побед: ${s.wins}` : 'Добро пожаловать, командир!';
+    const info = s.runs ? `Забегов: ${s.runs} · Лучший результат: ступень ${s.bestStage + 1}/10 · Побед: ${s.wins}` : 'Добро пожаловать, командир!';
     drawText(ctx, info, W / 2, H - (compact ? 12 : 22), { align: 'center', color: UI.dim });
     if (!compact) drawText(ctx, 'ПРОБЕЛ / ENTER / ✕ — ВЫБОР', W / 2, H - 11, { align: 'center', color: UI.faint });
     if (this.noticeT > 0 && this.notice) {

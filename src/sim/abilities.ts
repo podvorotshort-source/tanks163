@@ -4,8 +4,8 @@ import type { Sim } from './sim';
 import type { Player, Enemy } from './entities';
 import { Zone, Drone } from './entities';
 import { ABILITIES } from './content/classes';
-import { explode, chainLightning } from './combat';
-import { barrage, dropMine } from './playerRun';
+import { explode, chainLightning, damageEnemy } from './combat';
+import { barrage, dropMine, beamHit, lobShot } from './playerRun';
 import { makeProp } from './props';
 
 const tmpE: Enemy[] = [];
@@ -18,6 +18,7 @@ export function abilityCooldown(p: Player, slot: number): number {
   // «Перезарядка −20%» в уровнях — у большинства способностей на 2-м или 3-м улучшении.
   const cdLevel: Record<string, number> = {
     dash: 2, volley: 4, fortress: 3, repair: 3, airstrike: 4, emp: 4, shockwave: 4, minefield: 4, overdrive: 3, drone: 99, wall: 4, gravity: 4, magma: 4,
+    laserBeam: 4, tornado: 4, iceFront: 4, grad: 4, rotor: 4, carpetBomb: 4, mainBattery: 4, garrison: 99,
   };
   if (a.level >= (cdLevel[a.id] ?? 99)) cd *= 0.8;
   return cd;
@@ -48,6 +49,40 @@ export function updateAbilities(sim: Sim, p: Player, dt: number): void {
     }
   }
   if (p.overdriveT > 0) p.overdriveT -= dt;
+  updateTrophies(sim, p, dt);
+}
+
+/** Длящиеся трофейные способности: луч Пульт-тирана, ротор «Крота», второй пакет «Града». */
+function updateTrophies(sim: Sim, p: Player, dt: number): void {
+  const size = sim.size, pw = sim.tankPower(), st = p.stats;
+  if (p.beamT > 0) {
+    p.beamT -= dt;
+    const a = p.ability('laserBeam'), L = a?.level ?? 1;
+    if ((sim.tick & 3) === 0) {
+      const k = L >= 5 ? 1.4 : 1, len = size * 11 * k;
+      const mx = p.x + Math.cos(p.turret) * size * 0.6, my = p.y + Math.sin(p.turret) * size * 0.6;
+      beamHit(sim, p, mx, my, p.turret, len, size * 0.32 * k, 70 * pw * st.dmg * (L >= 3 ? 1.3 : 1) * (4 / 60), 'energy', 99, true, 'laserBeam', 0.09);
+    }
+  }
+  if (p.rotorT > 0) {
+    p.rotorT -= dt;
+    const a = p.ability('rotor'), L = a?.level ?? 1;
+    if ((sim.tick % 9) === 0) {
+      const R = size * 0.8 * (L >= 5 ? 1.4 : 1);
+      const cx = p.x + Math.cos(p.angle) * size * 0.85, cy = p.y + Math.sin(p.angle) * size * 0.85;
+      explode(sim, cx, cy, R, 48 * pw * st.dmg * (L >= 3 ? 1.3 : 1) * 0.15, 'blade', p.idx, '', { kind: 'he', knock: L >= 5 ? 1.5 : 0.3, props: 2, silent: true });
+    }
+  }
+  if (p.gradT > 0) {
+    p.gradT -= dt;
+    if (p.gradT <= 0) gradSalvo(sim, p, p.ability('grad')?.level ?? 1);
+  }
+}
+
+function gradSalvo(sim: Sim, p: Player, L: number): void {
+  const size = sim.size, pw = sim.tankPower(), st = p.stats;
+  const t = densest(sim, p.x, p.y, size * 11) ?? { x: p.x + Math.cos(p.turret) * size * 5, y: p.y + Math.sin(p.turret) * size * 5 };
+  barrage(sim, p, t.x, t.y, 20 + (L >= 2 ? 8 : 0), 22 * pw * st.dmg * (L >= 3 ? 1.3 : 1), size * 1.0 * st.blast, 'rocket', 'grad', 3.2);
 }
 
 /** Попытка применить способность из слота. */
@@ -113,6 +148,89 @@ export function useAbility(sim: Sim, p: Player, slot: number): boolean {
     case 'fortress':
       p.fortressT = dur(3 + (L >= 2 ? 1 : 0) + (L >= 5 ? 1 : 0));
       break;
+    // --- трофеи боссов ---
+    case 'laserBeam':
+      p.beamT = dur(2 + (L >= 2 ? 0.6 : 0));
+      break;
+    case 'tornado': {
+      const n = L >= 5 ? 2 : 1;
+      for (let i = 0; i < n; i++) {
+        const ang = p.turret + (n > 1 ? (i - 0.5) * 0.5 : 0);
+        const z = new Zone();
+        z.kind = 'tornado'; z.owner = p.idx; z.team = 0;
+        z.x = p.x + Math.cos(ang) * size * 1.2; z.y = p.y + Math.sin(ang) * size * 1.2;
+        z.r = size * 1.6 * st.blast; z.dur = dur(4 + (L >= 2 ? 1.5 : 0));
+        z.dps = 45 * pw * st.dmg * (L >= 3 ? 1.3 : 1);
+        z.data = [Math.cos(ang) * size * 2.2, Math.sin(ang) * size * 2.2];
+        sim.zones.push(z);
+      }
+      break;
+    }
+    case 'iceFront': {
+      const R = size * 6.5, half = L >= 2 ? 0.85 : 0.65, stun = dur(2.5 + (L >= 5 ? 1.5 : 0));
+      sim.enemiesNear(p.x, p.y, R, tmpE);
+      for (const e of tmpE.slice()) {
+        if (e.dead) continue;
+        let da = Math.atan2(e.y - p.y, e.x - p.x) - p.turret;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        if (Math.abs(da) > half) continue;
+        const k = e.noCrush ? 0.3 : 1;
+        e.stunT = Math.max(e.stunT, stun * k); e.frozenT = Math.max(e.frozenT, stun * k); e.slowT = Math.max(e.slowT, stun + 2);
+        damageEnemy(sim, e, 36 * pw * st.dmg * (L >= 3 ? 1.3 : 1), 'cold', p.idx, '');
+      }
+      for (const s of sim.shots) {
+        if (s.team !== 1 || s.dead || (s.x - p.x) ** 2 + (s.y - p.y) ** 2 > R * R) continue;
+        let da = Math.atan2(s.y - p.y, s.x - p.x) - p.turret;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        if (Math.abs(da) <= half) s.dead = true;
+      }
+      sim.emit({ t: 'cone', x: p.x, y: p.y, a: p.turret, half, r: R, kind: 'ice' });
+      break;
+    }
+    case 'grad':
+      gradSalvo(sim, p, L);
+      if (L >= 5) p.gradT = 0.9;
+      break;
+    case 'rotor':
+      p.rotorT = dur(3 + (L >= 2 ? 1 : 0));
+      break;
+    case 'carpetBomb': {
+      const lines = L >= 5 ? [-0.35, 0, 0.35] : [0];
+      const n = 10 + (L >= 2 ? 4 : 0);
+      for (const off of lines) for (let i = 0; i < n; i++) {
+        const a = p.turret + off, d = size * (1.6 + i * 0.85);
+        lobShot(sim, p, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, 0.35 + i * 0.11, 30 * pw * st.dmg * (L >= 3 ? 1.3 : 1), size * 1.1 * st.blast, 'he', 'carpetBomb', 'bomb');
+      }
+      break;
+    }
+    case 'mainBattery': {
+      const n = 3 + (L >= 2 ? 1 : 0);
+      sim.enemiesNear(p.x, p.y, size * 14, tmpE);
+      const big = tmpE.filter(e => !e.dead && e.spawnT <= 0).sort((u, v) => v.maxHp - u.maxHp).slice(0, n);
+      for (let i = 0; i < n; i++) {
+        const e = big.length ? big[i % big.length] : null;
+        const j = e && i >= big.length ? 1 : 0;
+        const tx = e ? e.x + j * sim.rng.range(-1, 1) * size * 2 : p.x + Math.cos(p.turret) * size * (5 + i * 2);
+        const ty = e ? e.y + j * sim.rng.range(-1, 1) * size * 2 : p.y + Math.sin(p.turret) * size * (5 + i * 2);
+        lobShot(sim, p, tx, ty, 1.0 + i * 0.18, 150 * pw * st.dmg * (L >= 3 ? 1.3 : 1), size * 2.4 * st.blast, 'he', 'mainBattery', 'big', L >= 5);
+      }
+      break;
+    }
+    case 'garrison': {
+      const n = 3 + (L >= 4 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const d = new Drone();
+        const ang = p.angle + (i / n) * Math.PI * 2 + Math.PI / n;
+        d.owner = p.idx; d.fixed = true; d.a = ang;
+        d.x = p.x + Math.cos(ang) * size * 2.2; d.y = p.y + Math.sin(ang) * size * 2.2;
+        d.t = dur(14 + (L >= 2 ? 5 : 0));
+        d.dmg = 8 * pw * st.dmg * (L >= 3 ? 1.4 : 1); d.rockets = L >= 5;
+        sim.drones.push(d);
+      }
+      break;
+    }
     case 'repair': {
       const heal = 0.35 + (L >= 2 ? 0.1 : 0);
       const T = 3;

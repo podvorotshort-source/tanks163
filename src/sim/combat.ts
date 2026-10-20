@@ -53,6 +53,7 @@ export function damageEnemy(sim: Sim, e: Enemy, base: number, type: DmgType, own
     if (m > 1) { dmg *= m; weak = true; }
   }
   if (e.markT > 0) dmg *= boss ? 1.1 : 1.25;
+  if (e.frozenT > 0) dmg *= boss ? 1.15 : 1.3;
   if (e.stunT > 0 && p && p.ability('emp') && p.ability('emp')!.level >= 5) dmg *= 1.25;
   if (e.shieldAura > 0) dmg *= 1 - e.shieldAura;
   let crit = false;
@@ -115,6 +116,8 @@ export interface BoomOpts {
   skip?: Enemy | null;
   /** Урон по воздушным целям (по умолчанию да). */
   air?: boolean;
+  /** Без события взрыва и цифр урона (частые удары ротора). */
+  silent?: boolean;
 }
 
 /** Взрыв игрока: урон врагам и препятствиям по области. Игрокам — никогда. */
@@ -127,7 +130,7 @@ export function explode(sim: Sim, x: number, y: number, r: number, dmg: number, 
     if (e.air && o.air === false) continue;
     const d = Math.hypot(e.x - x, e.y - y);
     const fall = 1 - 0.5 * Math.min(1, Math.max(0, d - e.r) / r);
-    damageEnemy(sim, e, dmg * fall, type, owner, w, { noCrit: false, fromX: x, fromY: y });
+    damageEnemy(sim, e, dmg * fall, type, owner, w, { noCrit: false, fromX: x, fromY: y, silent: o.silent && sim.rng.next() > 0.3 });
     const k = o.knock ?? 1;
     if (k > 0 && !e.dead && e.size < sim.size * 0.9 && !e.noCrush) {
       const push = (r * 0.35 * k) / Math.max(1, e.size / (sim.size * 0.4));
@@ -150,7 +153,7 @@ export function explode(sim: Sim, x: number, y: number, r: number, dmg: number, 
     const dps = 6 * sim.tankPower() * p.stats.burn * p.stats.dmg;
     sim.fire.ignite(x, y, r * 0.8 * p.stats.fireSpread, 3.5 * p.stats.duration, dps, owner, !!o.ignite && p.mods.has('fl_napalm'));
   }
-  sim.emit({ t: 'boom', x, y, r, kind: o.kind ?? 'he', p: owner });
+  if (!o.silent) sim.emit({ t: 'boom', x, y, r, kind: o.kind ?? 'he', p: owner });
 }
 
 /** Взрыв врага: урон игрокам (и только им). */

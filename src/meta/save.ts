@@ -7,6 +7,8 @@ import type { ClassId } from '../sim/types';
 import type { MetaBonus } from '../sim/sim';
 import { WORKSHOP, START_UNLOCKS, VARIANTS } from './meta';
 import type { UnlockCtx } from '../sim/upgrades';
+import { STAGE_DEFS } from '../sim/content/stages';
+import { BOSS_WEAPON } from '../sim/content/weapons';
 
 export interface RunStats {
   runs: number;
@@ -138,6 +140,8 @@ class SaveManager {
 
   unlockCtx(): UnlockCtx {
     const set = new Set(this.data.unlocked);
+    // Трофейное оружие: открывается победой над боссом его ступени.
+    STAGE_DEFS.forEach((s, i) => { const w = BOSS_WEAPON[i]; if (w && (this.data.trophies[s.boss] ?? 0) > 0) set.add('w:' + w); });
     return { has: (id: string) => set.has(id) };
   }
 

@@ -37,9 +37,11 @@ export const BOSSES: Record<string, BossDef> = {
   rcTyrant: { id: 'rcTyrant', name: 'Пульт-тиран', subtitle: 'Боевой робот на радиоуправлении. Слабое место — антенна на спине', size: 270, hp: 1350, dmg: 18, speed: 40, armor: 'heavy', armorPct: 0.2, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'антенна' }, art: 'bossTyrant', minion: 'rcCar' },
   vacuumLeviathan: { id: 'vacuumLeviathan', name: 'Пылесос-левиафан', subtitle: 'Всасывает всё на своём пути. Слабое место — выхлоп сзади', size: 300, hp: 1400, dmg: 20, speed: 36, armor: 'heavy', armorPct: 0.25, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'выхлоп' }, art: 'bossVacuum', minion: 'dustBunny' },
   fridgeFortress: { id: 'fridgeFortress', name: 'Холодильник-крепость', subtitle: 'Ледяная артиллерия и заморозка. Бейте в открытую дверцу', size: 290, hp: 1450, dmg: 20, speed: 26, armor: 'structure', armorPct: 0.25, weak: { dir: 0, arc: 0.7, mult: 1.8, name: 'дверца' }, art: 'bossFridge', minion: 'secDrone' },
-  roadRoller: { id: 'roadRoller', name: 'Асфальтовый каток', subtitle: 'Раскатывает всё в блин и льёт смолу. Слабое место — мотор сзади', size: 310, hp: 1500, dmg: 24, speed: 40, armor: 'heavy', armorPct: 0.3, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'мотор' }, art: 'bossRoller', minion: 'armoredCar' },
+  commandarm: { id: 'commandarm', name: 'Танк «Командарм»', subtitle: 'Флагман вооружённых сил: главный калибр, «Град» на башне. Слабое место — двигатель на корме', size: 300, hp: 1500, dmg: 24, speed: 38, armor: 'heavy', armorPct: 0.3, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'двигатель' }, art: 'bossCommandarm', minion: 'armoredCar' },
+  mole: { id: 'mole', name: 'Роторный экскаватор «Крот»', subtitle: 'Перемалывает кварталы роторным ковшом. Слабое место — дизель за кабиной', size: 320, hp: 1520, dmg: 24, speed: 30, armor: 'heavy', armorPct: 0.28, weak: { dir: Math.PI, arc: 0.85, mult: 2, name: 'дизель' }, art: 'bossMole', minion: 'loader' },
   skyFortress: { id: 'skyFortress', name: 'Летающая крепость', subtitle: 'Ковровые бомбардировки с небес. Слабое место — моторы на корме', size: 320, hp: 1450, dmg: 22, speed: 50, armor: 'air', armorPct: 0.15, air: true, weak: { dir: Math.PI, arc: 0.9, mult: 1.8, name: 'моторы' }, art: 'bossSky', minion: 'gunship' },
-  cityTitan: { id: 'cityTitan', name: 'Титан-мегаполис', subtitle: 'Город на гусеницах. Слабое место — реактор в корме', size: 340, hp: 1550, dmg: 26, speed: 24, armor: 'heavy', armorPct: 0.3, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'реактор' }, art: 'bossTitan', minion: 'crawler' },
+  groza: { id: 'groza', name: 'Сухопутный линкор «Гроза»', subtitle: 'Три башни главного калибра на гусеницах. Слабое место — машинное отделение в корме', size: 350, hp: 1560, dmg: 26, speed: 26, armor: 'heavy', armorPct: 0.3, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'машинное отделение' }, art: 'bossGroza', minion: 'tankColumn' },
+  cityTitan: { id: 'cityTitan', name: 'Титан-мегаполис', subtitle: 'Город на гусеницах. Слабое место — реактор в корме', size: 340, hp: 1580, dmg: 26, speed: 24, armor: 'heavy', armorPct: 0.3, weak: { dir: Math.PI, arc: 0.8, mult: 2, name: 'реактор' }, art: 'bossTitan', minion: 'crawler' },
   planetEater: { id: 'planetEater', name: 'Пожиратель планет', subtitle: 'Последний враг. Слабое место — ядро в пасти', size: 360, hp: 1800, dmg: 30, speed: 28, armor: 'heavy', armorPct: 0.3, weak: { dir: 0, arc: 0.6, mult: 1.8, name: 'ядро' }, art: 'bossEater', minion: 'voidSpider' },
 };
 
@@ -135,7 +137,7 @@ function summon(sim: Sim, e: Enemy, id: string, n: number): void {
 
 function spawnSize(id: string): number {
   // Импорт ENEMIES здесь вызвал бы цикл — размер берём из уже созданного экземпляра через фабрику.
-  const table: Record<string, number> = { soldier: 9, rcCar: 24, dustBunny: 14, secDrone: 26, armoredCar: 26, gunship: 40, crawler: 36, voidSpider: 34 };
+  const table: Record<string, number> = { soldier: 9, rcCar: 24, dustBunny: 14, secDrone: 26, armoredCar: 26, loader: 14, gunship: 40, tankColumn: 15, crawler: 36, voidSpider: 34 };
   return table[id] ?? 20;
 }
 
@@ -212,8 +214,10 @@ export function updateBoss(sim: Sim, e: Enemy, dt: number): void {
     case 'rcTyrant': tyrant(sim, e, b, tgt, dt); break;
     case 'vacuumLeviathan': vacuum(sim, e, b, tgt, dt); break;
     case 'fridgeFortress': fridge(sim, e, b, tgt, dt); break;
-    case 'roadRoller': roller(sim, e, b, tgt, dt); break;
+    case 'commandarm': commandarm(sim, e, b, tgt, dt); break;
+    case 'mole': mole(sim, e, b, tgt, dt); break;
     case 'skyFortress': sky(sim, e, b, tgt, dt); break;
+    case 'groza': groza(sim, e, b, tgt, dt); break;
     case 'cityTitan': titan(sim, e, b, tgt, dt); break;
     case 'planetEater': eater(sim, e, b, tgt, dt); break;
   }
@@ -361,27 +365,92 @@ function fridge(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   }
 }
 
-// 5. Каток: раскатка по прямой со смолой, веера, бронемашины.
-function roller(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
-  if (b.atk === 'windup') { b.atkT -= dt; e.vx *= 0.8; e.vy *= 0.8; if (b.atkT <= 0) { b.atk = 'charge'; b.atkT = 2; } return; }
-  if (b.atk === 'charge') {
-    if ((b.t * 5 | 0) !== ((b.t - dt) * 5 | 0)) addZone(sim, 'tar', e.x - b.dx * e.r, e.y - b.dy * e.r, sim.size * 1.1, 9, e.dmg * 0.15);
-    stepCharge(sim, e, b, dt, 6.5 + b.phase, () => { b.atk = 'idle'; b.next = 1; fan(sim, e, tgt, 6, 1, 'shell', 5); });
+// 5. Танк «Командарм»: главный калибр по линии (с предупреждением), спаренный пулемёт, «Град» с башни,
+//    дымовая завеса и рывок, бронемашины поддержки.
+function commandarm(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
+  if (b.atk === 'windup') { b.atkT -= dt; e.vx *= 0.8; e.vy *= 0.8; if (b.atkT <= 0) { b.atk = 'charge'; b.atkT = 1.6; } return; }
+  if (b.atk === 'charge') { stepCharge(sim, e, b, dt, 6 + b.phase, () => { b.atk = 'idle'; b.next = 1; fan(sim, e, tgt, 5, 0.8, 'shell', 5.5); }); return; }
+  if (b.atk === 'coax') {
+    b.atkT -= dt;
+    approach(sim, e, tgt, dt, 5, 0.6);
+    if (b.atkT <= 0) { b.i++; b.atkT = 0.12; fan(sim, e, tgt, 1, 0, 'bullet', 9, 0.35); if (b.i % (14 + b.phase * 4) === 0) { b.atk = 'idle'; b.next = 1.2; } }
     return;
   }
-  approach(sim, e, tgt, dt, 5);
+  approach(sim, e, tgt, dt, 5.5);
   b.next -= dt;
   if (b.next > 0) return;
-  const atk = nextAtk(sim, b, ['charge', 'fan', 'cars', 'charge', 'mortar']);
+  const atk = nextAtk(sim, b, b.phase === 0 ? ['gun', 'coax', 'grad', 'cars'] : ['gun', 'coax', 'grad', 'charge', 'gun']);
   switch (atk) {
+    case 'gun': {
+      // Главный калибр: красная линия прицела, через 0.9 с — выстрел по линии (уйти вбок).
+      const n = 1 + (b.phase >= 2 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const a = Math.atan2(tgt.y + tgt.vy * 0.5 - e.y, tgt.x + tgt.vx * 0.5 - e.x) + (i ? 0.25 : 0);
+        beamZone(sim, e.x, e.y, a, sim.size * 14, sim.size * 0.35, e.dmg * 2.2, 0.9 + i * 0.3, e.id);
+      }
+      e.turret = Math.atan2(tgt.y - e.y, tgt.x - e.x);
+      b.next = 1.8;
+      break;
+    }
+    case 'coax': b.atk = 'coax'; b.atkT = 0; b.i = 0; break;
+    case 'grad':
+      for (let i = 0; i < 12 + b.phase * 4; i++) {
+        const p = sim.alivePlayers()[i % Math.max(1, sim.alivePlayers().length)];
+        if (p) lobAt(sim, e, p.x + sim.rng.range(-1, 1) * sim.size * 3.5, p.y + sim.rng.range(-1, 1) * sim.size * 3.5, 'rocketLob', 0.8, 0.45);
+      }
+      sim.emit({ t: 'warn', text: 'Залп «Града»!' });
+      b.next = 2.4;
+      break;
     case 'charge': chargeAt(sim, e, b, tgt); break;
-    case 'fan': fan(sim, e, tgt, 7, 1.2, 'shell', 5.5); b.next = 1.8; break;
     case 'cars': summon(sim, e, 'armoredCar', 3 + b.phase); b.next = 1.6; break;
-    case 'mortar': for (const p of sim.alivePlayers()) for (let i = 0; i < 3; i++) lobAt(sim, e, p.x + sim.rng.range(-1, 1) * sim.size * 2, p.y + sim.rng.range(-1, 1) * sim.size * 2, 'mortar', 1, 0.6); b.next = 2; break;
   }
 }
 
-// 6. Летающая крепость: заходы с бомбёжкой, зенитные кольца, штурмовики.
+// 6. Роторный экскаватор «Крот»: наезжает с вращающимся ротором (перемалывает перед собой), швыряет
+//    глыбы, бьёт по земле волной, высаживает погрузчики.
+function mole(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
+  if (b.atk === 'grind') {
+    b.atkT -= dt;
+    const a = Math.atan2(tgt.y - e.y, tgt.x - e.x);
+    e.angle = rotateTowards(e.angle, a, 0.7 * dt);
+    moveGround(sim, e, Math.cos(e.angle), Math.sin(e.angle), sim.size * (2.2 + b.phase * 0.4), dt, 4);
+    // Ротор перед корпусом: урон и отброс.
+    const cx = e.x + Math.cos(e.angle) * e.r * 1.05, cy = e.y + Math.sin(e.angle) * e.r * 1.05, R = e.r * 0.6;
+    for (const p of sim.alivePlayers()) {
+      if ((p.x - cx) ** 2 + (p.y - cy) ** 2 < (R + p.r) ** 2 && e.contactT <= 0) {
+        damagePlayer(sim, p, e.dmg * 1.3, 'boss:rotor'); e.contactT = 0.45;
+        const dx = p.x - cx, dy = p.y - cy, d = Math.hypot(dx, dy) || 1;
+        p.x += (dx / d) * sim.size * 0.9; p.y += (dy / d) * sim.size * 0.9;
+      }
+    }
+    if ((b.t * 6 | 0) !== ((b.t - dt) * 6 | 0)) shot(sim, e, e.angle + sim.rng.range(-0.9, 0.9), 'debris', 5, 0.5, 0.11, 0, 0.7);
+    if (b.atkT <= 0) { b.atk = 'idle'; b.next = 1.1; }
+    return;
+  }
+  approach(sim, e, tgt, dt, 4.5, 0.8);
+  b.next -= dt;
+  if (b.next > 0) return;
+  const atk = nextAtk(sim, b, b.phase === 0 ? ['grind', 'rubble', 'loaders'] : ['grind', 'rubble', 'quake', 'loaders', 'grind']);
+  switch (atk) {
+    case 'grind': b.atk = 'grind'; b.atkT = 2.6 + b.phase * 0.5; sim.emit({ t: 'warn', text: 'Ротор!' }); break;
+    case 'rubble':
+      for (const p of sim.alivePlayers()) for (let i = 0; i < 4 + b.phase * 2; i++) lobAt(sim, e, p.x + sim.rng.range(-1, 1) * sim.size * 2.6, p.y + sim.rng.range(-1, 1) * sim.size * 2.6, 'mortar', 0.9, 0.55);
+      b.next = 2.1;
+      break;
+    case 'quake': {
+      const n = 10 + b.phase * 2;
+      for (let k = 0; k < 2; k++) for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + k * 0.3, r = e.r + sim.size * (1.4 + k * 1.6);
+        blastZone(sim, e.x + Math.cos(a) * r, e.y + Math.sin(a) * r, sim.size * 0.9, e.dmg * 1.1, 0.9 + k * 0.45, e.id);
+      }
+      b.next = 2.2;
+      break;
+    }
+    case 'loaders': summon(sim, e, 'loader', 6 + b.phase * 2); b.next = 1.6; break;
+  }
+}
+
+// 7. Летающая крепость: заходы с бомбёжкой, зенитные кольца, штурмовики.
 function sky(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   if (b.atk === 'run') {
     b.atkT -= dt;
@@ -414,7 +483,41 @@ function sky(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   }
 }
 
-// 7. Титан-мегаполис: батареи с бортов, ракетный дождь, лучи, краулеры.
+// 8. Сухопутный линкор «Гроза»: бортовые залпы, главный калибр (три огромных взрыва с предупреждением),
+//    зенитный заслон, танковые колонны.
+function groza(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
+  approach(sim, e, tgt, dt, 6.5, 0.7);
+  b.next -= dt;
+  if (b.next > 0) return;
+  const atk = nextAtk(sim, b, b.phase === 0 ? ['broadside', 'battery', 'columns'] : ['broadside', 'battery', 'flak', 'columns', 'battery']);
+  switch (atk) {
+    case 'broadside':
+      for (const side of [-1, 1]) {
+        const a = e.angle + side * Math.PI / 2;
+        for (let i = 0; i < 6 + b.phase; i++) shot(sim, e, a + (i - 3) * 0.16, 'shell', 5, 0.85);
+      }
+      sim.emit({ t: 'shot', w: 'enemy', x: e.x, y: e.y, a: e.angle, p: -1, size: e.size, tier: sim.stageIdx });
+      b.next = 2;
+      break;
+    case 'battery': {
+      // Три башни главного калибра: по игрокам и с упреждением.
+      const n = 3 + b.phase;
+      for (let i = 0; i < n; i++) {
+        const p = sim.alivePlayers()[i % Math.max(1, sim.alivePlayers().length)];
+        if (!p) continue;
+        const lead = 0.6 + i * 0.35;
+        blastZone(sim, p.x + p.vx * lead + sim.rng.range(-1, 1) * sim.size, p.y + p.vy * lead + sim.rng.range(-1, 1) * sim.size, sim.size * 1.9, e.dmg * 1.8, 1.4 + i * 0.3, e.id);
+      }
+      sim.emit({ t: 'warn', text: 'Главный калибр!' });
+      b.next = 2.6;
+      break;
+    }
+    case 'flak': ring(sim, e, 20 + b.phase * 6, 'bullet', 4.4, b.t); b.next = 1.6; break;
+    case 'columns': summon(sim, e, 'tankColumn', 8 + b.phase * 2); b.next = 1.8; break;
+  }
+}
+
+// 9. Титан-мегаполис: батареи с бортов, ракетный дождь, лучи, краулеры.
 function titan(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   approach(sim, e, tgt, dt, 6, 0.7);
   b.next -= dt;
@@ -447,7 +550,7 @@ function titan(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   }
 }
 
-// 8. Пожиратель планет: вращающиеся лучи, метеоритный дождь, гравитация, рывок пастью.
+// 10. Пожиратель планет: вращающиеся лучи, метеоритный дождь, гравитация, рывок пастью.
 function eater(sim: Sim, e: Enemy, b: Brain, tgt: Player, dt: number): void {
   if (b.atk === 'gravity') {
     b.atkT -= dt;

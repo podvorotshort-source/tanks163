@@ -460,7 +460,7 @@ export class GameScene implements Scene {
     if (!this.trans || this.trans.from !== tr.from) this.trans = this.startTransitionFx();
     const T = this.trans, v = T.view;
     const G = STAGE_GROWTH, t = tr.t;
-    const old = STAGE_DEFS[T.from], next = STAGE_DEFS[Math.min(7, T.from + 1)];
+    const old = STAGE_DEFS[T.from], next = STAGE_DEFS[Math.min(9, T.from + 1)];
     this.iso.prebuild(T.from + 1);
     this.iso.pump(6);
     const lead = sim.players.find(p => p.state === 'alive') ?? sim.players[0];
@@ -527,7 +527,7 @@ export class GameScene implements Scene {
   private evolveFx(p: { x: number; y: number }): void {
     const T = this.trans!, sim = this.sim;
     T.evolved = true;
-    const tier = Math.min(7, T.from + 1);
+    const tier = Math.min(9, T.from + 1);
     audio.play('evolve');
     this.cam.addShake(14);
     this.hud.banner('МОДЕЛЬ ' + TIER_ROMAN[tier] + ': ' + TIER_NAMES[tier].toUpperCase(), UI.gold, 3, 'Облик, сила и размер поглощённого босса', true);

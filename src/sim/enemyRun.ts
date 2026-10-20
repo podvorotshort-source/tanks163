@@ -35,6 +35,8 @@ export function updateEnemies(sim: Sim, dt: number): void {
     e.px = e.x; e.py = e.y;
     if (e.flash > 0) e.flash -= dt;
     if (e.markT > 0) e.markT -= dt;
+    if (e.chillT > 0) { e.chillT -= dt; if (e.chillT <= 0) e.chill = 0; }
+    if (e.frozenT > 0) e.frozenT -= dt;
     if (e.contactT > 0) e.contactT -= dt;
     if (e.spawnT > 0) { e.spawnT -= dt; continue; }
     if (e === sim.boss) { updateBoss(sim, e, dt); continue; }

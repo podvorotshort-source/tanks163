@@ -21,7 +21,7 @@ function place(parent: THREE.Object3D, key: string, x: number, z: number, size: 
 
 /** Текстура планеты — та же земля ступени VIII, свёрнутая на шар. */
 function planetTexture(): THREE.CanvasTexture {
-  const W = 256, H = 128, st = STAGE_DEFS[7];
+  const W = 256, H = 128, st = STAGE_DEFS[9];
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const ctx = c.getContext('2d')!;
   const img = ctx.createImageData(W, H);

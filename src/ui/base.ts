@@ -136,7 +136,7 @@ export class BaseScene implements Scene {
 
   render(ctx: CanvasRenderingContext2D): void {
     const { w: W, h: H } = app.screen;
-    menuBackground(ctx, W, H, this.t, Math.min(7, save.data.stats.bestStage));
+    menuBackground(ctx, W, H, this.t, Math.min(9, save.data.stats.bestStage));
     this.hit = [];
     drawText(ctx, 'БАЗА', 10, 8, { color: UI.gold, scale: 2 });
     drawText(ctx, `${save.data.scrap} ⚙ ДЕТАЛЕЙ`, W - 10, 10, { color: UI.gold, align: 'right', scale: 1 });
@@ -226,7 +226,7 @@ export class BaseScene implements Scene {
     });
     const s = d.stats;
     const lines = [
-      `Забегов: ${s.runs} · Побед: ${s.wins} · Лучшая ступень: ${s.bestStage + 1}/8`,
+      `Забегов: ${s.runs} · Побед: ${s.wins} · Лучшая ступень: ${s.bestStage + 1}/10`,
       `Уничтожено врагов: ${Math.round(s.kills)} · Боссов: ${s.bossKills} · В бою: ${fmtTime(s.playTime)}`,
       `Лучшее время победы: ${s.bestTime ? fmtTime(s.bestTime) : '—'} · Открыто уровней угрозы: ${d.threatUnlocked} (${THREATS[d.threatUnlocked].name})`,
       `Всего заработано деталей: ${d.totalScrap}`,

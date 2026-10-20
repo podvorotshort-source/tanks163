@@ -161,6 +161,8 @@ function rollRarity(rng: Rng, luck: number, min: Rarity = 0): Rarity {
 export interface OfferCtx {
   rng: Rng;
   unlocks: UnlockCtx;
+  /** Оружие, доступное в этом забеге (случайный набор из открытого) — каждый забег свой билд. */
+  arsenal?: Set<WeaponId>;
   /** Уровень команды. */
   level: number;
   starTier: number;
@@ -173,15 +175,31 @@ export function offerCards(p: Player, n: number, ctx: OfferCtx): Card[] {
   const freeSlots = p.cls.auxSlots - auxCount;
   const ban = (id: string) => p.banned.has(id);
 
-  // Новое оружие
+  // Новое оружие: только из набора этого забега; от чего игрок отказывался — выпадает реже (место другим).
+  const canGet = (id: WeaponId) => !p.hasWeapon(id) && unlocks.has('w:' + id) && (!ctx.arsenal || ctx.arsenal.has(id));
   if (freeSlots > 0) {
     for (const id of Object.keys(WEAPONS) as WeaponId[]) {
-      if (p.hasWeapon(id) || !unlocks.has('w:' + id) || ban('w:new:' + id)) continue;
+      if (!canGet(id) || ban('w:new:' + id)) continue;
       const boost = auxCount === 0 && ctx.level >= 2 ? 1.8 : 1;
       pool.push({
-        key: 'w:' + id, w: 9 * boost, make: () => ({
+        key: 'w:' + id, w: 9 * boost * Math.pow(0.45, p.declined.get(id) ?? 0), make: () => ({
           id: 'w:new:' + id, kind: 'weapon', rarity: 1, title: WEAPONS[id].name, tag: 'Новая система',
           text: WEAPONS[id].desc, icon: 'w_' + id, value: 0, level: 1,
+        }),
+      });
+    }
+  } else if (ctx.level >= 6 && auxCount > 0) {
+    // Слоты заняты: изредка — переоснащение (снять слабейшую систему ради новой). Основное орудие не меняется.
+    let weakest = p.weapons[1];
+    for (let i = 2; i < p.weapons.length; i++) if (p.weapons[i].level < weakest.level) weakest = p.weapons[i];
+    for (const id of Object.keys(WEAPONS) as WeaponId[]) {
+      if (!canGet(id) || ban('w:new:' + id)) continue;
+      const lv = Math.max(1, weakest.level - 1);
+      pool.push({
+        key: 'w:' + id, w: 1.1 * Math.pow(0.45, p.declined.get(id) ?? 0), make: () => ({
+          id: `w:swap:${weakest.id}:${id}`, kind: 'weapon', rarity: 2, title: WEAPONS[id].name, tag: `Замена: ${WEAPONS[weakest.id].name} → ${WEAPONS[id].name}`,
+          text: `Заменит «${WEAPONS[weakest.id].name}» (ур. ${weakest.level}) на «${WEAPONS[id].name}» сразу ${lv}-го уровня. ${WEAPONS[id].desc}`,
+          icon: 'w_' + id, value: 0, level: lv,
         }),
       });
     }

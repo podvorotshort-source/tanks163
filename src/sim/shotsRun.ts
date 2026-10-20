@@ -20,6 +20,7 @@ export function updateShots(sim: Sim, dt: number): void {
     s.life -= dt;
     if (s.lob) { updateLob(sim, s, dt); continue; }
     if (s.homing >= 0 || s.maxSpeed > 0) steerRocket(sim, s, dt);
+    if (s.kind === 'vortex') vortexPull(sim, s, dt);
     const nx = s.x + s.vx * dt, ny = s.y + s.vy * dt;
     if (s.team === 0) playerShotStep(sim, s, nx, ny);
     else enemyShotStep(sim, s, nx, ny);
@@ -32,6 +33,20 @@ export function updateShots(sim: Sim, dt: number): void {
       if (s.team === 1 && s.blast > 0) enemyExplode(sim, s.x, s.y, s.blast, s.dmg, 'enemy');
     }
     if (s.x < -margin || s.y < -margin || s.x > st.w + margin || s.y > st.h + margin) s.dead = true;
+  }
+}
+
+/** Смерч вихревой пушки: тянет мелких врагов к себе; перемалывает каждого не чаще раза в 0.35 с. */
+function vortexPull(sim: Sim, s: Shot, dt: number): void {
+  s.t += dt;
+  if (s.t > 0.35) { s.t = 0; s.hits.length = 0; }
+  const R = s.r * 2.2;
+  sim.enemiesNear(s.x, s.y, R, tmpE);
+  for (const e of tmpE) {
+    if (e.dead || e.noCrush || e.size > sim.size * 1.4) continue;
+    const dx = s.x - e.x, dy = s.y - e.y, d = Math.hypot(dx, dy) || 1;
+    const pull = sim.size * s.lobTotal * (1 - d / (R + e.r));
+    if (pull > 0) { e.x += (dx / d) * pull * dt; e.y += (dy / d) * pull * dt; }
   }
 }
 
@@ -82,8 +97,8 @@ function playerShotStep(sim: Sim, s: Shot, nx: number, ny: number): void {
     const t = segCircle(s.x, s.y, nx, ny, e.x, e.y, e.r + s.r);
     if (t >= 0 && t < te) { te = t; hitE = e; }
   }
-  // Препятствие на отрезке (свои стены пропускают).
-  const ph = sim.props.raycast(s.x, s.y, nx, ny, s.r * 0.5, pr => MATS[pr.mat].shots && !pr.friendly && !(s.kind === 'flame' && MATS[pr.mat].canopy));
+  // Препятствие на отрезке (свои стены пропускают); смерч идёт сквозь всё.
+  const ph = s.kind === 'vortex' ? null : sim.props.raycast(s.x, s.y, nx, ny, s.r * 0.5, pr => MATS[pr.mat].shots && !pr.friendly && !(s.kind === 'flame' && MATS[pr.mat].canopy));
   if (ph && ph.t < te) {
     const hx = s.x + (nx - s.x) * ph.t, hy = s.y + (ny - s.y) * ph.t;
     s.dead = true;
@@ -101,6 +116,22 @@ function playerShotStep(sim: Sim, s: Shot, nx: number, ny: number): void {
     s.hits.push(e.id);
     damageEnemy(sim, e, s.dmg, 'fire', s.owner, 'flame', { silent: sim.rng.next() > 0.3 });
     applyBurn(e, s.blast, s.lobTotal, s.owner);
+    return;
+  }
+  if (s.kind === 'vortex') {
+    s.hits.push(e.id);
+    damageEnemy(sim, e, s.dmg, 'blade', s.owner, 'vortex', { silent: sim.rng.next() > 0.4 });
+    return;
+  }
+  if (s.kind === 'shard') {
+    // Криопушка: замедляет; третье попадание подряд замораживает.
+    e.slowT = Math.max(e.slowT, 1.6);
+    e.chill++; e.chillT = 2;
+    if (e.chill >= 3) { e.chill = 0; e.frozenT = Math.max(e.frozenT, s.lobTotal); e.stunT = Math.max(e.stunT, s.lobTotal * (e.noCrush ? 0.25 : 1)); }
+  }
+  if (s.kind === 'plasma' && s.pierce > 0 && e.armor === 'light') {
+    s.hits.push(e.id); s.pierce--;
+    damageEnemy(sim, e, s.dmg * 0.6, 'energy', s.owner, 'plasma', { fromX: s.x, fromY: s.y });
     return;
   }
   if (s.kind === 'ball') {
@@ -179,7 +210,7 @@ function igniteAt(sim: Sim, s: Shot, x: number, y: number): void {
 export function shotExplode(sim: Sim, s: Shot, x: number, y: number, direct: Enemy | null): void {
   const kind = s.dmgType === 'rocket' ? 'rocket' : 'he';
   const p = s.owner >= 0 ? sim.players[s.owner] : null;
-  explode(sim, x, y, s.blast, s.dmg, s.dmgType, s.owner, (s.w as WeaponId) || '', { kind: sim.stageIdx >= 6 ? 'plasma' : kind, ignite: s.incendiary });
+  explode(sim, x, y, s.blast, s.dmg, s.dmgType, s.owner, (s.w as WeaponId) || '', { kind: s.kind === 'plasma' || sim.stageIdx >= 8 ? 'plasma' : s.kind === 'big' ? 'big' : kind, ignite: s.incendiary });
   void direct;
   if (s.cluster > 0) {
     for (let i = 0; i < s.cluster; i++) {
@@ -265,6 +296,22 @@ export function updateZones(sim: Sim, dt: number): void {
         }
         break;
       }
+      case 'tornado': {
+        // Смерч Пылесоса-левиафана: идёт вперёд, затягивает и перемалывает.
+        z.x += z.data[0] * dt; z.y += z.data[1] * dt;
+        const st = sim.stage;
+        if (z.x < 0 || z.y < 0 || z.x > st.w || z.y > st.h) { z.data[0] *= -1; z.data[1] *= -1; }
+        sim.enemiesNear(z.x, z.y, z.r * 1.6, tmpE);
+        for (const e of tmpE) {
+          if (e.dead) continue;
+          const dx = z.x - e.x, dy = z.y - e.y, d = Math.hypot(dx, dy) || 1;
+          const pull = sim.size * 4 * (1 - d / (z.r * 1.6 + e.r)) * (e.noCrush ? 0.1 : 1) * (e.size > sim.size * 1.5 ? 0.35 : 1);
+          if (pull > 0) { e.x += (dx / d) * pull * dt; e.y += (dy / d) * pull * dt; }
+        }
+        if ((sim.tick % 10) === 0) explode(sim, z.x, z.y, z.r, z.dps / 6, 'blade', z.owner, '', { knock: 0, props: 1.5, silent: true });
+        if (z.t >= z.dur) z.dead = true;
+        break;
+      }
       case 'tar':
       case 'freeze':
         for (const p of sim.players) {
@@ -307,10 +354,12 @@ export function updateDrones(sim: Sim, dt: number): void {
     d.t -= dt;
     if (d.t <= 0) { d.dead = true; continue; }
     const p = sim.players[d.owner];
-    d.a += dt * 2.2;
-    const tx = p.x + Math.cos(d.a) * sim.size * 1.9, ty = p.y + Math.sin(d.a) * sim.size * 1.9;
-    d.x += (tx - d.x) * Math.min(1, dt * 5);
-    d.y += (ty - d.y) * Math.min(1, dt * 5);
+    if (!d.fixed) {
+      d.a += dt * 2.2;
+      const tx = p.x + Math.cos(d.a) * sim.size * 1.9, ty = p.y + Math.sin(d.a) * sim.size * 1.9;
+      d.x += (tx - d.x) * Math.min(1, dt * 5);
+      d.y += (ty - d.y) * Math.min(1, dt * 5);
+    }
     d.fireT -= dt;
     if (d.fireT <= 0) {
       sim.enemiesNear(d.x, d.y, sim.size * 7, tmpE);

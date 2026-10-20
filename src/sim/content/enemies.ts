@@ -127,43 +127,71 @@ add(
 );
 
 // ---------------------------------------------------------------------------
-// 6. Мегаполис
+// 6. Район: стройка и коммунальная техника, переделанная в боевую
 // ---------------------------------------------------------------------------
 add(
-  E({ id: 'cars', name: 'Броневики', stage: 5, art: 'carsSwarm', size: 14, maxMul: 1.6, hp: 14, dmg: 5, speed: 60, armor: 'light', behavior: 'swarm', xp: 1, weight: 12 }),
-  E({ id: 'walker', name: 'Шагоход', stage: 5, art: 'walker', size: 34, maxMul: 2.8, hp: 220, dmg: 10, speed: 30, armor: 'medium', behavior: 'shooter', fireCd: 1.6, burst: 2, fan: 2, spreadShot: 0.2, range: 7, shotSpeed: 9, shot: 'laser', xp: 10, weight: 10 }),
-  E({ id: 'superTank', name: 'Сверхтяжёлый танк', stage: 5, art: 'superTank', size: 46, maxMul: 2.6, hp: 900, dmg: 30, speed: 26, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.8, burst: 2, range: 7, shotSpeed: 8, shot: 'shell', xp: 30, weight: 8, crusher: true }),
-  E({ id: 'gunship', name: 'Штурмовик', stage: 5, art: 'gunship', size: 40, maxMul: 2.4, hp: 300, dmg: 16, speed: 90, armor: 'air', behavior: 'air', air: true, fireCd: 2, burst: 5, range: 7, shotSpeed: 11, shot: 'bullet', xp: 14, weight: 7, minTime: 30 }),
-  E({ id: 'armoredTrain', name: 'Бронепоезд', stage: 5, art: 'armoredTrain', size: 64, maxMul: 2, hp: 1600, dmg: 40, speed: 110, armor: 'heavy', armorPct: 0.25, behavior: 'charger', chargeSpeed: 5, xp: 40, weight: 4, minTime: 90, crusher: true }),
-  E({ id: 'droneCarrier', name: 'Дронолёт', stage: 5, art: 'droneCarrier', size: 60, maxMul: 1.8, hp: 1200, dmg: 14, speed: 30, armor: 'air', behavior: 'spawner', air: true, spawn: 'kamikazeDrone', spawnCd: 3.5, spawnN: 3, xp: 40, weight: 4, minTime: 120 }),
-  E({ id: 'kamikazeDrone', name: 'Дрон-камикадзе', stage: 5, art: 'kamikazeDrone', size: 16, maxMul: 1.8, hp: 20, dmg: 24, speed: 130, armor: 'air', behavior: 'kamikaze', air: true, boom: 1.4, xp: 1.5, weight: 6, minTime: 60 }),
-  E({ id: 'mechTitan', name: 'Боевой мех', stage: 5, art: 'mechTitan', size: 74, maxMul: 1.7, hp: 2600, dmg: 34, speed: 30, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.2, burst: 3, fan: 3, spreadShot: 0.22, range: 7, shotSpeed: 7, shot: 'plasma', xp: 70, weight: 4, minTime: 210, crusher: true }),
+  E({ id: 'loader', name: 'Мини-погрузчики', stage: 5, art: 'loader', size: 14, maxMul: 1.6, hp: 13, dmg: 5, speed: 56, armor: 'light', behavior: 'swarm', xp: 1, weight: 13 }),
+  E({ id: 'bulldozer', name: 'Бульдозер', stage: 5, art: 'bulldozer', size: 32, maxMul: 2.6, hp: 260, dmg: 26, speed: 40, armor: 'heavy', armorPct: 0.2, behavior: 'charger', chargeSpeed: 8, xp: 9, weight: 9, crusher: true }),
+  E({ id: 'craneTruck', name: 'Автокран-турель', stage: 5, art: 'craneTruck', size: 38, maxMul: 2.4, hp: 300, dmg: 14, speed: 24, armor: 'medium', behavior: 'shooter', fireCd: 2, burst: 3, range: 8, shotSpeed: 9, shot: 'shell', xp: 11, weight: 9 }),
+  E({ id: 'mixerTruck', name: 'Бетономешалка-миномёт', stage: 5, art: 'mixerTruck', size: 40, maxMul: 2.2, hp: 340, dmg: 30, speed: 22, armor: 'medium', behavior: 'artillery', fireCd: 4.2, range: 11, shot: 'mortar', boom: 1.5, xp: 14, weight: 6, minTime: 50 }),
+  E({ id: 'inspectDrone', name: 'Дрон-прораб', stage: 5, art: 'inspectDrone', size: 24, maxMul: 2.2, hp: 60, dmg: 9, speed: 82, armor: 'air', behavior: 'air', air: true, fireCd: 1.4, burst: 3, range: 6.5, shotSpeed: 11, shot: 'bullet', xp: 5, weight: 7, minTime: 30 }),
+  E({ id: 'demoTruck', name: 'Подрывник', stage: 5, art: 'demoTruck', size: 26, maxMul: 2.2, hp: 80, dmg: 30, speed: 120, armor: 'light', behavior: 'kamikaze', boom: 1.5, xp: 4, weight: 7, minTime: 40 }),
+  E({ id: 'dumpTruck', name: 'Карьерный самосвал', stage: 5, art: 'dumpTruck', size: 60, maxMul: 1.8, hp: 1500, dmg: 34, speed: 30, armor: 'heavy', armorPct: 0.25, behavior: 'chase', xp: 44, weight: 5, minTime: 150, crusher: true }),
+  E({ id: 'towerCrane', name: 'Башенный кран', stage: 5, art: 'towerCrane', size: 70, maxMul: 1.6, hp: 1900, dmg: 18, speed: 10, armor: 'structure', behavior: 'spawner', spawn: 'loader', spawnCd: 3.2, spawnN: 3, fireCd: 2.6, range: 8, shotSpeed: 6, shot: 'shell', xp: 50, weight: 3, minTime: 200 }),
 );
 
 // ---------------------------------------------------------------------------
-// 7. Танки размером с города
+// 7. Город: боевые машины мегаполиса
 // ---------------------------------------------------------------------------
 add(
-  E({ id: 'cityBlock', name: 'Кварталы на гусеницах', stage: 6, art: 'cityBlock', size: 16, maxMul: 1.6, hp: 20, dmg: 6, speed: 40, armor: 'medium', behavior: 'swarm', xp: 1.2, weight: 12 }),
-  E({ id: 'crawler', name: 'Краулер-титан', stage: 6, art: 'crawler', size: 36, maxMul: 2.8, hp: 420, dmg: 20, speed: 30, armor: 'heavy', armorPct: 0.25, behavior: 'shooter', fireCd: 2.4, burst: 2, range: 7, shotSpeed: 8, shot: 'shell', xp: 14, weight: 10, crusher: true }),
-  E({ id: 'dropPod', name: 'Десантная капсула', stage: 6, art: 'dropPod', size: 28, maxMul: 2.4, hp: 160, dmg: 34, speed: 140, armor: 'medium', behavior: 'kamikaze', boom: 1.6, xp: 5, weight: 8 }),
-  E({ id: 'stratoBomber', name: 'Стратобомбер', stage: 6, art: 'stratoBomber', size: 50, maxMul: 2.2, hp: 600, dmg: 28, speed: 100, armor: 'air', behavior: 'air', air: true, fireCd: 3, burst: 6, range: 5, shotSpeed: 3, shot: 'bomb', xp: 22, weight: 6, minTime: 40 }),
-  E({ id: 'mobileFort', name: 'Мобильная крепость', stage: 6, art: 'mobileFort', size: 64, maxMul: 2, hp: 2400, dmg: 26, speed: 18, armor: 'structure', behavior: 'spawner', spawn: 'cityBlock', spawnCd: 3, spawnN: 3, fireCd: 2.2, range: 7, shotSpeed: 7, shot: 'shell', xp: 60, weight: 4, minTime: 100, crusher: true }),
-  E({ id: 'siloMortar', name: 'Ракетная шахта', stage: 6, art: 'silo', size: 40, maxMul: 2.2, hp: 700, dmg: 40, speed: 0, armor: 'structure', behavior: 'artillery', fireCd: 4.5, range: 14, shot: 'icbm', boom: 2, xp: 24, weight: 4, minTime: 120 }),
-  E({ id: 'megaWalker', name: 'Мегашагоход', stage: 6, art: 'megaWalker', size: 76, maxMul: 1.7, hp: 3600, dmg: 40, speed: 34, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.4, burst: 3, fan: 3, spreadShot: 0.25, range: 7.5, shotSpeed: 7, shot: 'plasma', xp: 80, weight: 5, minTime: 200, crusher: true }),
+  E({ id: 'cars', name: 'Броневики', stage: 6, art: 'carsSwarm', size: 14, maxMul: 1.6, hp: 14, dmg: 5, speed: 60, armor: 'light', behavior: 'swarm', xp: 1, weight: 12 }),
+  E({ id: 'walker', name: 'Шагоход', stage: 6, art: 'walker', size: 34, maxMul: 2.8, hp: 220, dmg: 10, speed: 30, armor: 'medium', behavior: 'shooter', fireCd: 1.6, burst: 2, fan: 2, spreadShot: 0.2, range: 7, shotSpeed: 9, shot: 'laser', xp: 10, weight: 10 }),
+  E({ id: 'superTank', name: 'Сверхтяжёлый танк', stage: 6, art: 'superTank', size: 46, maxMul: 2.6, hp: 900, dmg: 30, speed: 26, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.8, burst: 2, range: 7, shotSpeed: 8, shot: 'shell', xp: 30, weight: 8, crusher: true }),
+  E({ id: 'gunship', name: 'Штурмовик', stage: 6, art: 'gunship', size: 40, maxMul: 2.4, hp: 300, dmg: 16, speed: 90, armor: 'air', behavior: 'air', air: true, fireCd: 2, burst: 5, range: 7, shotSpeed: 11, shot: 'bullet', xp: 14, weight: 7, minTime: 30 }),
+  E({ id: 'tram', name: 'Бронетрамвай', stage: 6, art: 'tram', size: 60, maxMul: 2, hp: 1500, dmg: 38, speed: 104, armor: 'heavy', armorPct: 0.25, behavior: 'charger', chargeSpeed: 5, xp: 40, weight: 4, minTime: 90, crusher: true }),
+  E({ id: 'droneCarrier', name: 'Дронолёт', stage: 6, art: 'droneCarrier', size: 60, maxMul: 1.8, hp: 1200, dmg: 14, speed: 30, armor: 'air', behavior: 'spawner', air: true, spawn: 'kamikazeDrone', spawnCd: 3.5, spawnN: 3, xp: 40, weight: 4, minTime: 120 }),
+  E({ id: 'kamikazeDrone', name: 'Дрон-камикадзе', stage: 6, art: 'kamikazeDrone', size: 16, maxMul: 1.8, hp: 20, dmg: 24, speed: 130, armor: 'air', behavior: 'kamikaze', air: true, boom: 1.4, xp: 1.5, weight: 6, minTime: 60 }),
+  E({ id: 'mechTitan', name: 'Боевой мех', stage: 6, art: 'mechTitan', size: 74, maxMul: 1.7, hp: 2600, dmg: 34, speed: 30, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.2, burst: 3, fan: 3, spreadShot: 0.22, range: 7, shotSpeed: 7, shot: 'plasma', xp: 70, weight: 4, minTime: 210, crusher: true }),
 );
 
 // ---------------------------------------------------------------------------
-// 8. Планета
+// 8. Страна: армии на марше, железные дороги, стратегическая авиация
 // ---------------------------------------------------------------------------
 add(
-  E({ id: 'meteorite', name: 'Метеоритный рой', stage: 7, art: 'meteorite', size: 16, maxMul: 1.8, hp: 22, dmg: 7, speed: 70, armor: 'air', behavior: 'swarm', air: true, xp: 1.2, weight: 12 }),
-  E({ id: 'contCrawler', name: 'Континентальный краулер', stage: 7, art: 'contCrawler', size: 40, maxMul: 2.6, hp: 600, dmg: 24, speed: 30, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.2, burst: 3, range: 7, shotSpeed: 8, shot: 'plasma', xp: 16, weight: 10, crusher: true }),
-  E({ id: 'orbitalSat', name: 'Боевой спутник', stage: 7, art: 'orbitalSat', size: 32, maxMul: 2.4, hp: 260, dmg: 14, speed: 80, armor: 'air', behavior: 'air', air: true, fireCd: 1.8, burst: 3, range: 8, shotSpeed: 12, shot: 'laser', xp: 10, weight: 8 }),
-  E({ id: 'voidSpider', name: 'Пустотный паук', stage: 7, art: 'voidSpider', size: 34, maxMul: 2.6, hp: 300, dmg: 30, speed: 70, armor: 'medium', behavior: 'charger', chargeSpeed: 9, xp: 10, weight: 9 }),
-  E({ id: 'lanceStation', name: 'Орбитальное копьё', stage: 7, art: 'lance', size: 44, maxMul: 2, hp: 900, dmg: 50, speed: 10, armor: 'structure', behavior: 'artillery', fireCd: 4.5, range: 15, shot: 'orbital', boom: 2.2, xp: 30, weight: 4, minTime: 60 }),
-  E({ id: 'moonlet', name: 'Луна-крепость', stage: 7, art: 'moonlet', size: 70, maxMul: 1.8, hp: 4400, dmg: 36, speed: 22, armor: 'heavy', armorPct: 0.3, behavior: 'spawner', spawn: 'meteorite', spawnCd: 2.5, spawnN: 4, fireCd: 2, range: 8, shotSpeed: 7, shot: 'plasma', xp: 90, weight: 4, minTime: 120, crusher: true }),
-  E({ id: 'starTitan', name: 'Звёздный титан', stage: 7, art: 'starTitan', size: 80, maxMul: 1.7, hp: 5200, dmg: 44, speed: 32, armor: 'heavy', armorPct: 0.35, behavior: 'shooter', fireCd: 2.2, burst: 4, fan: 3, spreadShot: 0.3, range: 8, shotSpeed: 8, shot: 'plasma', xp: 100, weight: 5, minTime: 200, crusher: true }),
+  E({ id: 'tankColumn', name: 'Танковая колонна', stage: 7, art: 'tankColumn', size: 15, maxMul: 1.6, hp: 18, dmg: 6, speed: 46, armor: 'medium', behavior: 'swarm', xp: 1.1, weight: 12 }),
+  E({ id: 'missileTruck', name: 'Ракетный тягач', stage: 7, art: 'missileTruck', size: 36, maxMul: 2.6, hp: 380, dmg: 18, speed: 30, armor: 'medium', behavior: 'shooter', fireCd: 2.4, burst: 2, range: 8, shotSpeed: 8, shot: 'rocket', xp: 13, weight: 10 }),
+  E({ id: 'crawler', name: 'Краулер-титан', stage: 7, art: 'crawler', size: 36, maxMul: 2.8, hp: 420, dmg: 20, speed: 30, armor: 'heavy', armorPct: 0.25, behavior: 'shooter', fireCd: 2.4, burst: 2, range: 7, shotSpeed: 8, shot: 'shell', xp: 14, weight: 9, crusher: true }),
+  E({ id: 'armoredTrain', name: 'Бронепоезд', stage: 7, art: 'armoredTrain', size: 64, maxMul: 2, hp: 1800, dmg: 42, speed: 110, armor: 'heavy', armorPct: 0.25, behavior: 'charger', chargeSpeed: 5, xp: 44, weight: 4, minTime: 80, crusher: true }),
+  E({ id: 'stratoBomber', name: 'Стратобомбер', stage: 7, art: 'stratoBomber', size: 50, maxMul: 2.2, hp: 600, dmg: 28, speed: 100, armor: 'air', behavior: 'air', air: true, fireCd: 3, burst: 6, range: 5, shotSpeed: 3, shot: 'bomb', xp: 22, weight: 6, minTime: 40 }),
+  E({ id: 'cruiseMissile', name: 'Крылатая ракета', stage: 7, art: 'cruiseMissile', size: 20, maxMul: 1.8, hp: 40, dmg: 30, speed: 140, armor: 'air', behavior: 'kamikaze', air: true, boom: 1.6, xp: 2, weight: 6, minTime: 50 }),
+  E({ id: 'siloMortar', name: 'Ракетная шахта', stage: 7, art: 'silo', size: 40, maxMul: 2.2, hp: 700, dmg: 40, speed: 0, armor: 'structure', behavior: 'artillery', fireCd: 4.5, range: 14, shot: 'icbm', boom: 2, xp: 24, weight: 4, minTime: 120 }),
+  E({ id: 'airship', name: 'Боевой дирижабль', stage: 7, art: 'airship', size: 72, maxMul: 1.7, hp: 2800, dmg: 20, speed: 22, armor: 'air', behavior: 'spawner', air: true, spawn: 'cruiseMissile', spawnCd: 3.4, spawnN: 2, fireCd: 2.2, range: 7, shotSpeed: 7, shot: 'bullet', xp: 70, weight: 4, minTime: 180 }),
+);
+
+// ---------------------------------------------------------------------------
+// 9. Континенты: титаны размером с города
+// ---------------------------------------------------------------------------
+add(
+  E({ id: 'cityBlock', name: 'Кварталы на гусеницах', stage: 8, art: 'cityBlock', size: 16, maxMul: 1.6, hp: 20, dmg: 6, speed: 40, armor: 'medium', behavior: 'swarm', xp: 1.2, weight: 12 }),
+  E({ id: 'contCrawler', name: 'Континентальный краулер', stage: 8, art: 'contCrawler', size: 40, maxMul: 2.6, hp: 600, dmg: 24, speed: 30, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.2, burst: 3, range: 7, shotSpeed: 8, shot: 'plasma', xp: 16, weight: 10, crusher: true }),
+  E({ id: 'dropPod', name: 'Десантная капсула', stage: 8, art: 'dropPod', size: 28, maxMul: 2.4, hp: 160, dmg: 34, speed: 140, armor: 'medium', behavior: 'kamikaze', boom: 1.6, xp: 5, weight: 8 }),
+  E({ id: 'orbitalSat', name: 'Боевой спутник', stage: 8, art: 'orbitalSat', size: 32, maxMul: 2.4, hp: 260, dmg: 14, speed: 80, armor: 'air', behavior: 'air', air: true, fireCd: 1.8, burst: 3, range: 8, shotSpeed: 12, shot: 'laser', xp: 10, weight: 8 }),
+  E({ id: 'lanceStation', name: 'Орбитальное копьё', stage: 8, art: 'lance', size: 44, maxMul: 2, hp: 900, dmg: 50, speed: 10, armor: 'structure', behavior: 'artillery', fireCd: 4.5, range: 15, shot: 'orbital', boom: 2.2, xp: 30, weight: 4, minTime: 60 }),
+  E({ id: 'mobileFort', name: 'Мобильная крепость', stage: 8, art: 'mobileFort', size: 64, maxMul: 2, hp: 2400, dmg: 26, speed: 18, armor: 'structure', behavior: 'spawner', spawn: 'cityBlock', spawnCd: 3, spawnN: 3, fireCd: 2.2, range: 7, shotSpeed: 7, shot: 'shell', xp: 60, weight: 4, minTime: 100, crusher: true }),
+  E({ id: 'megaWalker', name: 'Мегашагоход', stage: 8, art: 'megaWalker', size: 76, maxMul: 1.7, hp: 3600, dmg: 40, speed: 34, armor: 'heavy', armorPct: 0.3, behavior: 'shooter', fireCd: 2.4, burst: 3, fan: 3, spreadShot: 0.25, range: 7.5, shotSpeed: 7, shot: 'plasma', xp: 80, weight: 5, minTime: 200, crusher: true }),
+);
+
+// ---------------------------------------------------------------------------
+// 10. Планеты
+// ---------------------------------------------------------------------------
+add(
+  E({ id: 'meteorite', name: 'Метеоритный рой', stage: 9, art: 'meteorite', size: 16, maxMul: 1.8, hp: 22, dmg: 7, speed: 70, armor: 'air', behavior: 'swarm', air: true, xp: 1.2, weight: 12 }),
+  E({ id: 'ufo', name: 'Летающая тарелка', stage: 9, art: 'ufo', size: 32, maxMul: 2.4, hp: 300, dmg: 15, speed: 84, armor: 'air', behavior: 'air', air: true, fireCd: 1.6, burst: 3, range: 8, shotSpeed: 12, shot: 'laser', xp: 11, weight: 8 }),
+  E({ id: 'voidSpider', name: 'Пустотный паук', stage: 9, art: 'voidSpider', size: 34, maxMul: 2.6, hp: 300, dmg: 30, speed: 70, armor: 'medium', behavior: 'charger', chargeSpeed: 9, xp: 10, weight: 9 }),
+  E({ id: 'comet', name: 'Комета', stage: 9, art: 'comet', size: 26, maxMul: 2.2, hp: 140, dmg: 38, speed: 150, armor: 'medium', behavior: 'kamikaze', boom: 1.7, xp: 5, weight: 7, minTime: 30 }),
+  E({ id: 'starCannon', name: 'Звёздная пушка', stage: 9, art: 'starCannon', size: 46, maxMul: 2, hp: 1000, dmg: 52, speed: 8, armor: 'structure', behavior: 'artillery', fireCd: 4.4, range: 15, shot: 'orbital', boom: 2.2, xp: 32, weight: 4, minTime: 60 }),
+  E({ id: 'moonlet', name: 'Луна-крепость', stage: 9, art: 'moonlet', size: 70, maxMul: 1.8, hp: 4400, dmg: 36, speed: 22, armor: 'heavy', armorPct: 0.3, behavior: 'spawner', spawn: 'meteorite', spawnCd: 2.5, spawnN: 4, fireCd: 2, range: 8, shotSpeed: 7, shot: 'plasma', xp: 90, weight: 4, minTime: 120, crusher: true }),
+  E({ id: 'starTitan', name: 'Звёздный титан', stage: 9, art: 'starTitan', size: 80, maxMul: 1.7, hp: 5200, dmg: 44, speed: 32, armor: 'heavy', armorPct: 0.35, behavior: 'shooter', fireCd: 2.2, burst: 4, fan: 3, spreadShot: 0.3, range: 8, shotSpeed: 8, shot: 'plasma', xp: 100, weight: 5, minTime: 200, crusher: true }),
 );
 
 // Балансный проход (см. docs/BALANCE.md): стрелки бьют слабее, тяжёлая броня — меньше прочности.

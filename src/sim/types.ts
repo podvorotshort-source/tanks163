@@ -1,14 +1,16 @@
 // Базовые типы и константы симуляции.
 
 export type ArmorClass = 'light' | 'medium' | 'heavy' | 'air' | 'structure';
-export type DmgType = 'mg' | 'ap' | 'he' | 'rocket' | 'fire' | 'mine' | 'tesla' | 'ram' | 'crush' | 'true';
-export type WeaponId = 'ap' | 'he' | 'mg' | 'rockets' | 'flame' | 'mines' | 'tesla' | 'ram';
+export type DmgType = 'mg' | 'ap' | 'he' | 'rocket' | 'fire' | 'mine' | 'tesla' | 'ram' | 'crush' | 'true' | 'energy' | 'cold' | 'blade';
+export type WeaponId = 'ap' | 'he' | 'mg' | 'rockets' | 'flame' | 'mines' | 'tesla' | 'ram'
+  // трофейные — открываются в мастерской победой над боссом
+  | 'blaster' | 'laser' | 'vortex' | 'cryo' | 'autocannon' | 'saw' | 'bombs' | 'railgun' | 'plasma';
 export type ClassId = 'scout' | 'assault' | 'heavy';
 export type AbilityId =
   | 'dash' | 'volley' | 'fortress' | 'repair' | 'airstrike' | 'emp'
   | 'shockwave' | 'minefield' | 'overdrive' | 'drone' | 'wall' | 'gravity'
   // трофейные — за поглощение боссов
-  | 'magma';
+  | 'magma' | 'laserBeam' | 'tornado' | 'iceFront' | 'grad' | 'rotor' | 'carpetBomb' | 'mainBattery' | 'garrison';
 export type PowerupId = 'star' | 'clock' | 'helmet' | 'grenade' | 'shovel' | 'tank' | 'repair';
 
 /** Длина корпуса танка в начале ступени (локальные единицы). */
@@ -25,7 +27,7 @@ export const VIEW_H = 540;
 export const STAGE_GROWTH = 4;
 /** Показатель степени «силы» от абсолютного размера. */
 export const POWER_EXP = 1.6;
-export const STAGES = 8;
+export const STAGES = 10;
 export const DT = 1 / 60;
 
 /** Эффективность типа урона против класса брони. */
@@ -40,6 +42,9 @@ export const EFFECT: Record<DmgType, Record<ArmorClass, number>> = {
   ram: { light: 1.2, medium: 1.0, heavy: 0.8, air: 0, structure: 1.5 },
   crush: { light: 1, medium: 1, heavy: 1, air: 0, structure: 1 },
   true: { light: 1, medium: 1, heavy: 1, air: 1, structure: 1 },
+  energy: { light: 1.0, medium: 1.2, heavy: 1.0, air: 1.15, structure: 0.85 },
+  cold: { light: 1.2, medium: 1.0, heavy: 0.85, air: 0.9, structure: 0.7 },
+  blade: { light: 1.4, medium: 1.15, heavy: 0.6, air: 0.8, structure: 1.1 },
 };
 
 /** «Сила» по абсолютному размеру: (size/28)^1.6. */
@@ -65,6 +70,10 @@ export type SimEvent =
   /** Танки игроков столкнулись (сила — скорость сближения в длинах танка/с). */
   | { t: 'bump'; x: number; y: number; force: number }
   | { t: 'arc'; pts: number[] }
+  /** Конус (ледяной фронт). */
+  | { t: 'cone'; x: number; y: number; a: number; half: number; r: number; kind: string }
+  /** Луч (лазер, рельсотрон, трофейный лазер): от точки до точки, длительность показа. */
+  | { t: 'beam'; x: number; y: number; x2: number; y2: number; w: string; p: number; dur: number; width: number }
   | { t: 'flame'; x: number; y: number; a: number; spread: number; range: number; p: number }
   | { t: 'mineDrop'; x: number; y: number }
   | { t: 'pickup'; id: PowerupId; x: number; y: number; p: number }

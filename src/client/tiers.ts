@@ -1,17 +1,17 @@
 // Поколения облика танка (по ступеням).
 
 export const TIER_NAMES = [
-  'Лёгкий танк', 'Стальной генерал', 'Масштабная копия', 'Настоящий танк',
-  'Современный ОБТ', 'Сверхтяжёлый танк', 'Сухопутный дредноут', 'Планетарный титан',
+  'Лёгкий танк', 'Стальной генерал', 'Робот-тиран', 'Танк-циклон', 'Ледяная крепость',
+  'Командарм', 'Роторный крот', 'Летающая крепость', 'Линкор «Гроза»', 'Титан-мегаполис',
 ];
 
-export const TIER_ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+export const TIER_ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
 /** Поколение, которое сейчас отображается (меняется в момент эволюции). */
 let displayTier = 0;
 
 export function setDisplayTier(t: number): void {
-  displayTier = Math.max(0, Math.min(7, t));
+  displayTier = Math.max(0, Math.min(9, t));
 }
 
 export function tierOf(_stageIdx: number): number {

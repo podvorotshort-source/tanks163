@@ -5,12 +5,12 @@ import type { Player, WeaponInst, Enemy } from './entities';
 import { Mine } from './entities';
 import { rotateTowards, angleDiff, clamp } from '../core/math';
 import { WEAPONS } from './content/weapons';
-import { EFFECT, VIEW_W, VIEW_H, type DmgType } from './types';
+import { EFFECT, VIEW_W, VIEW_H, type DmgType, type WeaponId } from './types';
 
 /** Проекция изометрии на экран (как у камеры): пикселей по горизонтали/вертикали на единицу x − y / x + y. */
 const ISO_X = Math.SQRT1_2, ISO_Y = Math.SQRT1_2 * 0.5;
 import { MATS, pushOutBox, type Prop } from './props';
-import { damageEnemy, killEnemy, breakProp, explode, chainLightning, loseLife, applyBurn } from './combat';
+import { damageEnemy, damageProp, killEnemy, breakProp, explode, chainLightning, loseLife, applyBurn } from './combat';
 import { useAbility, updateAbilities } from './abilities';
 
 const tmpE: Enemy[] = [];
@@ -342,7 +342,7 @@ function fireWeapons(sim: Sim, p: Player, dt: number): void {
       w.queueT -= dt;
       if (w.queueT <= 0) {
         w.queue--;
-        w.queueT = w.id === 'rockets' ? 0.09 : 0.13;
+        w.queueT = w.id === 'rockets' || w.id === 'autocannon' ? 0.09 : 0.13;
         const tgt = pickTarget(sim, p, WEAPONS[w.id].targeting, w.s.range * sim.size, WEAPONS[w.id].dmgType, w.s.radius * sim.size);
         if (tgt || w.id === 'rockets') fireOnce(sim, p, w, tgt, main, i, 0);
       }
@@ -368,7 +368,8 @@ function fireWeapons(sim: Sim, p: Player, dt: number): void {
     w.t = w.s.cd;
     w.n++;
     fireOnce(sim, p, w, tgt, main, i, 0);
-    if (w.id === 'ap' && w.s.count > 1) { w.queue = w.s.count - 1; w.queueT = 0.14; }
+    if ((w.id === 'ap' || w.id === 'railgun') && w.s.count > 1) { w.queue = w.s.count - 1; w.queueT = 0.14; }
+    if (w.id === 'autocannon') { w.queue = Math.max(0, Math.round(w.s.count) - 1); w.queueT = 0.09; }
     if (w.id === 'rockets') { w.queue = Math.max(0, Math.round(w.s.count) - 1); w.queueT = 0.09; }
   }
   void mainTarget;
@@ -481,7 +482,115 @@ function fireOnce(sim: Sim, p: Player, w: WeaponInst, tgt: Enemy | null, main: b
       sim.emit({ t: 'shot', w: 'tesla', x: mx, y: my, a: aim, p: p.idx, size, tier });
       break;
     }
+    // --- трофейное оружие ---
+    case 'blaster':
+    case 'cryo':
+    case 'autocannon':
+    case 'saw':
+    case 'plasma': {
+      const n = w.id === 'autocannon' ? 1 : Math.max(1, Math.round(s.count));
+      for (let k = 0; k < n; k++) {
+        let a = aim + (n > 1 ? ((k - (n - 1) / 2) * s.spread * Math.PI) / 180 / Math.max(1, n - 1) : 0);
+        if (w.id === 'autocannon') a += sim.rng.range(-1, 1) * (s.spread * Math.PI / 180) * 0.5;
+        if (w.id === 'saw' && n > 1) a = aim + (k - (n - 1) / 2) * 0.45;
+        const sh = sim.makeShot();
+        sh.team = 0; sh.owner = p.idx; sh.w = w.id; sh.dmgType = WEAPONS[w.id].dmgType; sh.tier = tier;
+        sh.kind = w.id === 'blaster' ? 'bolt' : w.id === 'cryo' ? 'shard' : w.id === 'autocannon' ? 'ac' : w.id;
+        sh.x = sh.px = mx; sh.y = sh.py = my;
+        const sp = s.speed * size * (w.id === 'cryo' ? sim.rng.range(0.9, 1.1) : 1);
+        sh.vx = Math.cos(a) * sp; sh.vy = Math.sin(a) * sp;
+        sh.dmg = s.dmg * pw;
+        sh.life = (s.range * size * 1.15) / sp;
+        if (w.id === 'blaster') { sh.bounce = Math.round(s.extra); sh.r = size * 0.07; sh.size = size * 0.22; }
+        else if (w.id === 'cryo') { sh.pierce = s.pierce; sh.r = size * 0.06; sh.size = size * 0.16; sh.lobTotal = s.extra; }
+        else if (w.id === 'autocannon') { sh.pierce = s.pierce; sh.blast = s.radius * size; sh.r = size * 0.06; sh.size = size * 0.14; }
+        else if (w.id === 'saw') { sh.bounce = Math.round(s.pierce); sh.r = size * 0.16; sh.size = size * 0.3; sh.life *= 1.6; }
+        else { sh.blast = s.radius * size; sh.pierce = s.pierce; sh.r = size * 0.16; sh.size = size * 0.42; }
+        sim.emit({ t: 'shot', w: w.id, x: mx, y: my, a, p: p.idx, size, tier });
+      }
+      break;
+    }
+    case 'laser': {
+      const L = s.range * size;
+      beamHit(sim, p, mx, my, aim, L, size * s.extra, s.dmg * pw, 'energy', Math.round(s.pierce), s.extra2 > 0, 'laser', 0.12);
+      break;
+    }
+    case 'railgun': {
+      beamHit(sim, p, mx, my, aim, s.range * size * 1.4, size * s.extra, s.dmg * pw, 'ap', 999, true, 'railgun', 0.35);
+      sim.emit({ t: 'shot', w: 'railgun', x: mx, y: my, a: aim, p: p.idx, size, tier });
+      break;
+    }
+    case 'vortex': {
+      const n = Math.max(1, Math.round(s.count));
+      for (let k = 0; k < n; k++) {
+        const a = aim + (n > 1 ? (k - (n - 1) / 2) * 0.5 : 0);
+        const sh = sim.makeShot();
+        sh.team = 0; sh.owner = p.idx; sh.w = 'vortex'; sh.dmgType = 'blade'; sh.kind = 'vortex'; sh.tier = tier;
+        sh.x = sh.px = mx; sh.y = sh.py = my;
+        const sp = s.speed * size;
+        sh.vx = Math.cos(a) * sp; sh.vy = Math.sin(a) * sp;
+        sh.dmg = s.dmg * pw; sh.life = (s.range * size) / sp; sh.pierce = 999;
+        sh.r = s.radius * size; sh.size = s.radius * size * 2; sh.blast = 0; sh.maxSpeed = 0; sh.lobTotal = s.extra;
+      }
+      sim.emit({ t: 'shot', w: 'vortex', x: mx, y: my, a: aim, p: p.idx, size, tier });
+      break;
+    }
+    case 'bombs': {
+      const t = tgt ?? { x: p.x + Math.cos(aim) * size * 5, y: p.y + Math.sin(aim) * size * 5 };
+      barrage(sim, p, t.x, t.y, Math.round(s.count), s.dmg * pw, s.radius * size, 'he', 'bombs', 1.7, s.extra > 0);
+      sim.emit({ t: 'shot', w: 'bombs', x: mx, y: my, a: aim, p: p.idx, size, tier });
+      break;
+    }
   }
+}
+
+/**
+ * Луч по линии (лазер, рельсотрон, трофейный лазер): урон первым maxN врагам на отрезке.
+ * Без «сквозь стены» луч упирается в первое препятствие и прожигает его.
+ */
+export function beamHit(sim: Sim, p: Player, x: number, y: number, a: number, len: number, width: number, dmg: number, type: DmgType, maxN: number, throughWalls: boolean, w: string, dur: number): void {
+  let L = len;
+  const ex0 = x + Math.cos(a) * len, ey0 = y + Math.sin(a) * len;
+  const ph = sim.props.raycast(x, y, ex0, ey0, width * 0.3, pr => MATS[pr.mat].shots && !pr.friendly && !pr.dead);
+  if (ph) {
+    damageProp(sim, ph.p, dmg * (throughWalls ? 1.5 : 0.6), type === 'energy' ? 'fire' : 'ap');
+    if (!throughWalls) L = len * ph.t;
+  }
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const ex = x + ca * L, ey = y + sa * L;
+  sim.enemiesNear((x + ex) / 2, (y + ey) / 2, L / 2 + width + sim.size * 2, tmpE);
+  beamList.length = 0;
+  for (const e of tmpE) {
+    if (e.dead || e.spawnT > 0) continue;
+    const dx = e.x - x, dy = e.y - y;
+    const t = dx * ca + dy * sa;
+    if (t < -e.r || t > L + e.r) continue;
+    const perp = Math.abs(-dx * sa + dy * ca);
+    if (perp > e.r + width) continue;
+    beamList.push([t, e]);
+  }
+  beamList.sort((u, v) => u[0] - v[0]);
+  let n = 0;
+  for (const [, e] of beamList) {
+    if (n >= maxN) break;
+    damageEnemy(sim, e, dmg, type, p.idx, (w as WeaponId), { fromX: x, fromY: y, silent: w === 'laser' && sim.rng.next() > 0.35 });
+    n++;
+  }
+  sim.emit({ t: 'beam', x, y, x2: ex, y2: ey, w, p: p.idx, dur, width });
+}
+const beamList: [number, Enemy][] = [];
+
+/** Навесной снаряд игрока в точку (ковровая бомбардировка, главный калибр). */
+export function lobShot(sim: Sim, p: Player, tx: number, ty: number, t: number, dmg: number, blast: number, type: DmgType, w: string, kind = 'shell', incendiary = false): void {
+  const sh = sim.makeShot();
+  sh.team = 0; sh.owner = p.idx; sh.w = w; sh.dmgType = type; sh.kind = kind;
+  sh.lob = true;
+  sh.sx = p.x; sh.sy = p.y; sh.tx = tx; sh.ty = ty;
+  sh.x = sh.px = p.x; sh.y = sh.py = p.y;
+  sh.lobTotal = t; sh.lobT = 0; sh.life = t + 0.1;
+  sh.dmg = dmg; sh.blast = blast; sh.size = sim.size * (kind === 'big' ? 0.45 : 0.25);
+  sh.incendiary = incendiary;
+  sim.emit({ t: 'telegraph', x: tx, y: ty, r: blast, dur: t });
 }
 
 /** Огневой вал — навесные снаряды по области. */

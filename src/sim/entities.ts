@@ -90,6 +90,8 @@ export class Player {
   mods = new Set<string>();
   /** Запрещённые (исключённые) улучшения. */
   banned = new Set<string>();
+  /** Сколько раз игрок не взял предложенное оружие (такое выпадает реже). */
+  declined = new Map<WeaponId, number>();
   rerolls = 1;
   banishes = 0;
   kills = 0;
@@ -108,6 +110,10 @@ export class Player {
   dashVx = 0; dashVy = 0;
   fortressT = 0;
   overdriveT = 0;
+  /** Трофеи: лазерный луч, ковшовый ротор, второй пакет «Града» (таймеры, с). */
+  beamT = 0;
+  rotorT = 0;
+  gradT = 0;
   repairT = 0;
   repairRate = 0;
   contactT = 0;
@@ -177,6 +183,10 @@ export class Enemy {
   spawnT = 0;
   stunT = 0;
   slowT = 0;
+  /** Криопушка: попадания подряд (третье замораживает) и время заморозки (+30% урона). */
+  chill = 0;
+  chillT = 0;
+  frozenT = 0;
   burnT = 0;
   burnDps = 0;
   burnOwner = -1;
@@ -260,6 +270,8 @@ export class Shot {
   /** Поражает воздушные цели. */
   air = true;
   kind = '';
+  /** Свободный таймер (смерч: период перемалывания). */
+  t = 0;
   _q = 0;
 }
 
@@ -279,7 +291,7 @@ export class Mine {
   r = 0;
 }
 
-export type ZoneKind = 'gravity' | 'tar' | 'freeze' | 'barrage' | 'hazard' | 'shock' | 'hqField';
+export type ZoneKind = 'gravity' | 'tar' | 'freeze' | 'barrage' | 'hazard' | 'shock' | 'hqField' | 'tornado';
 
 export class Zone {
   x = 0; y = 0; r = 0;
@@ -314,4 +326,6 @@ export class Drone {
   dead = false;
   rockets = false;
   dmg = 0;
+  /** Башня гарнизона: стоит на месте. */
+  fixed = false;
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { makeSim, step, seconds } from './helpers';
 import { Sim } from '../src/sim/sim';
-import { STAGE_GROWTH, TANK_BASE, stageUnit } from '../src/sim/types';
+import { STAGE_GROWTH, TANK_BASE, STAGES, stageUnit } from '../src/sim/types';
 import { STAGE_DEFS } from '../src/sim/content/stages';
 import { save, sanitize, defaultSave, SAVE_KEY } from '../src/meta/save';
 import { storage } from '../src/meta/storage';
@@ -40,7 +40,7 @@ describe('переход между масштабами', () => {
   });
 
   it('после последнего босса — победа', () => {
-    const sim = new Sim({ seed: 3, players: [{ cls: 'scout' }], startStage: 7 });
+    const sim = new Sim({ seed: 3, players: [{ cls: 'scout' }], startStage: STAGES - 1 });
     (sim.director as unknown as { update: () => void }).update = () => {};
     sim.onBossKilled(sim.players[0] as never);
     expect(sim.state).toBe('victory');

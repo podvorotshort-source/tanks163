@@ -20,7 +20,7 @@ const MAT_COL: Record<string, string[]> = {
 
 export function emitShot(fx: Fx, sim: Sim, e: Ev<'shot'>, cam: Camera): void {
   if (!cam.visible(e.x, e.y, e.size * 2)) return;
-  const tier = Math.min(7, sim.stageIdx);
+  const tier = Math.min(9, sim.stageIdx);
   const big = e.w === 'ap' || e.w === 'he';
   // Вспышка у дула.
   const n = e.w === 'mg' ? 1 : big ? 4 + Math.floor(tier / 2) : 2;
@@ -55,7 +55,7 @@ export function emitExplosion(fx: Fx, sim: Sim, e: Ev<'boom'>, cam: Camera, grou
     if (e.kind !== 'tesla') ground.addDecal({ x: e.x, y: e.y, r: r * 0.5, kind: 'scorch', col: '#1a1724', seed: (e.x * 13 + e.y * 7) | 0, a: 0 });
     return;
   }
-  const tier = Math.min(7, sim.stageIdx);
+  const tier = Math.min(9, sim.stageIdx);
   if (e.kind === 'tesla') {
     const ring = fx.spawn('ring', e.x, e.y); ring.r = r * 0.1; ring.r1 = r; ring.life = 0.35; ring.col = '#bdf3dc';
     fx.light(e.x, e.y, r * 1.3, '#62cfac', 1, 0.25);

@@ -318,11 +318,11 @@ export class IsoWorld {
       if (sim.boss || sim.stageTime > sim.stage.bossAt - 40) this.prebuild(sim.stageIdx + 1);
       return;
     }
-    const od = STAGE_DEFS[tv.from], nd = STAGE_DEFS[Math.min(7, tv.from + 1)];
+    const od = STAGE_DEFS[tv.from], nd = STAGE_DEFS[Math.min(9, tv.from + 1)];
     let ox: number, oy: number, nx: number, ny: number, zo: number, zn: number;
     if (!tv.switched) { ox = cam.cx; oy = cam.cy; zo = cam.zoom; nx = nd.relicX + (ox - od.w / 2) / G; ny = nd.relicY + (oy - od.h / 2) / G; zn = zo * G; }
     else { nx = cam.cx; ny = cam.cy; zn = cam.zoom; ox = od.w / 2 + (nx - nd.relicX) * G; oy = od.h / 2 + (ny - nd.relicY) * G; zo = zn / G; }
-    const po = this.paint(tv.from), pn = this.paint(Math.min(7, tv.from + 1));
+    const po = this.paint(tv.from), pn = this.paint(Math.min(9, tv.from + 1));
     const [ou, ov] = uv(ox, oy), [nu, nv] = uv(nx, ny);
     r.groundView('A', po, ou, ov, zo / ART_Z, tv.oldAlpha);
     r.groundView('B', pn, nu, nv, zn / ART_Z, 1);
@@ -358,7 +358,7 @@ export class IsoWorld {
     if (!tv && p.invulnT > 0 && p.invulnT < 3 && Math.floor(time * 14) % 2 === 0) return;
     const x = lerp(p.px, p.x, alpha), y = lerp(p.py, p.y, alpha);
     let tier = tierOf(sim.stageIdx);
-    if (tv && tv.evolved && !tv.switched) tier = Math.min(7, tier + 1);
+    if (tv && tv.evolved && !tv.switched) tier = Math.min(9, tier + 1);
     const key = p.state === 'down' ? `wreck:${p.classId}:${tier}` : `tank:${p.classId}:${tier}:${p.idx}`;
     const m = model(key);
     const s = (sim.size / m.size) * (tv ? tv.tankScale : 1);

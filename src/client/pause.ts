@@ -103,7 +103,7 @@ export class PauseMenu {
       if (it.adj) { const c = sel ? UI.gold : UI.dim; drawText(ctx, '◀', rx + 6, ty, { color: c }); drawText(ctx, '▶', rx + bw - 6, ty, { color: c, align: 'right' }); }
       this.rects.push([rx, y - 4, bw, rh]);
     });
-    drawText(ctx, `Ступень ${sim.stageIdx + 1}/8 · Время ${Math.floor(sim.time / 60)}:${String(Math.floor(sim.time % 60)).padStart(2, '0')} · Убито ${sim.kills}`, W / 2, H - 16, { align: 'center', color: UI.dim });
+    drawText(ctx, `Ступень ${sim.stageIdx + 1}/10 · Время ${Math.floor(sim.time / 60)}:${String(Math.floor(sim.time % 60)).padStart(2, '0')} · Убито ${sim.kills}`, W / 2, H - 16, { align: 'center', color: UI.dim });
   }
 
   private drawBuild(ctx: CanvasRenderingContext2D, W: number, H: number, sim: Sim): void {

@@ -14,7 +14,7 @@ import { NavGrid } from './nav';
 import { FireGrid } from './fire';
 import { SpatialHash } from './spatial';
 import { offerCards, computeWeaponStats, STAT_UPS, type Card, type UnlockCtx } from './upgrades';
-import { WEAPONS } from './content/weapons';
+import { WEAPONS, BOSS_WEAPON } from './content/weapons';
 import { updatePlayers } from './playerRun';
 import { updateEnemies } from './enemyRun';
 import { updateShots, updateMines, updateZones, updateDrones } from './shotsRun';
@@ -35,8 +35,8 @@ export interface PlayerCmd {
  * и ~×1.6 больнее. Это ровно то, что даёт полная мастерская (+60% прочности, +60% урона, −15% урона
  * по себе), — без прокачки поздние ступени — стена (решение пользователя: игра не проходится с первого раза).
  */
-export const STAGE_HP_K = [1.05, 1.04, 1.12, 1.22, 1.34, 1.48, 1.64, 1.85];
-export const STAGE_DMG_K = [1.12, 1.03, 1.08, 1.15, 1.24, 1.34, 1.46, 1.62];
+export const STAGE_HP_K = [1.05, 1.04, 1.1, 1.18, 1.27, 1.37, 1.48, 1.6, 1.72, 1.85];
+export const STAGE_DMG_K = [1.12, 1.03, 1.07, 1.12, 1.18, 1.25, 1.33, 1.42, 1.52, 1.62];
 
 export const NO_CMD: PlayerCmd = { mx: 0, my: 0, a: [false, false, false] };
 
@@ -161,11 +161,14 @@ export class Sim {
     this.cfg = cfg;
     this.rng = new Rng(cfg.seed);
     this.meta = cfg.meta ?? NO_META;
-    this.unlocks = cfg.unlocks ?? { has: () => true };
+    const base = cfg.unlocks ?? { has: () => true };
+    // Трофейное оружие, открытое в этом забеге, сразу выпадает в карточках.
+    this.unlocks = { has: (id: string) => base.has(id) || this.runUnlocks.has(id) };
     this.threat = cfg.threat ?? 0;
     const start = cfg.startStage ?? 0;
     this.growE = start;
     cfg.players.forEach((pc, i) => this.players.push(this.makePlayer(i as 0 | 1, pc.cls, pc.main, pc.aux ?? [])));
+    this.arsenal = this.rollArsenal();
     this.setupStage(start, null);
   }
 
@@ -300,7 +303,7 @@ export class Sim {
 
   /** Множитель получаемого игроками урона: угроза × нарастание по ступеням. */
   threatTaken(): number {
-    return (1 + 0.18 * this.threat) * STAGE_DMG_K[Math.min(7, this.stageIdx)] * (1 + 0.15 * this.extraPlayers());
+    return (1 + 0.18 * this.threat) * STAGE_DMG_K[Math.min(STAGES - 1, this.stageIdx)] * (1 + 0.15 * this.extraPlayers());
   }
 
   /** Сколько игроков в строю сверх первого (вдвоём враги крепче и больнее). */
@@ -312,7 +315,7 @@ export class Sim {
 
   /** Множитель урона игроков (враги «крепче»): угроза × нарастание по ступеням. */
   threatDealt(): number {
-    return 1 / ((1 + 0.22 * this.threat) * STAGE_HP_K[Math.min(7, this.stageIdx)] * (1 + 0.25 * this.extraPlayers()));
+    return 1 / ((1 + 0.22 * this.threat) * STAGE_HP_K[Math.min(STAGES - 1, this.stageIdx)] * (1 + 0.25 * this.extraPlayers()));
   }
 
   /** Половина видимой области (игровая, 16:9). */
@@ -406,7 +409,7 @@ export class Sim {
 
   private makeOffers(): void {
     const lu = this.levelUp!;
-    lu.offers = this.players.map(p => offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier }));
+    lu.offers = this.players.map(p => offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier, arsenal: this.arsenal }));
     lu.done = this.players.map(() => false);
   }
 
@@ -417,6 +420,12 @@ export class Sim {
     const card = lu.offers[pi][ci];
     if (!card) return false;
     this.applyCard(this.players[pi], card);
+    // Не взятое новое оружие в следующий раз выпадает реже — так находятся другие системы.
+    for (const o of lu.offers[pi]) {
+      if (o === card) continue;
+      const m = /^w:(?:new|swap:[a-z]+):([a-z]+)$/i.exec(o.id);
+      if (m) { const id = m[1] as WeaponId; this.players[pi].declined.set(id, (this.players[pi].declined.get(id) ?? 0) + 1); }
+    }
     lu.done[pi] = true;
     if (lu.done.every(Boolean)) {
       if (lu.queue > 0) { lu.queue--; this.makeOffers(); this.emit({ t: 'levelup', level: this.level }); } else { this.levelUp = null; this.state = 'play'; }
@@ -428,7 +437,7 @@ export class Sim {
     const lu = this.levelUp, p = this.players[pi];
     if (!lu || lu.done[pi] || p.rerolls <= 0) return false;
     p.rerolls--;
-    lu.offers[pi] = offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier });
+    lu.offers[pi] = offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier, arsenal: this.arsenal });
     return true;
   }
 
@@ -439,13 +448,23 @@ export class Sim {
     if (!c || c.kind === 'fallback') return false;
     p.banishes--;
     p.banned.add(c.id.startsWith('s:') ? c.id : c.id);
-    lu.offers[pi] = offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier });
+    lu.offers[pi] = offerCards(p, 3 + this.meta.cards, { rng: this.rng, unlocks: this.unlocks, level: this.level, starTier: this.starTier, arsenal: this.arsenal });
     return true;
   }
 
   applyCard(p: Player, c: Card): void {
     const [kind, , rest] = c.id.split(':');
     if (c.id.startsWith('w:new:')) this.addWeapon(p, c.id.slice(6) as WeaponId);
+    else if (c.id.startsWith('w:swap:')) {
+      const [, , from, to] = c.id.split(':');
+      const i = p.weapons.findIndex(w => w.id === from);
+      if (i > 0) {
+        p.weapons.splice(i, 1);
+        this.addWeapon(p, to as WeaponId);
+        const nw = p.weapon(to as WeaponId);
+        if (nw) nw.level = c.level ?? 1;
+      }
+    }
     else if (c.id.startsWith('w:lvl:')) { const w = p.weapon(c.id.slice(6) as WeaponId); if (w) w.level++; }
     else if (kind === 's') {
       const up = STAT_UPS.find(s => s.id === c.id.slice(2));
@@ -551,6 +570,21 @@ export class Sim {
 
   /** Побеждённые боссы этого забега (id). */
   defeated: string[] = [];
+  /** Открытое в этом забеге (трофейное оружие). */
+  runUnlocks = new Set<string>();
+  /** Набор оружия этого забега: стартовое + случайные из открытого (каждый забег — свой билд). */
+  arsenal = new Set<WeaponId>();
+
+  /** Сколько систем (кроме стартовых) попадает в набор забега. */
+  static ARSENAL_SIZE = 6;
+
+  private rollArsenal(): Set<WeaponId> {
+    const set = new Set<WeaponId>();
+    for (const p of this.players) for (const w of p.weapons) set.add(w.id);
+    const pool = (Object.keys(WEAPONS) as WeaponId[]).filter(id => !set.has(id) && this.unlocks.has('w:' + id));
+    for (let k = 0; k < Sim.ARSENAL_SIZE && pool.length; k++) set.add(pool.splice(this.rng.int(0, pool.length - 1), 1)[0]);
+    return set;
+  }
   abandoned = false;
   /** Журнал урона по источникам (доли макс. прочности) — для балансных прогонов. */
   dmgLog: Map<string, number> | null = null;
@@ -563,6 +597,12 @@ export class Sim {
     this.defeated.push(this.stage.boss);
     this.boss = null;
     this.emit({ t: 'bossDead', x: b.x, y: b.y });
+    const tw = BOSS_WEAPON[this.stageIdx];
+    if (tw) {
+      this.runUnlocks.add('w:' + tw);
+      this.arsenal.add(tw);
+      this.emit({ t: 'event', id: 'trophyWeapon', text: `Трофей в мастерской: ${WEAPONS[tw].name}` });
+    }
     // Рост танка при переходе не меняется: раскрывается мир, а не танк.
     if (this.stageIdx >= STAGES - 1) {
       this.state = 'victory';

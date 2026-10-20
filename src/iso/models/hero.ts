@@ -293,7 +293,7 @@ function heavyI(S: Paint): ModelDef {
   // смотровые блоки по лбу
   for (const zz of [tcz - 6, tcz + 5]) t.box(tcx + bl - 5, tcx + bl - 3, bh - 3, bh - 1, zz, zz + 1, 'glass_d');
   antenna(t, tcx - bl + 2, bh, tcz - br + 3, 11, S);
-  return { ...hullParts(v, t, NX, NZ, tcx, tcz, x0 + L * 0.5, yt, SIZE_I), muzzles: [[bl + 16, 4.5, 0.5]] };
+  return hullParts(v, t, NX, NZ, tcx, tcz, x0 + L * 0.5, yt, SIZE_I);
 }
 
 // ======================================================================== облик II (форма генерала)
@@ -380,7 +380,7 @@ export function heroII(cls: TankClass, glow: string, boss = false): ModelDef {
     { name: 'turret', vox: t, pivot: [tcx, 0, tcz], at: [x0 + L * 0.46 - NX / 2, yt, 0] },
     { name: 'key', vox: key, pivot: [14, kc, kc], at: [x0 - NX / 2, TH + 6, 0], axis: 'x' },
   ];
-  if (!boss) return { size: 56, parts, muzzles: cls === 'heavy' ? [[bl + 17, 4.5, -3.5], [bl + 17, 4.5, 4.5]] : undefined };   // общий масштаб: разведчик меньше, тяжёлый крупнее
+  if (!boss) return { size: 56, parts };   // общий масштаб: разведчик меньше, тяжёлый крупнее
   // босс — та же форма вдвое подробнее (каждый воксель → 2×2×2), чтобы на крупном плане не было «кубиков»
   return {
     size: L * 2,

@@ -455,7 +455,7 @@ function fireOnce(sim: Sim, p: Player, w: WeaponInst, tgt: Enemy | null, main: b
         // dps горения на цели
         sh.blast = s.extra * pw; sh.lobTotal = s.extra2;
       }
-      sim.emit({ t: 'flame', x: mx, y: my, a: aim, spread: s.spread, range: s.range * size, p: p.idx });
+      if (sim.tick % 4 === 0) sim.emit({ t: 'flame', x: mx, y: my, a: aim, spread: s.spread, range: s.range * size, p: p.idx });
       break;
     }
     case 'tesla': {

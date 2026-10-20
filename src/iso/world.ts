@@ -264,18 +264,6 @@ export class IsoWorld {
     this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col);
   }
 
-  /** Сопла главного орудия танка в мире: тройки (x, высота, y) в out. Ложь — у модели сопел нет. */
-  muzzlesOf(sim: Sim, p: Player, alpha: number, out: number[]): boolean {
-    out.length = 0;
-    const m = model(`tank:${p.classId}:${tierOf(sim.stageIdx)}:${p.idx}`), mz = m.muzzles, tur = m.parts.find(q => q.name === 'turret');
-    if (!mz || !tur) return false;
-    const s = sim.size / m.size, x = lerp(p.px, p.x, alpha), y = lerp(p.py, p.y, alpha);
-    const ca = Math.cos(p.angle), sa = Math.sin(p.angle), ct = Math.cos(p.turret), st = Math.sin(p.turret);
-    const tx = x + (tur.at.x * ca - tur.at.z * sa) * s, ty = y + (tur.at.x * sa + tur.at.z * ca) * s;
-    for (const [mx, my, mzz] of mz) out.push(tx + (mx * ct - mzz * st) * s, (tur.at.y + my) * s, ty + (mx * st + mzz * ct) * s);
-    return true;
-  }
-
   private syncWreck(w: NonNullable<TransView['wreck']>, time: number): void {
     const key = `boss:${w.art}`;
     const m = model(key);

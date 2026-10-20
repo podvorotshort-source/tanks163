@@ -6,9 +6,9 @@ import { makeCanvas } from '../gfx/screen';
 import { RAMPS, type RampId } from '../gfx/palette';
 import type { Camera } from './camera';
 import { drawText } from '../gfx/font';
-import { charPatch, firePuff, flameJet, flameTongues, smokePuff, type Pix } from '../gfx/flame';
+import { charPatch, firePuff, flameTongues, smokePuff, type Pix } from '../gfx/flame';
 import { chip, type ChipShape } from '../gfx/chips';
-import { DYN_H, DYN_W, type FxLayer } from '../iso/fxgl';
+import type { FxLayer } from '../iso/fxgl';
 
 export type PKind = 'fire' | 'smoke' | 'spark' | 'debris' | 'ring' | 'text' | 'dust' | 'shell' | 'ember' | 'bubble' | 'pixel' | 'anim' | 'flame' | 'char';
 
@@ -37,9 +37,6 @@ export class Particle {
   /** Обломок-шестерёнка (иначе осколок-пластинка). */
   gear = false;
 }
-
-/** Струя огнемёта на кадр: сопло (x, h, y) → конец полной длины (ex, eh, ey), видимая часть head/tail, полуширины w0/w1 (ед.). */
-export interface Jet { x: number; h: number; y: number; ex: number; eh: number; ey: number; head: number; tail: number; w0: number; w1: number; seed: number }
 
 /** Кеш пиксельных дисков: радиус в пикселях × цвет. */
 const discs = new Map<string, HTMLCanvasElement>();
@@ -149,33 +146,6 @@ function charFrame(p: Particle, u: number, z: number): Frame {
   return { key: `c${ww}:${v}:${gq}:${f}`, make: () => charPatch(ww, RAMPS.fire, gq / 4, f, v), k: w / ww, alpha: u > 0.85 ? (1 - u) / 0.15 : 1 };
 }
 
-/** Струя в экранной сетке: картинка, левый верх (px экрана), шаг пикселя k (крупная — грубее) и fresh —
- *  перерисована ли в этом кадре. Узор обновляется 20 раз в секунду (как пиксельная анимация) или при
- *  повороте/росте струи; иначе прежняя картинка просто едет за соплом. */
-const jetCache: { key: string; p: Pix; dx: number; dy: number; k: number }[] = [];
-const jetBufs: Uint32Array[] = [];
-function jetPix(j: Jet, i: number, cam: Camera, time: number): { p: Pix; x0: number; y0: number; k: number; fresh: boolean } | null {
-  const z = cam.zoom;
-  const ox = cam.sxOf(j.x, j.y), oy = cam.syOf(j.x, j.y, j.h), ex = cam.sxOf(j.ex, j.ey), ey = cam.syOf(j.ex, j.ey, j.eh);
-  const m = j.w1 * z * 1.9 + 3;
-  const x0 = Math.floor(Math.min(ox, ex) - m), y0 = Math.floor(Math.min(oy, ey) - m);
-  const W = Math.ceil(Math.max(ox, ex) + m) - x0, H = Math.ceil(Math.max(oy, ey) + m) - y0;
-  if (x0 > cam.w || y0 > cam.h || x0 + W < 0 || y0 + H < 0 || W < 2 || H < 2) return null;
-  const rox = Math.round(ox), roy = Math.round(oy);
-  const key = `${Math.round(ex - ox)},${Math.round(ey - oy)},${Math.round(j.w1 * z)},${j.head.toFixed(2)},${j.tail.toFixed(2)},${Math.floor(time * 20)}`;
-  const c = jetCache[i];
-  if (c && c.key === key) return { p: c.p, x0: rox + c.dx, y0: roy + c.dy, k: c.k, fresh: false };
-  const k = Math.max(1, Math.ceil(W / DYN_W), Math.ceil(H / DYN_H)), w = Math.ceil(W / k), h = Math.ceil(H / k);
-  if (!jetBufs[i] || jetBufs[i].length < w * h * 2) jetBufs[i] = new Uint32Array(w * h * 2);
-  const p = flameJet(w, h, {
-    ox: (ox - x0) / k, oy: (oy - y0) / k, ex: (ex - x0) / k, ey: (ey - y0) / k, w0: Math.max(1.2, j.w0 * z / k), w1: j.w1 * z / k,
-    head: j.head, tail: j.tail, t: Math.floor(time * 20) / 20, flow: 260 * z / k, seed: j.seed,
-  }, RAMPS.fire, jetBufs[i]);
-  jetCache[i] = { key, p, dx: x0 - rox, dy: y0 - roy, k };
-  return { p, x0, y0, k, fresh: true };
-}
-let jetCanvas: HTMLCanvasElement | null = null;
-
 /** Мягкое пятно света (радиальный градиент) — рисуется в полуразрешении. */
 let glowSprite: HTMLCanvasElement | null = null;
 function glow(): HTMLCanvasElement {
@@ -224,10 +194,6 @@ export class Fx {
   power = 1;
   /** 3D-слой для огня на земле (гарь, языки пламени) — с проверкой глубины; без него рисуем в 2D. */
   gl: FxLayer | null = null;
-  /** Струи огнемётов этого кадра (заполняет сцена игры). */
-  jets: Jet[] = [];
-  /** Время эффектов, с (течение струй). */
-  time = 0;
 
   /** Плотность новых эффектов: при сотнях частиц (массовая гибель врагов) — меньше частиц на событие. */
   density(): number {
@@ -275,16 +241,6 @@ export class Fx {
         g.push(s, p.x, 0.1, p.y, -Math.round(W / 2), -Math.round(H / 2), W, H, false, f.alpha);
       }
     }
-    // Струи: стоячая плоскость через середину струи (танк закрывает её начало, если бьёт от камеры).
-    this.jets.forEach((j, i) => {
-      const r = jetPix(j, i, cam, this.time);
-      if (!r) return;
-      const s = g.dyn(i, r.p, r.fresh);
-      if (!s) return;
-      const mx = (j.x + j.ex) / 2, my = (j.y + j.ey) / 2, mh = (j.h + j.eh) / 2;
-      const ax = Math.floor(cam.sxOf(mx, my) + 0.5), ay = Math.floor(cam.syOf(mx, my, mh) + 0.5);
-      g.push(s, mx, mh, my, r.x0 - ax, r.y0 - ay, r.p.w * r.k, r.p.h * r.k, true);
-    });
   }
 
   light(x: number, y: number, r: number, col: string, a = 1, life = 0.15): void {
@@ -297,7 +253,6 @@ export class Fx {
   }
 
   update(dt: number): void {
-    this.time += dt;
     let n = 0, texts = 0;
     for (const p of this.parts) {
       p.t += dt;
@@ -440,17 +395,6 @@ export class Fx {
         }
       }
     }
-    if (layer === 1 && !this.gl) {
-      this.jets.forEach((j, i) => {
-        const r = jetPix(j, i, cam, this.time);
-        if (!r) return;
-        if (!jetCanvas) jetCanvas = makeCanvas(DYN_W, DYN_H);
-        const x = jetCanvas.getContext('2d')!, img = x.createImageData(r.p.w, r.p.h);
-        new Uint32Array(img.data.buffer).set(r.p.d);
-        x.clearRect(0, 0, DYN_W, DYN_H); x.putImageData(img, 0, 0);
-        ctx.drawImage(jetCanvas, 0, 0, r.p.w, r.p.h, r.x0, r.y0, r.p.w * r.k, r.p.h * r.k);
-      });
-    }
     if (layer === 1) {
       for (const a of this.arcs) drawArc(ctx, cam, a.pts, a.col, a.t / a.life, a.w);
     }
@@ -474,10 +418,6 @@ export class Fx {
     for (const p of this.parts) {
       if (p.kind === 'fire' && p.t < p.life * 0.6) add(p.x, p.y, p.r * 3, '#f08a1c', 0.12);
       else if (p.kind === 'flame') add(p.x, p.y, p.r * 2.2, '#f08a1c', 0.1);
-    }
-    for (const j of this.jets) for (let q = 1; q <= 3; q++) {
-      const t = j.tail + (j.head - j.tail) * q / 4;
-      add(j.x + (j.ex - j.x) * t, j.y + (j.ey - j.y) * t, j.w1 * (1 + t * 2), '#f08a1c', 0.16);
     }
     extra(add);
     lc.globalAlpha = 1;

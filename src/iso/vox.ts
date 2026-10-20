@@ -214,19 +214,16 @@ export interface ModelDef {
   size: number;
   /** Для препятствий: размер основания в вокселях (x, z) — растягивается на w×h препятствия. */
   foot?: [number, number];
-  /** Сопла орудия: точки в вокселях относительно оси башни (часть 'turret'), откуда бьёт струя огнемёта. */
-  muzzles?: [number, number, number][];
 }
 
 export interface BuiltPart { name: string; lit: THREE.BufferGeometry | null; glow: THREE.BufferGeometry | null; at: THREE.Vector3; axis: 'x' | 'y' | 'z' }
-export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number]; muzzles?: [number, number, number][] }
+export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number] }
 
 /** Собрать геометрии частей (единицы — воксели; масштаб задаёт вывод). */
 export function buildModel(def: ModelDef): BuiltModel {
   return {
     size: def.size,
     foot: def.foot,
-    muzzles: def.muzzles,
     parts: def.parts.map(p => {
       const g = meshVox(p.vox, { pivot: p.pivot });
       const at = new THREE.Vector3(...(p.at ?? [0, 0, 0]));

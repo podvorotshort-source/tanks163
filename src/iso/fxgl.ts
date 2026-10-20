@@ -8,8 +8,6 @@ import type { Pix } from '../gfx/flame';
 
 const ATLAS = 2048;
 const MAX = 3000;
-/** Низ атласа — под спрайты, перерисовываемые каждый кадр (струи огнемёта): DYN_N мест DYN_W×DYN_H. */
-export const DYN_W = 512, DYN_H = 320, DYN_N = 4;
 
 const VS = `
 attribute vec3 iAnchor; attribute vec4 iDst; attribute vec4 iRect; attribute vec2 iMode;
@@ -117,19 +115,11 @@ export class FxLayer {
     const p = make();
     if (p.w > ATLAS || p.h > ATLAS) return null;
     if (this.px + p.w > ATLAS) { this.px = 0; this.py += this.rowH + 1; this.rowH = 0; }
-    if (this.py + p.h > ATLAS - DYN_H) { this.reset = true; this.resets++; return null; }   // атлас полон — начнём заново со следующего кадра
+    if (this.py + p.h > ATLAS) { this.reset = true; this.resets++; return null; }   // атлас полон — начнём заново со следующего кадра
     s = { x: this.px, y: this.py, w: p.w, h: p.h };
     this.px += p.w + 1; this.rowH = Math.max(this.rowH, p.h);
     this.slots.set(key, s);
     this.uploads.push({ s, p });
-    return s;
-  }
-
-  /** Место i под спрайт, который перерисовывается каждый кадр (догружается в end). */
-  dyn(i: number, p: Pix, fresh = true): Slot | null {
-    if (i >= DYN_N || p.w > DYN_W || p.h > DYN_H) return null;
-    const s = { x: i * DYN_W, y: ATLAS - DYN_H, w: p.w, h: p.h };
-    if (fresh || this.reset) this.uploads.push({ s, p });
     return s;
   }
 

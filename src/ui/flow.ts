@@ -5,6 +5,7 @@ import { GameScene } from '../client/game';
 import { save } from '../meta/save';
 import type { VariantDef } from '../meta/meta';
 import { ResultsScene } from './results';
+import { LoadingScene } from './loading';
 
 export function startRun(vs: VariantDef[], threat: number): void {
   const seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
@@ -16,5 +17,5 @@ export function startRun(vs: VariantDef[], threat: number): void {
     threat,
   });
   scene.onEnd = sim => app.set(new ResultsScene(sim, vs, threat));
-  app.set(scene);
+  app.set(new LoadingScene(scene));
 }

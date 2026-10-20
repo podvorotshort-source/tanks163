@@ -84,13 +84,13 @@ export class ResultsScene implements Scene {
     drawText(ctx, `${THREATS[sim.threat]?.name ?? ''} · ${fmtTime(sim.time)} · уровень команды ${sim.level}`, W / 2, 30, { align: 'center', color: UI.dim });
     // Путь по ступеням.
     const pw = Math.min(W - 40, 480), px = Math.round(W / 2 - pw / 2), py = 44;
-    for (let i = 0; i < 8; i++) {
-      const x = px + Math.round((i * pw) / 7);
+    for (let i = 0; i < STAGE_DEFS.length; i++) {
+      const x = px + Math.round((i * pw) / (STAGE_DEFS.length - 1));
       const done = i < sim.maxStage || (i === sim.maxStage && this.win);
       const cur = i === sim.maxStage && !this.win;
       ctx.fillStyle = done ? UI.gold : cur ? UI.red : '#272336';
       ctx.fillRect(x - 3, py, 7, 7);
-      if (i < 7) { ctx.fillStyle = i < sim.maxStage ? UI.gold : '#272336'; ctx.fillRect(x + 4, py + 3, Math.round(pw / 7) - 7, 1); }
+      if (i < STAGE_DEFS.length - 1) { ctx.fillStyle = i < sim.maxStage ? UI.gold : "#272336"; ctx.fillRect(x + 4, py + 3, Math.round(pw / (STAGE_DEFS.length - 1)) - 7, 1); }
       if (cur || (done && i === sim.maxStage)) {
         // подпись не вылезает за край экрана
         const name = STAGE_DEFS[i].name.toUpperCase(), hw = textWidth(name) / 2 + 4;

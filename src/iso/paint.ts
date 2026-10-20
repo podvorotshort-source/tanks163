@@ -273,7 +273,7 @@ export function* paintStage(s: number, seed: number): Generator<void, PaintResul
   const w = u1 - u0, h = v1 - v0, N = w * h;
   const mat = new Uint8Array(N), tone = new Int8Array(N), aux = new Uint8Array(N), ov = new Uint32Array(N), shade = new Uint8Array(N), outer = new Uint8Array(N);
   const o: Smp = { m: 0, t: 0, a: 0 };
-  const next = s + 1 <= 7 ? STAGE_DEFS[s + 1] : null;
+  const next = s + 1 < STAGE_DEFS.length ? STAGE_DEFS[s + 1] : null;
   const KU = 1 / (2 * ISO_X * Z), KV = 1 / (2 * ISO_Y * Z);
   // 1. материал и тон
   for (let j = 0; j < h; j++) {

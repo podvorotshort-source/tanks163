@@ -183,6 +183,7 @@ const SHOT_COL: Record<string, [string, string]> = {
   bullet: ['#ffd8a0', '#ea6a3f'], shell: ['#fbab6c', '#4f1225'], laser: ['#ffb0a0', '#e04030'], plasma: ['#e0fc8c', '#62a41a'],
   dart: ['#ffd070', '#a85818'], debris: ['#b4afb8', '#57535f'], ice: ['#eafcff', '#74aed0'], steam: ['#ffffff', '#c8c0c8'],
   rocket: ['#ebe5e6', '#c23434'], marble: ['#d2fbff', '#3aa8c2'], bomb: ['#3a3742', '#141318'],
+  blaster: ['#fff0e0', '#ff5a3c'], cryo: ['#ffffff', '#8fd8f0'], autocannon: ['#fff4b0', '#f2a33a'], plasma_p: ['#f0fff8', '#3fd0a0'],
 };
 
 function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): void {
@@ -209,6 +210,7 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
     const pk = projKey(s);
     if (pk) { const img = extFrame(pk, Math.max(4, Math.round(r * 4))); if (img) { ctx.save(); ctx.translate(Math.round(sx), Math.round(sy)); ctx.rotate(a); ctx.drawImage(img, -img.width / 2, -img.height / 2); ctx.restore(); continue; } }
     if (s.kind === 'ball' || s.kind === 'marble') { orb(ctx, sx, sy, r, s.kind === 'ball' ? '#9ad8b8' : '#2f6fa0', s.kind === 'ball' ? '#e0f8e8' : '#8fd0ec'); continue; }
+    if (s.team === 0 && trophyShot(ctx, rc, s, sx, sy, a, r)) continue;
     if (s.team === 0 && (s.w === 'ap' || s.w === 'mg' || s.w === 'drone')) {
       const len = Math.max(2, Math.min(tier >= 6 ? 22 : 12, sp * z * 0.025));
       const w = Math.max(1, Math.round(r * (s.w === 'ap' ? 0.9 : 0.6)));
@@ -223,6 +225,96 @@ function drawShots(ctx: CanvasRenderingContext2D, rc: RenderCtx, top: boolean): 
       continue;
     }
     orb(ctx, sx, sy, r, c2, c1);
+  }
+}
+
+/** Снаряды трофейного оружия: заряд бластера, ледяной осколок, трассер автопушки, пильный диск, плазма, смерч. */
+function trophyShot(ctx: CanvasRenderingContext2D, rc: RenderCtx, s: Shot, sx: number, sy: number, a: number, r: number): boolean {
+  const z = rc.cam.zoom;
+  switch (s.kind) {
+    case 'bolt': {
+      // вытянутая капсула: тёмная кромка, красное тело, светлое ядро
+      const len = Math.max(4, r * 4.2), w = Math.max(2, Math.round(r * 1.1));
+      const ex = sx - Math.cos(a) * len, ey = sy - Math.sin(a) * len;
+      line(ctx, sx, sy, ex, ey, '#3a0a1a', w + 2);
+      line(ctx, sx, sy, ex, ey, '#ff5a3c', w);
+      line(ctx, sx, sy, sx - Math.cos(a) * len * 0.6, sy - Math.sin(a) * len * 0.6, '#fff0e0', Math.max(1, w - 2));
+      return true;
+    }
+    case 'shard': {
+      // ромб-льдинка вдоль полёта
+      const L = Math.max(3, r * 2.6), W = Math.max(1.5, r * 0.9);
+      const c = Math.cos(a), si = Math.sin(a);
+      ctx.fillStyle = '#1e3a5a';
+      for (let k = -L; k <= L; k++) { const ww = Math.round(W * (1 - Math.abs(k) / (L + 1))) + 1; ctx.fillRect(Math.round(sx + c * k) - ww, Math.round(sy + si * k) - ww, ww * 2 + 1, ww * 2 + 1); }
+      ctx.fillStyle = '#8fd8f0';
+      for (let k = -L + 1; k < L; k++) { const ww = Math.round(W * (1 - Math.abs(k) / (L + 1))); ctx.fillRect(Math.round(sx + c * k) - ww, Math.round(sy + si * k) - ww, ww * 2 + 1, ww * 2 + 1); }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(sx + c * L * 0.3), Math.round(sy + si * L * 0.3) - 1, 1, 1);
+      return true;
+    }
+    case 'ac': {
+      const len = Math.max(3, Math.min(10, r * 5));
+      line(ctx, sx, sy, sx - Math.cos(a) * len, sy - Math.sin(a) * len, '#f2a33a', Math.max(1, Math.round(r)));
+      line(ctx, sx, sy, sx - Math.cos(a) * len * 0.4, sy - Math.sin(a) * len * 0.4, '#fff4b0', Math.max(1, Math.round(r)));
+      return true;
+    }
+    case 'saw': {
+      // пильный диск: стальной круг, зубья по кругу (вращаются), тёмная ступица
+      const R = Math.max(3, r * 1.1), ang = rc.time * 26;
+      ctx.drawImage(disc(R + 1, '#1a1322'), Math.round(sx - R - 1), Math.round(sy - R - 1));
+      ctx.drawImage(disc(R, '#b8bcc8'), Math.round(sx - R), Math.round(sy - R));
+      ctx.drawImage(disc(R * 0.55, '#7d8294'), Math.round(sx - R * 0.55), Math.round(sy - R * 0.55));
+      ctx.drawImage(disc(Math.max(1, R * 0.22), '#2a2632'), Math.round(sx - R * 0.22), Math.round(sy - R * 0.22));
+      ctx.fillStyle = '#eef0f6';
+      const n = 8;
+      for (let i = 0; i < n; i++) { const t = ang + (i / n) * Math.PI * 2; ctx.fillRect(Math.round(sx + Math.cos(t) * (R + 1)), Math.round(sy + Math.sin(t) * (R + 1) * 0.8), 2, 2); }
+      return true;
+    }
+    case 'plasma': {
+      const R = Math.max(3, r * 1.15), pul = 1 + Math.sin(rc.time * 30) * 0.08;
+      ctx.drawImage(disc(R * pul + 1, '#0e3a30'), Math.round(sx - R * pul - 1), Math.round(sy - R * pul - 1));
+      ctx.drawImage(disc(R * pul, '#3fd0a0'), Math.round(sx - R * pul), Math.round(sy - R * pul));
+      ctx.drawImage(disc(R * 0.6, '#9cf5d2'), Math.round(sx - R * 0.6), Math.round(sy - R * 0.6));
+      ctx.drawImage(disc(R * 0.28, '#f0fff8'), Math.round(sx - R * 0.45), Math.round(sy - R * 0.45));
+      return true;
+    }
+    case 'vortex': {
+      drawTwister(ctx, rc, s.x, s.y, s.r, rc.time + s.x * 0.01);
+      return true;
+    }
+  }
+  void z;
+  return false;
+}
+
+/** Смерч: воронка из колец пыли и мусора, стоящая на земле (снаряд вихревой пушки и зона «Смерча»). */
+function drawTwister(ctx: CanvasRenderingContext2D, rc: RenderCtx, x: number, y: number, R: number, t: number): void {
+  const { cam } = rc;
+  const gx = cam.sxOf(x, y), gy = cam.syOf(x, y), z = cam.zoom;
+  const H = R * 2.6 * z;
+  ctx.globalAlpha = 0.3; ground(ctx, gx, gy, R * 0.9 * z, '#07060b'); ctx.globalAlpha = 1;
+  const rings = 9;
+  for (let i = 0; i < rings; i++) {
+    const k = i / (rings - 1);                       // 0 — низ, 1 — верх
+    const rr = R * z * (0.25 + k * 0.85);
+    const cy = gy - H * k;
+    const sway = Math.sin(t * 3 + k * 2.4) * R * z * 0.18 * k;
+    const n = Math.max(8, Math.round(rr * 1.2));
+    for (let j = 0; j < n; j++) {
+      const ph = t * (9 - k * 4) + (j / n) * Math.PI * 2;
+      const px = gx + sway + Math.cos(ph) * rr, py = cy + Math.sin(ph) * rr * 0.32;
+      const front = Math.sin(ph) > 0;
+      ctx.fillStyle = front ? (j % 3 === 0 ? '#ffffff' : '#d8d2dc') : (j % 4 === 0 ? '#8a8494' : '#b4aebc');
+      const s = front ? 2 : 1;
+      ctx.fillRect(Math.round(px), Math.round(py), s, s);
+    }
+  }
+  // мусор, летящий по кругу
+  for (let j = 0; j < 6; j++) {
+    const ph = t * 6 + j * 1.05, k = ((j * 0.37 + t * 0.4) % 1);
+    ctx.fillStyle = j % 2 ? '#6b5a48' : '#4a4452';
+    ctx.fillRect(Math.round(gx + Math.cos(ph) * R * z * (0.4 + k * 0.7)), Math.round(gy - H * k + Math.sin(ph) * R * z * 0.25), 2, 2);
   }
 }
 
@@ -306,6 +398,7 @@ function drawZonesGround(ctx: CanvasRenderingContext2D, rc: RenderCtx): void {
     const u = z.t / z.dur, fade = u > 0.85 ? (1 - u) / 0.15 : Math.min(1, z.t * 4);
     if (z.kind === 'tar') { ctx.globalAlpha = 0.85 * fade; ground(ctx, sx, sy, r, '#141318'); ground(ctx, sx - r * 0.3, sy - r * 0.1, r * 0.3, '#3a3742'); ctx.globalAlpha = 1; }
     else if (z.kind === 'freeze') { ctx.globalAlpha = 0.45 * fade; ground(ctx, sx, sy, r, '#74aed0'); ctx.globalAlpha = 0.8 * fade; ringIso(ctx, sx, sy, r, '#eafcff', 1); ctx.globalAlpha = 1; }
+    else if (z.kind === 'tornado') drawTwister(ctx, rc, z.x, z.y, z.r * 0.75, rc.time * 1.2 + z.x * 0.01);
     else if (z.kind === 'gravity') {
       ctx.globalAlpha = 0.5;
       ground(ctx, sx, sy, r * 0.25, '#1a0e28');

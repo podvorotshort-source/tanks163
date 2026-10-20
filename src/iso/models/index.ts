@@ -72,6 +72,24 @@ function drone(): ModelDef {
   return { size: 12, parts: [{ name: 'body', vox: v }, { name: 'rotor', vox: rotor(6, 'steel_l', 2), pivot: [7, 0, 7], at: [0, 4, 0] }] };
 }
 
+/** Башня гарнизона (трофей Титана-мегаполиса): бетонное основание, бронированная рубка, спаренный ствол, огонёк цвета игрока. */
+function garrison(owner: number): ModelDef {
+  const glow = owner ? 'glow_g' : 'glow_y';
+  const v = new Vox(22, 26, 22), c = 11;
+  v.fill((x, y, z) => (Math.abs(x - c) + Math.abs(z - c) < 13 && Math.abs(x - c) < 10 && Math.abs(z - c) < 10 ? 'concrete' : undefined), 0, 22, 0, 4, 0, 22);
+  v.fill((x, y, z) => (Math.abs(x - c) + Math.abs(z - c) < 12 && Math.abs(x - c) < 9 && Math.abs(z - c) < 9 ? 'concrete_l' : undefined), 0, 22, 3, 4, 0, 22);
+  v.cylY(c, c, 7, 4, 15, 'steel');
+  v.cylY(c, c, 7.2, 6, 7, 'steel_d'); v.cylY(c, c, 7.2, 12, 13, 'steel_d');
+  for (const [dx, dz] of [[6.6, 0], [0, 6.6], [-6.6, 0], [0, -6.6]]) v.box(c + dx - 0.5, c + dx + 0.5, 9, 10.5, c + dz - 0.5, c + dz + 0.5, glow);
+  v.cylY(c, c, 8, 15, 16, 'steel_d');
+  v.cylY(c, c, 5.5, 16, 20, 'steel');
+  v.box(c + 3, c + 7, 16.5, 19.5, c - 3, c + 3, 'steel_d');
+  for (const z of [c - 1.5, c + 1.5]) { v.cylX(18, z, 0.9, c + 6, 22, 'gun'); v.set(21, 18, z, 'black'); }
+  v.box(c - 2, c + 1, 20, 21, c - 2, c + 2, glow);
+  v.seg([c - 4, 20, c + 3], [c - 5, 25, c + 3], 0.4, 'gun_d'); v.set(c - 5, 25, c + 3, glow);
+  return { size: 22, parts: [{ name: 'body', vox: v }], foot: [18, 18] };
+}
+
 const cache = new Map<string, BuiltModel>();
 const defs: Record<string, () => ModelDef> = {};
 
@@ -90,6 +108,7 @@ export function model(key: string): BuiltModel {
   else if (kind === 'deco') def = DECO[a] ? DECO[a](+b || 0) : fallback('grass', 4);
   else if (kind === 'mini') def = mini(a, +b || 0);
   else if (kind === 'drone') def = drone();
+  else if (kind === 'garrison') def = garrison(+a || 0);
   else if (kind === 'mine') def = items.mine(+a || 0, b === '1');
   else def = fallback('pink');
   m = buildModel(animTracks(def));

@@ -12,6 +12,7 @@ import { TitleScene } from './ui/title';
 import { ResultsScene } from './ui/results';
 import { VARIANTS } from './meta/meta';
 import { loadExt } from './gfx/ext';
+import { LoadingScene } from './ui/loading';
 
 
 const canvas = document.getElementById('screen') as HTMLCanvasElement;
@@ -41,7 +42,7 @@ function boot(): void {
     const vs = cls.map(c => VARIANTS.find(v => v.id === c)!);
     const scene = new GameScene({ seed: Number(params.get('seed') ?? 7), players: cls.map(c => ({ cls: c })), startStage: Number(params.get('stage') ?? 0), meta: save.bonus(), unlocks: params.get('all') ? undefined : save.unlockCtx() });
     scene.onEnd = sim => app.set(new ResultsScene(sim, vs, 0));
-    app.set(scene);
+    app.set(params.get('load') ? new LoadingScene(scene) : scene);
   } else {
     app.set(new TitleScene());
   }
@@ -52,4 +53,5 @@ void loadExt().catch(e => console.warn('Внешняя графика не за�
   installDebug(app);
   app.start();
   canvas.focus();
+  document.getElementById('boot')?.remove();
 });

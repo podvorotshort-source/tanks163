@@ -316,6 +316,26 @@ export class GameScene implements Scene {
           break;
         }
         case 'arc': fx.arc(e.pts.length === 5 ? e.pts.slice(0, 4) : e.pts, e.pts.length === 5 ? '#ea6a3f' : '#bdf3dc', e.pts.length === 5 ? 2 : 1, e.pts.length === 5 ? 0.3 : 0.14); if (e.pts.length !== 5) audio.play('tesla', { gap: 70, vol: 0.6 }); else { audio.play('elaser', { vol: 0.9 }); cam.addShake(3); } break;
+        case 'beam': {
+          fx.beam(e.x, e.y, e.x2, e.y2, e.w, e.width, e.dur, sim.size * 0.38);
+          if (e.w === 'railgun') { cam.addShake(4); fx.light(e.x2, e.y2, sim.size * 1.5, '#6cc4ff', 0.8, 0.2); audio.play('elaser', { pan: this.pan(e.x), vol: 0.9 }); }
+          else { audio.play('elaser', { pan: this.pan(e.x), gap: 240, vol: 0.25 }); fx.light(e.x2, e.y2, sim.size * 0.6, '#ff4a5a', 0.5, 0.08); }
+          for (let i = 0; i < (e.w === 'laser' ? 1 : 3); i++) { const p = fx.spawn('spark', e.x2, e.y2); p.vx = (Math.random() - 0.5) * sim.size * 4; p.vy = (Math.random() - 0.5) * sim.size * 4; p.life = 0.25; p.drag = 4; }
+          break;
+        }
+        case 'cone': {
+          // Ледяной фронт: веер ледяной крошки и иней по конусу.
+          for (let i = 0; i < 70; i++) {
+            const a = e.a + (Math.random() * 2 - 1) * e.half, d = Math.random() * e.r;
+            const p = fx.spawn('pixel', e.x + Math.cos(a) * d * 0.3, e.y + Math.sin(a) * d * 0.3);
+            p.vx = Math.cos(a) * d * 1.6; p.vy = Math.sin(a) * d * 1.6; p.life = 0.5 + Math.random() * 0.3; p.drag = 3; p.r = sim.size * (0.02 + Math.random() * 0.03); p.z = sim.size * 0.2;
+            p.col = Math.random() < 0.5 ? '#eafcff' : '#74aed0';
+          }
+          fx.light(e.x, e.y, e.r * 0.8, '#9ad8ff', 0.6, 0.3);
+          audio.play('freeze', { pan: this.pan(e.x) });
+          cam.addShake(4);
+          break;
+        }
         case 'flame': audio.play('flame', { pan: this.pan(e.x), gap: 140 }); break;
         case 'mineDrop': audio.play('mine', { pan: this.pan(e.x), gap: 120, vol: 0.5 }); break;
         case 'pickup': {

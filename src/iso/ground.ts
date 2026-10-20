@@ -129,7 +129,7 @@ const desk: Style = (x, y) => {
   return { c: y % 260 < 8 ? 'wood_d' : g > 0.85 ? 'wood_l' : 'wood' };
 };
 
-export const STYLES: Style[] = [toyGround, carpet, roomFloor, apartment, streets, megapolis, titans, planet, desk];
+export const STYLES: Style[] = [toyGround, carpet, roomFloor, apartment, streets, megapolis, megapolis, titans, titans, planet, desk];
 
 /** Цвет клетки ступени s в её координатах, с реликвией предыдущей ступени. */
 export function cellAt(s: number, x: number, y: number): Cell {
@@ -138,7 +138,7 @@ export function cellAt(s: number, x: number, y: number): Cell {
     const rx0 = st.relicX - prev.w / G / 2, ry0 = st.relicY - prev.h / G / 2;
     if (x >= rx0 && y >= ry0 && x < rx0 + prev.w / G && y < ry0 + prev.h / G) return cellAt(s - 1, (x - rx0) * G, (y - ry0) * G);
   }
-  const d = STAGE_DEFS[Math.min(s, 7)];
+  const d = STAGE_DEFS[Math.min(s, 9)];
   return STYLES[s](x, y, d?.w ?? 2880, d?.h ?? 1620);
 }
 
@@ -176,7 +176,7 @@ export function groundMesh(s: number, x0: number, y0: number, x1: number, y1: nu
 /** Бортик арены (рамка) — чтобы граница мира читалась. */
 export function frameMesh(s: number, w: number, h: number, mat: THREE.Material): THREE.Group {
   const g = new THREE.Group();
-  const colName = ['wood_l', 'fabric_y', 'wood_d', 'white_d', 'concrete_l', 'concrete', 'rock_l', 'rock'][s] ?? 'wood';
+  const colName = ['wood_l', 'fabric_y', 'wood_d', 'white_d', 'concrete_l', 'concrete', 'concrete', 'rock_l', 'rock_l', 'rock'][s] ?? 'wood';
   const t = Math.max(w, h) * 0.012, hh = t * 0.9;
   const box = (bw: number, bd: number, x: number, y: number) => {
     const geo = new THREE.BoxGeometry(bw, hh, bd);

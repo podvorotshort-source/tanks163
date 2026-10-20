@@ -15,9 +15,18 @@
       #wrap { position: relative; }
       #wrap canvas { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; display: block; outline: none; }
       #hi, #world, #gl { pointer-events: none; }
+      /* Экран загрузки страницы (до запуска игры): пиксельный заголовок, танк едет по полосе */
+      #boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #07060b; z-index: 5; font: bold 16px/1.2 monospace; color: #9a92a0; letter-spacing: 2px; }
+      #boot b { color: #fbcd4a; font-size: 44px; letter-spacing: 6px; text-shadow: 4px 4px 0 #5b3409; margin-bottom: 26px; }
+      #boot .bar { position: relative; width: min(320px, 70vw); height: 12px; border: 2px solid #3a3550; background: #151320; margin-top: 34px; }
+      #boot .bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: repeating-linear-gradient(90deg, #fbcd4a 0 8px, #df981c 8px 10px, #151320 10px 12px); animation: fill 2.4s steps(24) infinite; }
+      #boot .tank { position: absolute; top: -22px; width: 20px; height: 12px; background: #fbcd4a; box-shadow: 0 6px 0 -2px #2e3f68, 8px -4px 0 -2px #df981c, 14px -4px 0 -4px #636b8a; animation: drive 2.4s steps(24) infinite; }
+      @keyframes fill { to { width: 100%; } }
+      @keyframes drive { from { left: -10px; } to { left: calc(100% - 10px); } }
     </style>
   </head>
   <body>
+    <div id="boot"><b>ТАНКОРОСТ</b>загрузка…<div class="bar"><i></i><div class="tank"></div></div></div>
     <div id="wrap">
       <canvas id="gl"></canvas>
       <canvas id="world"></canvas>

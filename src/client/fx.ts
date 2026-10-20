@@ -184,6 +184,8 @@ export class Fx {
   private pool: Particle[] = [];
   lights: Light[] = [];
   arcs: { pts: number[]; t: number; life: number; col: string; w: number }[] = [];
+  /** Лучи: лазер, рельсотрон, трофейный лазер (рисуются пиксельными полосами на высоте башни). */
+  beams: { x: number; y: number; x2: number; y2: number; t: number; life: number; kind: string; width: number; h: number }[] = [];
   lightCanvas: HTMLCanvasElement = makeCanvas(320, 180);
   max = 2200;
   /** Сколько сейчас цифр урона (ограничиваем, чтобы не засорять экран и не тормозить). */
@@ -252,6 +254,11 @@ export class Fx {
     this.arcs.push({ pts, t: 0, life, col, w });
   }
 
+  beam(x: number, y: number, x2: number, y2: number, kind: string, width: number, life: number, h: number): void {
+    if (this.beams.length > 60) this.beams.shift();
+    this.beams.push({ x, y, x2, y2, t: 0, life, kind, width, h });
+  }
+
   update(dt: number): void {
     let n = 0, texts = 0;
     for (const p of this.parts) {
@@ -278,6 +285,9 @@ export class Fx {
     let q = 0;
     for (const a of this.arcs) { a.t += dt; if (a.t < a.life) this.arcs[q++] = a; }
     this.arcs.length = q;
+    let b = 0;
+    for (const a of this.beams) { a.t += dt; if (a.t < a.life) this.beams[b++] = a; }
+    this.beams.length = b;
   }
 
   /** Частицы под юнитами (0: дым на земле, обломки), над ними (1: огонь, искры)
@@ -397,6 +407,7 @@ export class Fx {
     }
     if (layer === 1) {
       for (const a of this.arcs) drawArc(ctx, cam, a.pts, a.col, a.t / a.life, a.w);
+      for (const bm of this.beams) drawBeam(ctx, cam, bm);
     }
   }
 
@@ -434,6 +445,45 @@ export class Fx {
     this.parts.length = 0;
     this.lights.length = 0;
     this.arcs.length = 0;
+    this.beams.length = 0;
+  }
+}
+
+/** Цвета лучей: кромка (тёмная), тело, ядро. Без размытого свечения — чистые пиксельные полосы. */
+const BEAM_COL: Record<string, [string, string, string]> = {
+  laser: ['#6a1430', '#e8404a', '#ffd6c8'],
+  laserBeam: ['#5a0f34', '#ff3d5a', '#ffffff'],
+  railgun: ['#22265e', '#6cc4ff', '#ffffff'],
+};
+
+function drawBeam(ctx: CanvasRenderingContext2D, cam: Camera, b: { x: number; y: number; x2: number; y2: number; t: number; life: number; kind: string; width: number; h: number }): void {
+  const u = b.t / b.life;
+  const [edge, body, core] = BEAM_COL[b.kind] ?? BEAM_COL.laser;
+  const x0 = cam.sxOf(b.x, b.y), y0 = cam.syOf(b.x, b.y, b.h), x1 = cam.sxOf(b.x2, b.y2), y1 = cam.syOf(b.x2, b.y2, b.h);
+  // рельсотрон — вспышка, которая сужается; лазер — ровный, чуть дрожит
+  const k = b.kind === 'railgun' ? 1 - u : 1;
+  const w = Math.max(1, Math.round(b.width * 2 * cam.zoom * 0.5 * k * (b.kind === 'laser' ? 0.9 + Math.random() * 0.3 : 1)));
+  beamLine(ctx, x0, y0, x1, y1, edge, w + 2);
+  beamLine(ctx, x0, y0, x1, y1, body, w);
+  if (w >= 3) beamLine(ctx, x0, y0, x1, y1, core, Math.max(1, Math.round(w * 0.4)));
+  // точка попадания: белая звёздочка
+  if (u < 0.6) {
+    ctx.fillStyle = core;
+    const s = Math.max(2, Math.round(w * 0.8));
+    ctx.fillRect(Math.round(x1 - s), Math.round(y1), s * 2 + 1, 1);
+    ctx.fillRect(Math.round(x1), Math.round(y1 - s), 1, s * 2 + 1);
+  }
+}
+
+function beamLine(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, col: string, w: number): void {
+  ctx.fillStyle = col;
+  const n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+  const o = Math.floor(w / 2);
+  // толщина — поперёк основного направления (ровная полоса без ступенек-квадратов)
+  const steep = Math.abs(y1 - y0) > Math.abs(x1 - x0);
+  for (let i = 0; i <= n; i++) {
+    const x = Math.round(x0 + ((x1 - x0) * i) / n), y = Math.round(y0 + ((y1 - y0) * i) / n);
+    if (steep) ctx.fillRect(x - o, y, w, 1); else ctx.fillRect(x, y - o, 1, w);
   }
 }
 

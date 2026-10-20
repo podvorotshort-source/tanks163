@@ -47,7 +47,7 @@ export interface TransView {
 }
 
 /** Неподвижные модели (не поворачиваются к цели). */
-const FIXED = new Set(['toyBunker', 'jackBox', 'deskLamp', 'tv', 'silo', 'lance', 'mobileFort', 'moonlet']);
+const FIXED = new Set(['toyBunker', 'jackBox', 'deskLamp', 'tv', 'silo', 'lance', 'mobileFort', 'moonlet', 'towerCrane', 'starCannon']);
 /** Нарисованы в земле — моделей нет. */
 const PAINTED = new Set(['water']);
 
@@ -119,9 +119,12 @@ export class IsoWorld {
   /** Начать рисовать землю ступени s в фоне (по кусочку в кадр, см. pump). */
   prebuild(s: number): void {
     const key = this.seed + ':' + s;
-    if (s > 7 || this.paints.has(key) || this.jobs.has(key)) return;
+    if (s > 9 || this.paints.has(key) || this.jobs.has(key)) return;
     this.jobs.set(key, paintStage(s, this.seed));
   }
+
+  /** Идёт фоновое рисование земли. */
+  busy(): boolean { return this.jobs.size > 0; }
 
   /** Продвинуть фоновое рисование (бюджет — миллисекунды). */
   pump(ms: number): void {
@@ -281,6 +284,11 @@ export class IsoWorld {
     }
     if (!tv) {
       for (const d of sim.drones) {
+        if (d.fixed) {
+          const key = 'garrison:' + d.owner, m = model(key);
+          this.pool(key).add(this.root(d.x, 0, d.y, d.a, (sim.size * 0.7) / m.size));
+          continue;
+        }
         const m = model('drone');
         this.pool('drone').add(this.root(d.x, sim.size * 1.2, d.y, d.a, (sim.size * 0.45) / m.size), n => (n === 'rotor' ? time * 30 : 0));
       }

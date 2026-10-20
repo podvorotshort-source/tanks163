@@ -60,11 +60,16 @@ const MINI: Record<string, [string, string]> = {
   brick: ['brk', 'brk_l'], steel: ['stl', 'stl_l'], bush: ['leaf', 'leaf_l'], crate: ['wood', 'wood_l'], hq: ['army', 'army_l'],
   steelWall: ['stl', 'stl_l'], block: ['red', 'toy_y'], book: ['fabric_b', 'paper'], crayon: ['red', 'paper'], marble: ['water_l', 'white'],
   furnitureLeg: ['wood_d', 'wood'], slipper: ['pink', 'cream'], pillow: ['white', 'fabric_y'], toyTree: ['toy_g', 'grass_ll'], barrel: ['red', 'red_l'], woodCrate: ['wood', 'wood_l'], dice: ['white', 'red'],
+  bed: ['white', 'fabric_b'], wardrobe: ['wood', 'wood_d'], desk: ['wood_l', 'wood'], shelf: ['wood_d', 'fabric_r'], box: ['cardboard', 'cardboard_d'], bookStack: ['fabric_r', 'paper'], toyDebris: ['red', 'toy_y'],
+  clutter: ['steel', 'white'], houseWall: ['cream', 'white'], sofa: ['fabric_b', 'navy'], table: ['white', 'red'], fridge: ['white', 'white_d'], tvStand: ['wood_d', 'black'], plant: ['leaf', 'leaf_l'], armchair: ['fabric_r', 'red_d'], stove: ['white', 'gun'],
+  car: ['red', 'glass'], house: ['brick', 'roof'], tree: ['leaf', 'leaf_l'], streetLamp: ['gun', 'gun_d'], bench: ['wood', 'wood_l'], busStop: ['blue', 'glass'], bins: ['green_d', 'gun_d'],
+  panelHouse: ['concrete_l', 'glass'], garages: ['concrete', 'roof_d'], crane: ['orange', 'orange_d'], fountain: ['stone_l', 'water'], midrise: ['cream', 'glass'], tower: ['glass', 'steel_l'],
+  village: ['roof', 'white'], windmill: ['white', 'white_d'], haystack: ['sand', 'sand_d'], mountain: ['rock', 'white'], cityDot: ['concrete_l', 'lamp'], volcano: ['rock_d', 'lava'], planet: ['blue', 'white'], asteroid: ['rock', 'rock_l'], crystal: ['crystal', 'ice_l'],
 };
 function mini(kind: string, v: number): ModelDef {
   const [a, b] = kind === 'lego' ? (v % 10 ? ['lego_g', 'lego_gl'] : ['lego_o', 'lego_ol']) : MINI[kind] ?? ['concrete', 'concrete_l'];
   const n = 6, x = new Vox(n, n, n);
-  if (kind === 'bush' || kind === 'marble' || kind === 'toyTree') x.sphere(3, 2.6, 3, 2.7, a);
+  if (kind === 'bush' || kind === 'marble' || kind === 'toyTree' || kind === 'tree' || kind === 'haystack' || kind === 'planet' || kind === 'asteroid' || kind === 'plant') x.sphere(3, 2.6, 3, 2.7, a);
   else { x.box(0, n, 0, n - 1, 0, n, a); x.box(0, n, n - 1.6, n - 1, 0, n, b); }
   return { size: n, parts: [{ name: 'body', vox: x }], foot: [n, n] };
 }

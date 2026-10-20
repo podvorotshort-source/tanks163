@@ -52,6 +52,8 @@ export function mi(name: string): number {
 // ---------------------------------------------------------------- сетка вокселей
 export class Vox {
   d: Uint8Array;
+  /** Гусеницы, нарисованные в сетке (track() в models/hero) — их ленты анимируются (animTracks). */
+  tracks: TrackSpec[] = [];
   constructor(public nx: number, public ny: number, public nz: number) { this.d = new Uint8Array(nx * ny * nz); }
   idx(x: number, y: number, z: number): number { return x + this.nx * (y + this.ny * z); }
   get(x: number, y: number, z: number): number { return x < 0 || y < 0 || z < 0 || x >= this.nx || y >= this.ny || z >= this.nz ? 0 : this.d[this.idx(x, y, z)]; }
@@ -199,8 +201,14 @@ export function meshVox(v: Vox, o: MeshOpts = {}): { lit: THREE.BufferGeometry |
 
 // ---------------------------------------------------------------- модели из частей
 
+/** Гусеница в сетке вокселей: лента [x0,x1)×[0,h)×[z0,z1). */
+/** outer — z внешней стороны (там ведущая звезда; её зубья вращаются вместе с лентой). */
+export interface TrackSpec { x0: number; x1: number; h: number; z0: number; z1: number; outer?: number }
+
 export interface PartDef {
   name: string;
+  /** Кадр анимации: [группа, номер]. Из частей группы выводится одна — с номером, который выбрал вывод (по умолчанию 0). */
+  frame?: [string, number];
   vox: Vox;
   /** Точка вращения части в вокселях (по умолчанию центр низа). */
   pivot?: [number, number, number];
@@ -216,20 +224,85 @@ export interface ModelDef {
   size: number;
   /** Для препятствий: размер основания в вокселях (x, z) — растягивается на w×h препятствия. */
   foot?: [number, number];
+  /** Гусеницы (после animTracks): группа кадров, смещение центра ленты по z от оси модели и ширина — в вокселях. */
+  tracks?: TrackInfo[];
 }
 
-export interface BuiltPart { name: string; lit: THREE.BufferGeometry | null; glow: THREE.BufferGeometry | null; at: THREE.Vector3; axis: 'x' | 'y' | 'z' }
-export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number] }
+export interface TrackInfo { group: string; off: number; w: number }
+export interface BuiltPart { name: string; lit: THREE.BufferGeometry | null; glow: THREE.BufferGeometry | null; at: THREE.Vector3; axis: 'x' | 'y' | 'z'; frame?: [string, number] }
+export interface BuiltModel { parts: BuiltPart[]; size: number; foot?: [number, number]; tracks?: TrackInfo[] }
 
 /** Собрать геометрии частей (единицы — воксели; масштаб задаёт вывод). */
 export function buildModel(def: ModelDef): BuiltModel {
   return {
     size: def.size,
     foot: def.foot,
+    tracks: def.tracks,
     parts: def.parts.map(p => {
       const g = meshVox(p.vox, { pivot: p.pivot });
       const at = new THREE.Vector3(...(p.at ?? [0, 0, 0]));
-      return { name: p.name, lit: g.lit, glow: g.glow, at, axis: p.axis ?? 'y' };
+      return { name: p.name, lit: g.lit, glow: g.glow, at, axis: p.axis ?? 'y', frame: p.frame };
     }),
   };
+}
+
+// ---------------------------------------------------------------- бегущие гусеницы
+/** Фаз ленты: узор и грунтозацепы повторяются через 3 вокселя. */
+export const TRACK_PHASES = 3;
+const mod3 = (n: number) => ((n % 3) + 3) % 3;
+
+/** Лента гусеницы в фазе p: верхняя ветвь сдвинута вперёд, нижняя — назад (лента обегает катки).
+ *  inner — чем заполнить полость внутри ленты (0 — не трогать). */
+export function trackBand(v: Vox, t: TrackSpec, p: number, inner: string | 0): void {
+  const { x0, x1, h, z0, z1 } = t, r = h / 2;
+  const inProfile = (x: number, y: number) => {
+    const cx = x < x0 + r ? x0 + r : x > x1 - r ? x1 - r : x;
+    return (x - cx) ** 2 + (y - r) ** 2 <= r * r;
+  };
+  for (let z = z0; z < z1; z++) for (let y = 0; y < h; y++) for (let x = x0; x < x1; x++) {
+    const X = x + 0.5, Y = y + 0.5;
+    if (!inProfile(X, Y)) continue;
+    // лента — внешний обвод толщиной 2; внутри — тёмная полость
+    const hollow = inProfile(X + (X < x0 + r ? 2 : X > x1 - r ? -2 : 0), Y) && Y > 2 && Y < h - 2 && X > x0 + 2 && X < x1 - 2;
+    if (hollow) { if (inner) v.set(x, y, z, inner); continue; }
+    v.set(x, y, z, mod3(x + (Y > r ? -p : p)) === 0 ? 'rubber_l' : 'rubber');
+  }
+  // траки-грунтозацепы над лентой через 3 вокселя (едут вместе с верхней ветвью)
+  for (let x = Math.ceil(x0 + r - 1) + mod3(p); x < x1 - r + 1; x += 3) v.box(x, x + 1.5, h, h + 1, z0, z1, 'gun');
+  // зубья ведущей звезды спереди: шесть через 60°, кадр поворачивает на 20° (вперёд — по часовой)
+  if (t.outer !== undefined) {
+    const sx = x1 - r, sy = r;
+    for (let a = 0; a < 6; a++) {
+      const an = ((a + 0.5) / 6) * Math.PI * 2 - (mod3(p) * Math.PI) / 9;
+      v.set(Math.floor(sx + Math.cos(an) * (r - 1.6)), Math.floor(sy + Math.sin(an) * (r - 1.6)), t.outer, 'gun');
+    }
+  }
+}
+
+/** Вынести ленты гусениц из частей модели в кадры (по TRACK_PHASES на гусеницу): вывод выбирает кадр
+ *  по пройденному лентой пути. Воксели, которые модель перекрасила поверх ленты (катки, крылья), остаются в части. */
+export function animTracks(def: ModelDef): ModelDef {
+  if (def.tracks || !def.parts.some(p => p.vox.tracks.length)) return def;
+  const parts: PartDef[] = [], tracks: TrackInfo[] = [];
+  for (const part of def.parts) {
+    parts.push(part);
+    const v = part.vox;
+    v.tracks.forEach((t, i) => {
+      const group = `${part.name}.trk${i}`;
+      const fr: Vox[] = [];
+      for (let p = 0; p < TRACK_PHASES; p++) { const b = new Vox(v.nx, v.ny, v.nz); trackBand(b, t, p, 0); fr.push(b); }
+      for (let k = 0; k < v.d.length; k++) {
+        let any = 0;
+        for (const b of fr) any |= b.d[k];
+        if (!any) continue;
+        if (v.d[k] === fr[0].d[k]) v.d[k] = 0;          // воксель ленты: уходит в кадры
+        else for (const b of fr) b.d[k] = 0;            // модель нарисовала поверх — остаётся в части
+      }
+      fr.forEach((b, p) => parts.push({ name: group, vox: b, pivot: part.pivot, at: part.at, axis: part.axis, frame: [group, p] }));
+      const pz = part.pivot ? part.pivot[2] : v.nz / 2;
+      tracks.push({ group, off: (t.z0 + t.z1) / 2 - pz + (part.at ? part.at[2] : 0), w: t.z1 - t.z0 });
+    });
+    v.tracks = [];
+  }
+  return { ...def, parts, tracks };
 }

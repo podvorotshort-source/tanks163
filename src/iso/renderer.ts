@@ -95,19 +95,21 @@ const WHITE = new THREE.Color(1, 1, 1);
 
 /** Экземпляры модели: по пулу на каждую часть (освещённую и светящуюся). */
 export class ModelPool {
-  parts: { name: string; at: THREE.Vector3; axis: 'x' | 'y' | 'z'; lit: Pool | null; glow: Pool | null }[];
+  parts: { name: string; at: THREE.Vector3; axis: 'x' | 'y' | 'z'; frame?: [string, number]; lit: Pool | null; glow: Pool | null }[];
   constructor(parent: THREE.Object3D, public model: BuiltModel, lit: THREE.Material, glow: THREE.Material, shadow = true) {
     this.parts = model.parts.map(p => ({
-      name: p.name, at: p.at, axis: p.axis,
+      name: p.name, at: p.at, axis: p.axis, frame: p.frame,
       lit: p.lit ? new Pool(parent, p.lit, lit, 16, shadow) : null,
       glow: p.glow ? new Pool(parent, p.glow, glow, 16, false) : null,
     }));
   }
   begin(): void { for (const p of this.parts) { p.lit?.begin(); p.glow?.begin(); } }
   end(): void { for (const p of this.parts) { p.lit?.end(); p.glow?.end(); } }
-  /** Добавить экземпляр: root — матрица модели (в вокселях), rot(part) — поворот части вокруг её оси (рад). */
-  add(root: THREE.Matrix4, rot?: (name: string) => number, col?: THREE.Color, glowCol?: THREE.Color): void {
+  /** Добавить экземпляр: root — матрица модели (в вокселях), rot(part) — поворот части вокруг её оси (рад),
+   *  frame(group) — номер кадра группы (гусеницы; по умолчанию 0). */
+  add(root: THREE.Matrix4, rot?: (name: string) => number, col?: THREE.Color, glowCol?: THREE.Color, frame?: (group: string) => number): void {
     for (const p of this.parts) {
+      if (p.frame && p.frame[1] !== (frame ? frame(p.frame[0]) : 0)) continue;
       M.copy(root).multiply(T.makeTranslation(p.at.x, p.at.y, p.at.z));
       const a = rot ? rot(p.name) : 0;
       if (a) M.multiply(p.axis === 'y' ? R.makeRotationY(a) : p.axis === 'x' ? R.makeRotationX(a) : R.makeRotationZ(a));
@@ -118,7 +120,8 @@ export class ModelPool {
 }
 const M = new THREE.Matrix4(), T = new THREE.Matrix4(), R = new THREE.Matrix4();
 
-/** «Мультяшный» Ламберт: 4 ступени света со сдвигом оттенка (тени холоднее, блики теплее). */
+/** «Мультяшный» Ламберт: ступени света со сдвигом оттенка (тени холоднее, блики теплее);
+ *  падающая тень на объекте (грань к солнцу, но в тени) — темнее собственной тени грани. */
 function toon(mat: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
   mat.onBeforeCompile = sh => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>', `
@@ -129,8 +132,12 @@ function toon(mat: THREE.MeshLambertMaterial): THREE.MeshLambertMaterial {
         vec3 c;
         if (k > 1.06) c = base * vec3(1.13, 1.09, 0.93) + vec3(0.035, 0.028, 0.0);
         else if (k > 0.86) c = base;
-        else if (k > 0.66) c = base * vec3(0.76, 0.77, 0.90) + vec3(0.0, 0.0, 0.01);
-        else c = base * vec3(0.52, 0.50, 0.70) + vec3(0.012, 0.006, 0.03);
+        else if (k > 0.66) {
+          // грань смотрит на солнце, но света нет — на неё упала тень другого объекта: темнее собственной тени
+          if (dot(normal, directionalLights[0].direction) > 0.08) c = base * vec3(0.44, 0.43, 0.66) + vec3(0.01, 0.005, 0.03);
+          else c = base * vec3(0.62, 0.62, 0.80) + vec3(0.008, 0.004, 0.022);                // собственная тень
+        }
+        else c = base * vec3(0.46, 0.44, 0.64) + vec3(0.012, 0.006, 0.03);
         outgoingLight = c;
       }
       #include <opaque_fragment>`);

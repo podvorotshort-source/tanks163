@@ -4,7 +4,7 @@
 // Облик II — форма поглощённого Заводного генерала: серые бронеплиты со светящимися швами.
 // У босса швы красные (магма), у игроков — их цвет (1P жёлтый, 2P зелёный).
 
-import { Vox, type ModelDef, type PartDef } from '../vox';
+import { Vox, trackBand, animTracks, type ModelDef, type PartDef } from '../vox';
 import type { TankClass } from './tanks';
 
 interface Paint { main: string; dark: string; light: string; trim: string; metal: string; glow: string }
@@ -17,22 +17,9 @@ const k = (cls: TankClass) => (cls === 'scout' ? 0.9 : cls === 'heavy' ? 1.1 : 1
  *  outer — z внешней стороны (там катки). */
 export function track(v: Vox, x0: number, x1: number, h: number, z0: number, z1: number, outer: number, n: number, wheel: string, rim: string): void {
   const r = h / 2;
-  const inProfile = (x: number, y: number) => {
-    const cx = x < x0 + r ? x0 + r : x > x1 - r ? x1 - r : x;
-    return (x - cx) ** 2 + (y - r) ** 2 <= r * r;
-  };
-  for (let z = z0; z < z1; z++) for (let y = 0; y < h; y++) for (let x = x0; x < x1; x++) {
-    const X = x + 0.5, Y = y + 0.5;
-    if (!inProfile(X, Y)) continue;
-    // лента — внешний обвод толщиной 2; внутри — тёмная полость
-    const inner = inProfile(X + (X < x0 + r ? 2 : X > x1 - r ? -2 : 0), Y) && Y > 2 && Y < h - 2 && X > x0 + 2 && X < x1 - 2;
-    if (inner) { v.set(x, y, z, 'gun_d'); continue; }
-    v.set(x, y, z, x % 3 === 0 ? 'rubber_l' : 'rubber');
-  }
-  // траки-грунтозацепы: выступают над лентой сверху и снизу через 3 вокселя
-  for (let x = Math.ceil(x0 + r - 1); x < x1 - r + 1; x += 3) {
-    v.box(x, x + 1.5, h, h + 1, z0, z1, 'gun');
-  }
+  const spec = { x0, x1, h, z0, z1, outer };
+  v.tracks.push(spec);                    // лента «бежит» — см. animTracks
+  trackBand(v, spec, 0, 'gun_d');
   // катки на внешней стороне
   const span = x1 - x0 - h * 0.9;
   for (let i = 0; i < n; i++) {
@@ -41,12 +28,8 @@ export function track(v: Vox, x0: number, x1: number, h: number, z0: number, z1:
     v.cylZ(cx, cy, R * 0.62, outer - 0.01, outer + 1.01, rim);
     v.cylZ(cx, cy, R * 0.25, outer - 0.02, outer + 1.02, 'gun_d');
   }
-  // ведущая звезда спереди (зубья) и ленивец сзади
+  // ведущая звезда спереди (зубья рисует trackBand — они вращаются) и ленивец сзади
   const sx = x1 - r, sy = r;
-  for (let a = 0; a < 12; a++) {
-    const an = (a / 12) * Math.PI * 2;
-    if (a % 2) v.set(Math.floor(sx + Math.cos(an) * (r - 1.6)), Math.floor(sy + Math.sin(an) * (r - 1.6)), outer, 'gun');
-  }
   v.cylZ(sx, sy, r * 0.42, outer - 0.01, outer + 1.01, rim);
   v.cylZ(x0 + r, r, r * 0.42, outer - 0.01, outer + 1.01, rim);
 }
@@ -381,10 +364,13 @@ export function heroII(cls: TankClass, glow: string, boss = false): ModelDef {
     { name: 'key', vox: key, pivot: [14, kc, kc], at: [x0 - NX / 2, TH + 6, 0], axis: 'x' },
   ];
   if (!boss) return { size: 56, parts };   // общий масштаб: разведчик меньше, тяжёлый крупнее
-  // босс — та же форма вдвое подробнее (каждый воксель → 2×2×2), чтобы на крупном плане не было «кубиков»
+  // босс — та же форма вдвое подробнее (каждый воксель → 2×2×2), чтобы на крупном плане не было «кубиков»;
+  // ленты гусениц выносятся в кадры до удвоения
+  const an = animTracks({ size: 56, parts });
   return {
     size: L * 2,
-    parts: parts.map(p => ({ ...p, vox: up2(p.vox), pivot: p.pivot ? (p.pivot.map(q => q * 2) as [number, number, number]) : undefined, at: p.at ? (p.at.map(q => q * 2) as [number, number, number]) : undefined })),
+    tracks: an.tracks!.map(t => ({ ...t, off: t.off * 2, w: t.w * 2 })),
+    parts: an.parts.map(p => ({ ...p, vox: up2(p.vox), pivot: p.pivot ? (p.pivot.map(q => q * 2) as [number, number, number]) : undefined, at: p.at ? (p.at.map(q => q * 2) as [number, number, number]) : undefined })),
   };
 }
 

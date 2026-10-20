@@ -82,7 +82,7 @@ export class GameScene implements Scene {
 
   enter(): void {
     // Одному — камера ближе (крупный пиксель, как в референсе); вдвоём — шире, чтобы оба были в кадре.
-    app.screen.setRows(this.sim.players.length > 1 ? 540 : 360);
+    app.screen.setRows(this.sim.players.length > 1 ? 540 : 432);
     const s = app.screen;
     this.iso.clearDecals();
     // кусок стены «оборачивается» ЛЕГО — облачко пыли и пара искорок
@@ -471,6 +471,7 @@ export class GameScene implements Scene {
         this.cam.x = next.relicX + (this.cam.x - old.w / 2) / G;
         this.cam.y = next.relicY + (this.cam.y - old.h / 2) / G;
         v.tankScale = 1; v.oldAlpha = 0; v.marginAlpha = 0; v.wreck = null;
+        this.iso.clearDecals();                 // следы и гарь — в старых координатах
         setDisplayTier(sim.stageIdx);
         audio.power = sim.stageIdx;
         music.play('reveal');

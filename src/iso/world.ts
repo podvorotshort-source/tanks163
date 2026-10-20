@@ -15,6 +15,8 @@ import { MATS, toyify, type Prop, type ToyPiece } from '../sim/props';
 import { Rng } from '../core/rng';
 import { IsoRenderer, ModelPool } from './renderer';
 import { FxLayer } from './fxgl';
+import { TreadMarks } from './treads';
+import { TRACK_PHASES, type BuiltModel } from './vox';
 import { model } from './models/index';
 import { paintStage, paintNow, ART_Z, type PaintResult } from './paint';
 import { tierOf } from '../client/tiers';
@@ -48,6 +50,10 @@ const FIXED = new Set(['toyBunker', 'jackBox', 'deskLamp', 'tv', 'silo', 'lance'
 /** Нарисованы в земле — моделей нет. */
 const PAINTED = new Set(['water']);
 
+/** Гусеницы машины между кадрами: центры лент, путь каждой ленты (знак — вперёд/назад), след. */
+interface Treads { x: number; y: number; cx: number[]; cy: number[]; d: number[]; odo: number[]; mx: number[]; my: number[]; seen: number }
+const mod = (n: number, m: number) => ((n % m) + m) % m;
+
 export class IsoWorld {
   readonly r: IsoRenderer;
   /** Огонь на земле с проверкой глубины (заполняет Fx.syncGl). */
@@ -57,6 +63,10 @@ export class IsoWorld {
   private decals: THREE.InstancedMesh;
   private decalN = 0;
   private decalMax = 400;
+  /** Следы гусениц на земле и состояние лент каждой машины (кадр анимации, где оставлена последняя метка). */
+  private marks = new TreadMarks();
+  private treads = new Map<string, Treads>();
+  private frameNo = 0;
   private tmp = new THREE.Matrix4();
   private col = new THREE.Color();
   private seed = -1;
@@ -75,6 +85,7 @@ export class IsoWorld {
     this.decals = new THREE.InstancedMesh(dg, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, depthWrite: false }), this.decalMax);
     this.decals.count = 0; this.decals.frustumCulled = false; this.decals.renderOrder = 1;
     this.r.scene.add(this.decals);
+    this.r.scene.add(this.marks.mesh);
     this.fx = new FxLayer(this.r.gl);
     this.r.scene.add(this.fx.group);
     // Контактная тень (затенение у основания): тёмный «коврик» со ступенчатым краем под каждым объектом —
@@ -154,7 +165,34 @@ export class IsoWorld {
   }
 
   // ------------------------------------------------------------ следы на земле
-  clearDecals(): void { this.decalN = 0; this.decals.count = 0; }
+  /** Стереть следы (новая ступень — координаты другие). */
+  clearDecals(): void { this.decalN = 0; this.decals.count = 0; this.marks.clear(); this.treads.clear(); }
+
+  /** Ленты гусениц машины id: путь каждой ленты за кадр (поворот на месте — ленты в разные стороны),
+   *  отпечатки на земле. Возвращает выбор кадра ленты для вывода модели. */
+  private treadFrame(id: string, m: BuiltModel, x: number, y: number, a: number, s: number, time: number, marks: boolean): ((g: string) => number) | undefined {
+    const tk = m.tracks;
+    if (!tk) return undefined;
+    let st = this.treads.get(id);
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const jump = !st || (x - st.x) ** 2 + (y - st.y) ** 2 > (m.size * s) ** 2;     // возрождение, телепорт — без следа
+    if (!st) { st = { x, y, cx: [], cy: [], d: [], odo: [], mx: [], my: [], seen: 0 }; this.treads.set(id, st); }
+    st.seen = this.frameNo;
+    const step = 3 * s;                       // метка — каждые 3 вокселя пути ленты
+    for (let i = 0; i < tk.length; i++) {
+      const off = tk[i].off * s, cx = x - sa * off, cy = y + ca * off;
+      if (jump || st.cx[i] === undefined) { st.cx[i] = st.mx[i] = cx; st.cy[i] = st.my[i] = cy; st.d[i] ??= 0; st.odo[i] ??= 0; continue; }
+      st.d[i] += (cx - st.cx[i]) * ca + (cy - st.cy[i]) * sa;
+      st.cx[i] = cx; st.cy[i] = cy;
+      const ml = Math.sqrt((cx - st.mx[i]) ** 2 + (cy - st.my[i]) ** 2);
+      if (ml >= step) {
+        if (marks) this.marks.add(st.mx[i], st.my[i], cx, cy, tk[i].w * s * 0.86, st.odo[i], step, time);
+        st.odo[i] += ml; st.mx[i] = cx; st.my[i] = cy;
+      }
+    }
+    st.x = x; st.y = y;
+    return g => { for (let i = 0; i < tk.length; i++) if (tk[i].group === g) return mod(Math.floor(st!.d[i] / s), TRACK_PHASES); return 0; };
+  }
 
   addDecal(d: Decal): void {
     const i = this.decalN % this.decalMax;
@@ -187,7 +225,7 @@ export class IsoWorld {
     if (this.extra !== obj) {
       if (this.extra) this.r.scene.remove(this.extra);
       this.extra = obj; this.r.scene.add(obj);
-      this.units.visible = this.decals.visible = this.fx.group.visible = this.ao.visible = false;
+      this.units.visible = this.decals.visible = this.marks.mesh.visible = this.fx.group.visible = this.ao.visible = false;
     }
     this.r.resize(cam.w, cam.h);
     if (ground !== null) {
@@ -203,12 +241,14 @@ export class IsoWorld {
 
   // ------------------------------------------------------------ кадр
   render(sim: Sim, cam: Camera, alpha: number, time: number, tv: TransView | null = null): void {
-    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = this.fx.group.visible = this.ao.visible = true; }
+    if (this.extra) { this.r.scene.remove(this.extra); this.extra = null; this.units.visible = this.decals.visible = this.marks.mesh.visible = this.fx.group.visible = this.ao.visible = true; }
     this.setSeed(sim.cfg.seed);
     this.r.resize(cam.w, cam.h);
     this.ground(sim, cam, tv);
     for (const p of this.pools.values()) p.begin();
     this.aoN = 0;
+    if (++this.frameNo % 120 === 0) for (const [k, t] of this.treads) if (this.frameNo - t.seen > 60) this.treads.delete(k);
+    this.marks.frame(time);
     let hide: Set<number> | null = null;
     if (tv && !tv.switched && tv.lego > 0) {
       const toys = this.toyList(sim, tv.from, cam);
@@ -323,7 +363,8 @@ export class IsoWorld {
     const col = !tv && p.hurtT > 0.12 ? FLASH : undefined;
     const ts = tv ? tv.tankScale : 1;
     this.aoAdd(x, y, (p.hl * 2 + 18) * ts, (p.hw * 2 + 16) * ts, p.angle);
-    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col);
+    const fr = p.state === 'down' ? undefined : this.treadFrame('p' + p.idx, m, x, y, p.angle, s, time, !tv || !tv.switched);
+    this.pool(key).add(this.root(x, 0, y, p.angle, s), n => (n === 'turret' ? -(p.turret - p.angle) : n === 'key' ? time * 2.5 : 0), col, undefined, fr);
   }
 
   private syncWreck(w: NonNullable<TransView['wreck']>, time: number): void {
@@ -351,7 +392,8 @@ export class IsoWorld {
     else if (e.bonus && Math.floor(time * 5) % 2 === 0) col = BONUS;
     else if (e.elite) col = ELITE;
     else if (e.burnT > 0) col = BURN;
-    this.pool(key).add(this.root(x, h, y, a, s), n => (n === 'turret' ? -(e.turret - a) : n === 'rotor' ? time * 25 + e.id : n === 'key' ? time * 2.5 : n === 'spin' ? time * 6 : n === 'prop' ? time * 30 : 0), col);
+    const fr = !e.air && h < 1 ? this.treadFrame('e' + e.id, m, x, y, a, s, time, true) : undefined;
+    this.pool(key).add(this.root(x, h, y, a, s), n => (n === 'turret' ? -(e.turret - a) : n === 'rotor' ? time * 25 + e.id : n === 'key' ? time * 2.5 : n === 'spin' ? time * 6 : n === 'prop' ? time * 30 : 0), col, undefined, fr);
   }
 }
 

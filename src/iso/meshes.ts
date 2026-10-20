@@ -8,6 +8,7 @@ export function modelGroup(key: string, size: number, lit: THREE.Material, glow:
   const g = new THREE.Group();
   const k = size / (m.foot ? Math.max(...m.foot) : m.size);
   for (const p of m.parts) {
+    if (p.frame && p.frame[1]) continue;      // кадры анимации — только первый
     const sub = new THREE.Group();
     sub.position.copy(p.at);
     sub.userData.part = p.name;

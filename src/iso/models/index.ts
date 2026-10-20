@@ -1,5 +1,5 @@
 // Реестр моделей: ключ → построитель. Модели строятся лениво (при первой встрече) и кешируются.
-import { Vox, buildModel, type BuiltModel, type ModelDef } from '../vox';
+import { Vox, buildModel, animTracks, type BuiltModel, type ModelDef } from '../vox';
 import { tankModel, wreckModel, type TankClass } from './tanks';
 import { heroII } from './hero';
 import { rotor } from './kit';
@@ -92,7 +92,7 @@ export function model(key: string): BuiltModel {
   else if (kind === 'drone') def = drone();
   else if (kind === 'mine') def = items.mine(+a || 0, b === '1');
   else def = fallback('pink');
-  m = buildModel(def);
+  m = buildModel(animTracks(def));
   cache.set(key, m);
   return m;
 }

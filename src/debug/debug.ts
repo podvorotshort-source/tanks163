@@ -1,6 +1,6 @@
 // Отладочный API в window.__tk — для автотестов (Playwright) и ручной проверки.
 
-import { damagePlayer } from '../sim/combat';
+import { damagePlayer, damageEnemy } from '../sim/combat';
 import type { App } from '../app';
 import { GameScene } from '../client/game';
 import { input } from '../input/input';
@@ -43,6 +43,8 @@ export function installDebug(app: App): void {
     xp(levels = 1) { const s = game()?.sim; if (s) for (let i = 0; i < levels; i++) s.gainXp((s.xpNeed() - s.xp + 0.01) * s.director.playersFactor()); },
     skipStage() { game()?.sim.debugSkipStage(); },
     boss() { const s = game()?.sim; if (s) s.stageTime = s.stage.bossAt - 0.1; },
+    /** Добить босса (как удар в бою — с обломками и кат-сценой поглощения). */
+    killBoss() { const s = game()?.sim; if (s?.boss) damageEnemy(s, s.boss, s.boss.hp * 50 + 1e6, 'true', 0, ''); },
     hurt(p: number, k = 0.5) { const s = game()?.sim; if (s) { const pl = s.players[p]; pl.hp -= pl.maxHp * k; } },
     /** Поджечь землю рядом с игроком (проверка огня): смещение по x, радиус. */
     ignite(dx = 90, r = 40) { const s = game()?.sim; if (!s) return; const p = s.players[0]; s.fire.ignite(p.x + dx, p.y, r, 30, 0, -1, true); },

@@ -66,99 +66,163 @@ function finish(x: Ctx, parts: PartDef[], len: number): ModelDef {
 }
 
 // ============================================================================ III. Робот-тиран
-/** Облик III / босс II «Пульт-тиран»: гусеничное шасси, на поворотном круге — торс боевого робота
- *  на радиоуправлении: наплечники, руки-орудия (у босса — лазерные пушки), голова со светящимся визором,
- *  на спине — большая антенна-приёмник с тарелкой (слабое место) и аккумуляторный ранец. */
+/** Гранёный брус: [cx±hx]×[y0,y1)×[cz±hz], вертикальные рёбра срезаны на ch (45°), верхние — фаской bev (45°).
+ *  Только 45°: пологие скосы дают на пиксельной сетке полосы-лесенки. */
+function block(v: Vox, cx: number, cz: number, hx: number, hz: number, y0: number, y1: number, m: string, ch = 0, bev = 0): void {
+  v.fill((xx, y, z) => {
+    const ax = Math.abs(xx - cx), az = Math.abs(z - cz);
+    if (ax > hx || az > hz || ax + az > hx + hz - ch) return undefined;
+    if (bev > 0 && y1 - y < Math.max(ax - (hx - bev), az - (hz - bev), ax + az - (hx + hz - ch - bev))) return undefined;
+    return m;
+  }, cx - hx - 1, cx + hx + 1, y0, y1, cz - hz - 1, cz + hz + 1);
+}
+
+/** Облик III / босс II «Пульт-тиран»: боевой робот на радиоуправлении поверх гусеничного шасси.
+ *  Силуэт читается издалека: широкие рубленые наплечники из трёх пластин, шлем с гребнем и светящимся визором-щелью,
+ *  руки-орудия (у босса — лазерные пушки с рёбрами радиатора), на спине — ранец с двумя батарейками
+ *  и высокая телескопическая антенна приёмника с огнём на конце (слабое место босса). */
 export function formTyrant(cls: TankClass, glow: string, boss = false): ModelDef {
   const x = mk(cls, glow, boss), q = x.q;
   const L = SC(x, 52), W = SC(x, 46), TH = S(x, 13), TW = SC(x, 12);
-  const NX = L + S(x, 8), NZ = W + S(x, 4), zc = NZ / 2, x0 = S(x, 4), x1 = x0 + L;
+  const NX = L + S(x, 10), NZ = W + S(x, 4), zc = NZ / 2, x0 = S(x, 4), x1 = x0 + L;
   const v = new Vox(NX, S(x, 26), NZ);
   chassis(x, v, x0, x1, NZ, TH, TW, boss ? 7 : 5, S(x, 2));
+
+  // ---------------- корпус-палуба: гранёный, фаски 45°, тёмный пояс внизу
   const hz0 = S(x, 3), hz1 = NZ - S(x, 3), yb = TH - q, yt = TH + S(x, 6);
-  v.box(x0 + q, x1 - q, yb, yt, hz0, hz1, 'steel');
-  v.cut(1, 1, 0, (x1 - S(x, 10)) + yt, x1 - S(x, 11), x1, yb, yt);                       // скошенный лоб
-  v.cut(-1.4, 1, 0, -1.4 * (x0 + S(x, 5)) + yt, x0, x0 + S(x, 6), yb, yt);
+  const dcx = (x0 + x1) / 2, dhx = L / 2 - q, dhz = (hz1 - hz0) / 2;
+  block(v, dcx, zc, dhx, dhz, yb, yt, 'steel', S(x, 5), q);
   v.paint(() => 'steel_d', x0, x1, yb, yb + 2 * q, 0, NZ);
-  for (let xx = x0 + S(x, 8); xx < x1 - S(x, 11); xx += S(x, 8)) v.paint(() => 'gun_d', xx, xx + 1, yt - 1, yt, hz0 + S(x, 3), hz1 - S(x, 3));
-  // поворотный круг под торсом: тёмное кольцо со светящимися огнями
-  const rx = x0 + L * 0.5;
-  v.cylY(rx, zc, S(x, 13) * x.c, yt, yt + q, 'gun_d');
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; v.set(rx + Math.cos(a) * S(x, 12.4) * x.c, yt, zc + Math.sin(a) * S(x, 12.4) * x.c, x.g); }
-  // фары и кормовые батареи
-  for (const zz of [hz0 + S(x, 3), hz1 - S(x, 5)]) v.box(x1 - 2 * q, x1, yb + 2 * q, yb + 4 * q, zz, zz + 2 * q, x.g);
-  for (const zz of [hz0 + S(x, 2), hz1 - S(x, 8)]) { v.box(x0 + q, x0 + S(x, 9), yt, yt + S(x, 4), zz, zz + S(x, 6), 'gun'); v.box(x0 + 2 * q, x0 + S(x, 8), yt + S(x, 4), yt + S(x, 4) + 1, zz + q, zz + S(x, 5), x.g); }
-  if (boss) { rivets(v, x0 + 6 * q, x1 - 14 * q, yt - 3 * q, hz0, 4 * q); rivets(v, x0 + 6 * q, x1 - 14 * q, yt - 3 * q, hz1 - 1, 4 * q); }
+  v.paint(() => 'gun_d', x0, x1, yb + 2 * q, yb + 2 * q + Math.max(1, q / 2), 0, NZ);
+  // швы палубы поперёк (реже, чем раньше — крупные плиты, а не штриховка)
+  for (const xx of [x0 + S(x, 14), x1 - S(x, 16)]) v.paint(() => 'gun_d', xx, xx + Math.max(1, q / 2), yt - 1, yt, hz0 + S(x, 5), hz1 - S(x, 5));
+  // носовой бампер-таран: тёмная балка с фарами
+  const by0 = S(x, 4), by1 = yb + S(x, 2);
+  block(v, x1 + S(x, 1), zc, S(x, 2.5), dhz - S(x, 4), by0, by1, 'gun', S(x, 2), q);
+  for (const s of [-1, 1]) {
+    const fz = zc + s * (dhz - S(x, 8));
+    v.box(x1 + S(x, 2), x1 + S(x, 3.6), by0 + S(x, 2), by0 + S(x, 5), fz - S(x, 2), fz + S(x, 2), x.g);
+    v.box(x1 + S(x, 3), x1 + S(x, 3.7), by0 + S(x, 3), by0 + S(x, 4), fz - q, fz + q, 'lamp');
+  }
+  // корма: блок приёмника со светодиодами
+  block(v, x0 + S(x, 4), zc, S(x, 3), S(x, 9), yt - S(x, 2), yt + S(x, 3), 'gun', S(x, 2), q);
+  for (let i = -1; i <= 1; i++) v.box(x0 + S(x, 1) - 1, x0 + S(x, 1), yt, yt + S(x, 1.5), zc + i * S(x, 4) - q, zc + i * S(x, 4) + q, x.g);
+  // крышка аккумуляторного отсека на палубе: тёмная рамка, винты, светящийся «плюс»
+  const hx0 = x0 + S(x, 6), hx1 = x0 + S(x, 13);
+  for (const s of [-1, 1]) {
+    const cz0 = zc + s * S(x, 12);
+    v.paint(() => 'steel_d', hx0, hx1, yt - 1, yt, cz0 - S(x, 4), cz0 + S(x, 4));
+    v.paint(() => 'steel', hx0 + q, hx1 - q, yt - 1, yt, cz0 - S(x, 3), cz0 + S(x, 3));
+    for (const [a, b] of [[hx0 + q, cz0 - S(x, 3)], [hx1 - 2 * q, cz0 + S(x, 2)]]) v.paint(() => 'steel_l', a, a + q, yt - 1, yt, b, b + q);
+    const px = (hx0 + hx1) / 2;
+    v.paint(() => x.g, px - Math.max(1, q / 2), px + Math.max(1, q / 2), yt - 1, yt, cz0 - S(x, 1.5), cz0 + S(x, 1.5));
+    if (s > 0) v.paint(() => x.g, px - S(x, 1.5), px + S(x, 1.5), yt - 1, yt, cz0 - Math.max(1, q / 2), cz0 + Math.max(1, q / 2));
+  }
+  // поворотный круг: тёмный восьмигранник с огнями
+  const rx = x0 + L * 0.54;
+  block(v, rx, zc, S(x, 13) * x.c, S(x, 13) * x.c, yt, yt + q, 'gun_d', S(x, 7) * x.c);
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; v.box(rx + Math.cos(a) * S(x, 10.5) * x.c - q / 2, rx + Math.cos(a) * S(x, 10.5) * x.c + q / 2, yt, yt + q, zc + Math.sin(a) * S(x, 10.5) * x.c - q / 2, zc + Math.sin(a) * S(x, 10.5) * x.c + q / 2, x.g); }
+  if (boss) for (const zz of [hz0 + S(x, 2), hz1 - S(x, 2) - 1]) rivets(v, x0 + S(x, 16), x1 - S(x, 8), yt - S(x, 3), zz, S(x, 4));
 
   // ---------------- торс робота (поворачивается как башня)
-  const TNX = S(x, 76), TNZ = SC(x, 60), tcx = S(x, 26), tcz = TNZ / 2;
-  const t = new Vox(TNX, S(x, 52), TNZ);
-  const cw = SC(x, 13), cd = S(x, 10);               // полуширина груди, полуглубина
-  // таз и талия
-  t.cylY(tcx, tcz, S(x, 8) * x.c, 0, S(x, 3), 'gun_d');
-  t.box(tcx - S(x, 6), tcx + S(x, 6), S(x, 3), S(x, 7), tcz - S(x, 7), tcz + S(x, 7), 'steel_d');
-  for (let y = S(x, 3.5); y < S(x, 7); y += S(x, 1.5)) t.box(tcx - S(x, 6.2), tcx + S(x, 6.2), y, y + 1, tcz - S(x, 7.2), tcz + S(x, 7.2), 'gun_d');   // гофра
-  // грудь: широкая, расширяется кверху, грудная плита скошена
-  t.fill((xx, y, z) => {
-    if (y < S(x, 7) || y > S(x, 25)) return undefined;
-    const k = (y - S(x, 7)) / S(x, 18), hw = cw * (0.78 + 0.22 * k), dx = xx - tcx;
-    if (Math.abs(z - tcz) > hw || dx > cd || dx < -cd) return undefined;
-    if (dx > cd - S(x, 3) && y > S(x, 25) - (dx - (cd - S(x, 3))) * 1.6) return undefined;
-    if (Math.abs(z - tcz) > hw - S(x, 2) && dx > cd - S(x, 2)) return undefined;
-    return 'steel';
-  }, 0, TNX, 0, S(x, 26), 0, TNZ);
-  t.paint((xx, y) => (y < S(x, 9) ? 'steel_d' : undefined));
-  // реактор в груди: светящийся круг в оправе
-  t.cylX(S(x, 17), tcz, S(x, 4.2), tcx + cd - 2 * q, tcx + cd + 0.01, 'gun_d');
-  t.cylX(S(x, 17), tcz, S(x, 3), tcx + cd - q, tcx + cd + 0.6, x.g);
-  t.cylX(S(x, 17), tcz, S(x, 1.2), tcx + cd, tcx + cd + 0.9, 'lamp');
-  // пластины пресса — светящиеся щели между ними
-  for (let i = 0; i < 3; i++) t.box(tcx + cd - q, tcx + cd, S(x, 8.5) + i * S(x, 1.8), S(x, 8.5) + i * S(x, 1.8) + 1, tcz - S(x, 4), tcz + S(x, 4), x.g);
-  // голова: шлем с гребнем, визор, «уши»-антенны
-  const hy = S(x, 25);
-  t.box(tcx - S(x, 4), tcx + S(x, 5), hy, hy + S(x, 7), tcz - S(x, 4.5), tcz + S(x, 4.5), 'steel');
-  t.cut(1, 1, 0, tcx + S(x, 5) + hy + S(x, 4), tcx + S(x, 2), tcx + S(x, 5), hy, hy + S(x, 7));
-  t.box(tcx + S(x, 3), tcx + S(x, 5), hy + S(x, 2.5), hy + S(x, 4), tcz - S(x, 3.5), tcz + S(x, 3.5), x.g);        // визор
-  t.box(tcx + S(x, 4.5), tcx + S(x, 5.2), hy + S(x, 2.8), hy + S(x, 3.7), tcz - S(x, 2.5), tcz - S(x, 1.2), 'lamp');
-  t.box(tcx + S(x, 4.5), tcx + S(x, 5.2), hy + S(x, 2.8), hy + S(x, 3.7), tcz + S(x, 1.2), tcz + S(x, 2.5), 'lamp');
-  t.box(tcx - S(x, 3), tcx + S(x, 3), hy + S(x, 7), hy + S(x, 8), tcz - q, tcz + q, 'steel_d');                    // гребень
-  for (const s of [-1, 1]) { t.box(tcx - S(x, 2), tcx + S(x, 1), hy + S(x, 2), hy + S(x, 5), tcz + s * S(x, 4.5), tcz + s * S(x, 5.5), 'gun'); t.seg([tcx - S(x, 1), hy + S(x, 5), tcz + s * S(x, 5)], [tcx - S(x, 3), hy + S(x, 10), tcz + s * S(x, 5.5)], 0.45 * q, 'gun_d'); t.set(tcx - S(x, 3), hy + S(x, 10), tcz + s * S(x, 5.5), x.g); }
+  const TNX = S(x, 78), TNZ = SC(x, 64), tcx = S(x, 28), tcz = TNZ / 2;
+  const t = new Vox(TNX, S(x, 60), TNZ);
+  const cw = SC(x, 12), cd = S(x, 9);                 // полуширина и полуглубина груди
+  // таз и гофрированная талия: восьмигранные кольца в два тона
+  block(t, tcx, tcz, S(x, 8), S(x, 8) * x.c, 0, S(x, 3), 'gun_d', S(x, 4));
+  for (let y = S(x, 3), i = 0; y < S(x, 8); y += S(x, 1.25), i++) block(t, tcx, tcz, S(x, i & 1 ? 6 : 5.5), S(x, i & 1 ? 6 : 5.5) * x.c, y, y + S(x, 1.25), i & 1 ? 'gun' : 'gun_d', S(x, 3));
+  // грудь: восьмигранная, шире кверху ступенями, с фаской сверху
+  const steps = 3, sy0 = S(x, 8), sy1 = S(x, 27);
+  for (let i = 0; i < steps; i++) {
+    const ya = sy0 + Math.round(((sy1 - sy0) * i) / steps), yb2 = i === steps - 1 ? sy1 : sy0 + Math.round(((sy1 - sy0) * (i + 1)) / steps);
+    block(t, tcx, tcz, cd - S(x, 2 - i), cw - S(x, 2 * (2 - i)) * x.c, ya, yb2, i === 0 ? 'steel_d' : 'steel', S(x, 4), i === steps - 1 ? S(x, 3) : 0);
+  }
+  // тёмные швы между ступенями груди
+  for (let i = 1; i < steps; i++) { const ya = sy0 + Math.round(((sy1 - sy0) * i) / steps); t.paint(() => 'gun_d', 0, TNX, ya, ya + Math.max(1, q / 2), 0, TNZ); }
+  // нагрудная плита: светлая рамка вокруг реактора
+  const fx = tcx + cd, ry = S(x, 18);
+  t.box(fx - q, fx + q, ry - S(x, 6), ry + S(x, 6), tcz - S(x, 7), tcz + S(x, 7), 'gun');
+  t.box(fx, fx + q, ry - S(x, 5), ry + S(x, 5), tcz - S(x, 6), tcz + S(x, 6), 'steel_l');
+  t.cylX(ry, tcz, S(x, 4.5), fx, fx + q + 0.01, 'gun_d');
+  t.cylX(ry, tcz, S(x, 3.4), fx, fx + q + 0.6, x.g);
+  t.cylX(ry, tcz, S(x, 1.4), fx, fx + q + 0.9, 'lamp');
+  // решётка пресса — светящиеся щели
+  for (let i = 0; i < 3; i++) t.box(fx - q, fx, S(x, 9) + i * S(x, 1.6), S(x, 9) + i * S(x, 1.6) + Math.max(1, q / 2), tcz - S(x, 5), tcz + S(x, 5), x.g);
+
+  // голова: шлем с фасками, визор-щель с обхватом на бока, решётка рта, гребень
+  const hy = S(x, 27), hx = tcx + q, hh = S(x, 9);
+  block(t, tcx, tcz, S(x, 3), S(x, 3), hy - q, hy + q, 'gun_d');                                         // шея
+  block(t, hx, tcz, S(x, 5), S(x, 5), hy + q, hy + hh, 'steel', S(x, 2), S(x, 2));
+  const vy = hy + S(x, 4.5);
+  t.paint((xx, y, z) => (xx > hx + S(x, 2) || Math.abs(z - tcz) > S(x, 4) ? 'gun_d' : undefined), 0, TNX, vy - q, vy + S(x, 2) + q, 0, TNZ);   // оправа визора
+  t.paint((xx, y, z) => (xx > hx + S(x, 3) || (Math.abs(z - tcz) > S(x, 4) && xx > hx) ? x.g : undefined), 0, TNX, vy, vy + S(x, 2), 0, TNZ);
+  t.box(hx + S(x, 4.5), hx + S(x, 5.2), vy, vy + S(x, 2), tcz - S(x, 1), tcz + S(x, 1), 'lamp');                      // зрачок-огонь
+  for (let i = -2; i <= 2; i++) t.paint(() => 'gun_d', hx + S(x, 4), hx + S(x, 5), hy + S(x, 1.5), hy + S(x, 3.5), tcz + i * S(x, 1.6) - Math.max(0.5, q / 4), tcz + i * S(x, 1.6) + Math.max(0.5, q / 4));   // рот-решётка
+  t.box(hx - S(x, 4), hx + S(x, 3), hy + hh, hy + hh + S(x, 2), tcz - q, tcz + q, 'steel_d');            // гребень
+  t.box(hx + S(x, 1), hx + S(x, 3), hy + hh + S(x, 2), hy + hh + S(x, 3), tcz - q, tcz + q, x.g);
+  for (const s of [-1, 1]) {                                                                              // «уши»-приёмники
+    t.box(hx - S(x, 2), hx + S(x, 2), hy + S(x, 3), hy + S(x, 7), tcz + s * S(x, 5) - (s < 0 ? S(x, 1.5) : 0), tcz + s * S(x, 5) + (s > 0 ? S(x, 1.5) : 0), 'gun');
+    t.box(hx - q, hx + q, hy + S(x, 4.5), hy + S(x, 5.5), tcz + s * S(x, 6.5) - (s < 0 ? q / 2 : 0), tcz + s * S(x, 6.5) + (s > 0 ? q / 2 : 0), x.g);
+  }
+
   // наплечники и руки-орудия
   for (const s of [-1, 1]) {
-    const sz = tcz + s * (cw + S(x, 5)), sy = S(x, 21);
-    t.ell(tcx, sy, sz, S(x, 7), S(x, 5.5), S(x, 5.5), 'steel');
-    t.paint((xx, y) => (y < sy - S(x, 2) ? 'steel_d' : undefined), tcx - S(x, 8), tcx + S(x, 8), sy - S(x, 6), sy, sz - S(x, 6), sz + S(x, 6));
-    t.box(tcx - S(x, 6), tcx + S(x, 6), sy + S(x, 1), sy + S(x, 1) + 1, sz - S(x, 5.6), sz + S(x, 5.6), x.g);        // светящаяся кромка
-    if (boss) for (let i = -4; i <= 4; i += 2) t.set(tcx + i * q, sy + S(x, 4.6), sz, 'steel_l');
-    // плечо → локоть → предплечье вперёд
+    const sz = tcz + s * (cw + S(x, 5) * x.c), sy = S(x, 20);
+    // плечевой шарнир
+    block(t, tcx, sz - s * S(x, 4), S(x, 3), S(x, 2), sy - S(x, 4), sy + S(x, 1), 'gun_d');
+    // три пластины: верхняя — с фаской, нижние ступенями наружу и вниз
+    block(t, tcx, sz, S(x, 7.5), S(x, 6), sy, sy + S(x, 5), 'steel', S(x, 3), S(x, 2));
+    t.paint(() => 'steel_l', tcx - S(x, 4), tcx + S(x, 4), sy + S(x, 5) - 1, sy + S(x, 5), sz - S(x, 1), sz + S(x, 1));   // светлый гребень
+    for (let i = 1; i <= 2; i++) {
+      const ly = sy - i * S(x, 3), oz = sz + s * i * q;
+      block(t, tcx, oz, S(x, 7.5 - i), S(x, 6), ly, ly + S(x, 3), i === 1 ? 'steel' : 'steel_d', S(x, 2));
+      t.paint(() => 'gun_d', 0, TNX, ly + S(x, 3) - Math.max(1, q / 2), ly + S(x, 3), oz - S(x, 7), oz + S(x, 7));
+    }
+    t.paint((xx, y, z) => (Math.abs(z - sz) > S(x, 5) ? x.g : undefined), tcx - S(x, 5), tcx + S(x, 5), sy, sy + Math.max(1, q / 2), sz - S(x, 8), sz + S(x, 8));   // светящаяся кромка
+    if (boss) for (let i = -5; i <= 5; i += 2.5) t.set(tcx + i * q, sy + S(x, 3), sz + s * S(x, 6) - (s > 0 ? 1 : 0), 'steel_l');
+    // плечо → локоть → предплечье-кожух вперёд
     const ex = tcx + S(x, 2), ey = S(x, 11), ez = sz;
-    t.seg([tcx, sy - S(x, 3), sz], [ex, ey, ez], S(x, 2.6), 'gun');
-    t.sphere(ex, ey, ez, S(x, 3), 'steel_d');
-    t.cylX(ey, ez, S(x, 3.6), ex, ex + S(x, 13), 'steel');                                                           // предплечье-кожух
-    t.cylX(ey, ez, S(x, 3.8), ex + S(x, 4), ex + S(x, 5), 'gun_d');
-    t.cylX(ey, ez, S(x, 3.8), ex + S(x, 9), ex + S(x, 10), 'gun_d');
-    t.box(ex + S(x, 6), ex + S(x, 8), ey + S(x, 3.4), ey + S(x, 4), ez - q, ez + q, x.g);
-    classGun(x, t, ex + S(x, 13), ey, ez, (tt, gx, gy, gz) => {
-      // лазерная пушка: ствол-излучатель с охлаждающими кольцами и линзой
-      tt.cylX(gy, gz, S(x, 2.4), gx, gx + S(x, 22), 'gun');
-      for (let i = 0; i < 5; i++) tt.cylX(gy, gz, S(x, 3.1), gx + S(x, 2) + i * S(x, 3.5), gx + S(x, 3) + i * S(x, 3.5), 'steel_d');
-      tt.cylX(gy, gz, S(x, 3.4), gx + S(x, 20), gx + S(x, 23), 'gun_d');
-      tt.cylX(gy, gz, S(x, 1.8), gx + S(x, 22), gx + S(x, 23.4), x.g);
-      tt.cylX(gy, gz, S(x, 0.8), gx + S(x, 23), gx + S(x, 23.6), 'lamp');
+    t.seg([tcx, sy - S(x, 6), ez], [ex, ey + S(x, 2), ez], S(x, 2.2), 'gun');
+    block(t, ex, ez, S(x, 3), S(x, 3), ey - S(x, 3), ey + S(x, 3), 'gun_d', S(x, 1.5));                     // локоть
+    const fcx = ex + S(x, 8);
+    block(t, fcx, ez, S(x, 6), S(x, 3.5), ey - S(x, 3.5), ey + S(x, 3.5), 'steel', S(x, 1.5), S(x, 1.5));   // кожух
+    t.paint(() => 'steel_d', fcx - S(x, 6), fcx + S(x, 6), ey - S(x, 3.5), ey - S(x, 1.5), ez - S(x, 4), ez + S(x, 4));
+    t.paint(() => 'gun_d', fcx - S(x, 1), fcx, ey - S(x, 4), ey + S(x, 4), ez - S(x, 4), ez + S(x, 4));
+    t.box(fcx + S(x, 1), fcx + S(x, 4), ey + S(x, 3.5), ey + S(x, 3.5) + Math.max(1, q / 2), ez - q, ez + q, x.g);   // огонь на кожухе
+    classGun(x, t, fcx + S(x, 6), ey, ez, (tt, gx, gy, gz) => {
+      // лазерная пушка: ствол, блок радиатора с рёбрами, кожух дула, линза
+      tt.cylX(gy, gz, S(x, 2), gx, gx + S(x, 20), 'gun');
+      block(tt, gx + S(x, 5), gz, S(x, 5), S(x, 3), gy - S(x, 3), gy + S(x, 3), 'gun_d', S(x, 1));
+      for (let i = 0; i < 5; i++) { const fx2 = gx + S(x, 1) + i * S(x, 2); block(tt, fx2 + q / 2, gz, q / 2, S(x, 3.6), gy - S(x, 3.6), gy + S(x, 3.6), 'steel', S(x, 1)); }
+      block(tt, gx + S(x, 18), gz, S(x, 2.5), S(x, 2.8), gy - S(x, 2.8), gy + S(x, 2.8), 'gun', S(x, 1));
+      tt.cylX(gy, gz, S(x, 1.8), gx + S(x, 20), gx + S(x, 21), 'gun_d');
+      tt.cylX(gy, gz, S(x, 1.2), gx + S(x, 20.5), gx + S(x, 21.4), x.g);
+      tt.cylX(gy, gz, S(x, 0.5), gx + S(x, 21), gx + S(x, 21.6), 'lamp');
     });
   }
-  // ранец-аккумулятор и антенна-приёмник на спине (слабое место босса)
-  const bx = tcx - cd - S(x, 6);
-  t.box(bx, tcx - cd + q, S(x, 9), S(x, 23), tcz - S(x, 7), tcz + S(x, 7), 'gun');
-  for (let i = 0; i < 3; i++) t.box(bx - 1, bx, S(x, 11) + i * S(x, 4), S(x, 12) + i * S(x, 4), tcz - S(x, 5), tcz + S(x, 5), x.g);
-  t.cylY(bx + S(x, 2), tcz + S(x, 4), S(x, 1.4), S(x, 23), S(x, 25), 'steel_d');
-  t.seg([bx + S(x, 2), S(x, 24), tcz + S(x, 4)], [bx - S(x, 3), S(x, 46), tcz + S(x, 4)], 0.55 * q, 'gun_d');
-  for (const yy of [S(x, 30), S(x, 36), S(x, 41)]) { const tt = (yy - S(x, 24)) / S(x, 22); t.set(bx + S(x, 2) - S(x, 5) * tt - 1, yy, tcz + S(x, 4), 'steel_l'); t.set(bx + S(x, 2) - S(x, 5) * tt + 1, yy, tcz + S(x, 4), 'steel_l'); }
-  t.sphere(bx - S(x, 3), S(x, 47), tcz + S(x, 4), S(x, 1.6), x.g);
-  // тарелка приёмника
-  t.fill((xx, y, z) => { const dx = xx - (bx - S(x, 2)), dy = y - S(x, 30), dz = z - (tcz - S(x, 4)); const r2 = dy * dy + dz * dz; return r2 < S(x, 4.6) ** 2 && Math.abs(dx - r2 / (S(x, 14))) < 0.7 * q ? 'steel_l' : undefined; }, bx - S(x, 6), bx + S(x, 4), S(x, 24), S(x, 36), tcz - S(x, 10), tcz + S(x, 2));
-  t.seg([bx, S(x, 22), tcz - S(x, 4)], [bx - S(x, 2), S(x, 30), tcz - S(x, 4)], 0.5 * q, 'gun_d');
-  t.set(bx + S(x, 1), S(x, 30), tcz - S(x, 4), x.g);
+
+  // ранец на спине: две батарейки поперёк, индикатор заряда, телескопическая антенна (слабое место босса)
+  const bx = tcx - cd - S(x, 4);
+  block(t, bx, tcz, S(x, 4), S(x, 8), S(x, 10), S(x, 25), 'gun', S(x, 2), S(x, 1.5));
+  for (let i = 0; i < 3; i++) t.box(bx - S(x, 4) - 1, bx - S(x, 4), S(x, 13) + i * S(x, 3), S(x, 14.5) + i * S(x, 3), tcz - S(x, 5), tcz + S(x, 5), x.g);
+  for (const by of [S(x, 14), S(x, 21)]) {
+    const bcx = bx - S(x, 5.5);
+    t.cylZ(bcx, by, S(x, 2.6), tcz - S(x, 8), tcz + S(x, 8), 'steel_l');          // корпус батарейки
+    t.cylZ(bcx, by, S(x, 2.7), tcz - S(x, 3), tcz + S(x, 3), 'steel_d');           // этикетка-полоса
+    t.cylZ(bcx, by, S(x, 2.7), tcz + S(x, 5), tcz + S(x, 6), x.g);                 // «+» — светящееся кольцо
+    t.cylZ(bcx, by, S(x, 1.2), tcz + S(x, 8), tcz + S(x, 9), 'chrome');            // контакт
+    t.cylZ(bcx, by, S(x, 2.2), tcz - S(x, 9), tcz - S(x, 8), 'steel_d');
+  }
+  // антенна: основание, три колена всё тоньше (светлеют кверху), муфты на стыках, огонь на конце
+  const az = tcz + S(x, 5), ab: [number, number, number] = [bx, S(x, 25), az];
+  block(t, bx, az, S(x, 2), S(x, 2), S(x, 25), S(x, 27), 'gun_d', q);
+  const tip: [number, number, number] = [bx - S(x, 6), S(x, 53), az + S(x, 1)];
+  const at = (k: number): [number, number, number] => [ab[0] + (tip[0] - ab[0]) * k, ab[1] + (tip[1] - ab[1]) * k, ab[2] + (tip[2] - ab[2]) * k];
+  const secs: [number, number, number, string][] = [[0, 0.4, 1.1, 'gun'], [0.4, 0.72, 0.8, 'steel'], [0.72, 1, 0.55, 'steel_l']];
+  for (const [a, b, r, m] of secs) t.seg(at(a), at(b), Math.max(0.55, r * q), m);
+  for (const k of [0.4, 0.72]) t.sphere(...at(k), Math.max(0.9, 1.5 * q), 'gun_d');
+  t.sphere(...tip, Math.max(1, S(x, 1.7)), x.g);
+  t.set(tip[0], tip[1] + Math.max(0, q - 1), tip[2], 'lamp');
 
   return finish(x, [
     { name: 'hull', vox: v, pivot: [NX / 2, 0, NZ / 2] },
